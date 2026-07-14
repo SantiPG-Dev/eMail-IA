@@ -148,7 +148,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'eMail-IA',
-    icon: path.join(__dirname, '..', 'assets', 'icon-256.png'),
+    icon: path.join(__dirname, '..', 'assets', 'icon-512.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -173,9 +173,9 @@ function createWindow() {
 
   // Tray icon (64x64 para mejor visibilidad en HiDPI)
   try {
-    let trayIconPath = path.join(__dirname, '..', 'assets', 'icon-64.png');
+    let trayIconPath = path.join(__dirname, '..', 'assets', 'icon-128.png');
     if (!fs.existsSync(trayIconPath)) {
-      trayIconPath = path.join(__dirname, '..', 'assets', 'icon-256.png');
+      trayIconPath = path.join(__dirname, '..', 'assets', 'icon-512.png');
     }
     if (fs.existsSync(trayIconPath)) {
       const trayIcon = nativeImage.createFromPath(trayIconPath);
