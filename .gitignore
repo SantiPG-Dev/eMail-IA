@@ -56,3 +56,5 @@ SecurityAudit.md
 Thumbs.db
 desktop.ini
 frontend/pnpm-workspace.yaml
+electron/node_modules
+electron/dist

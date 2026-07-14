@@ -1,38 +1,50 @@
 # Electron — eMail-IA (shell de escritorio)
 
-Wrapper **Electron** que envuelve la app para que siga siendo una **app de escritorio independiente** (no web).
+Wrapper **Electron** que envuelve la app de escritorio.
 
-## Arquitectura (Fase 9+)
+## Arquitectura
 
 ```
 Electron (main process)
-├─ spawn: java -jar backend.jar --port=<puerto>
-├─ health-check: poll http://localhost:<puerto>/health
-├─ BrowserWindow → http://localhost:<puerto>
-├─ tray, notificaciones, diálogos nativos
-├─ shell.openExternal() para OAuth (abre navegador del SO)
+├─ spawn: java -jar backend.jar --server.port=8420
+├─ health-check: poll http://localhost:8420/health
+├─ BrowserWindow → http://localhost:8420 (frontend React servido por backend)
+├─ tray icon + notificaciones
 └─ on-quit → kill proceso backend
 ```
 
-## Stack previsto
+## Requisitos
 
-- **Electron** + electron-builder
-- **TypeScript** (main + preload)
-- IPC seguro via preload
-- Packaging: `.deb` / `.AppImage` / `.dmg` / `.exe`
-- Backend JAR + JRE (jpackage) bundlados como recursos
+- Java 21+ (para el backend JAR)
+- Node.js 22+
 
-## Estructura prevista
+## Desarrollo
+
+```bash
+# 1. Construir el backend JAR
+cd ../backend
+mvn clean package -DskipTests
+
+# 2. Compilar el Electron
+cd ../electron
+npm install
+npm run build       # Compila TypeScript → dist/
+
+# 3. Ejecutar (busca el JAR en backend/target/)
+npm start
+```
+
+## Estructura
 
 ```
 electron/
 ├── src/
-│   ├── main.ts        # spawn backend, BrowserWindow, lifecycle
-│   ├── preload.ts     # IPC seguro
-│   └── tray.ts        # tray icon, notificaciones
-├── assets/            # iconos (icon-256.png)
-├── electron-builder.yml
-└── package.json
+│   ├── main.ts        # Proceso principal: spawn backend, ventana, lifecycle
+│   └── preload.ts     # IPC seguro (contextBridge)
+├── assets/
+│   ├── icon-32.png
+│   └── icon-256.png
+├── dist/              # Compilado TypeScript (main.js, preload.js)
+├── package.json
+└── tsconfig.json
 ```
-
-> Fase 0 completada — scaffolding. La implementación empieza en Fase 9.
