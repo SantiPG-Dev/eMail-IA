@@ -13,6 +13,9 @@ spring:
         format_sql: true
     open-in-view: false           # Evita sesiones lazy abiertas en el controller
 
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   flyway:
     enabled: true
     locations: classpath:db/migration
