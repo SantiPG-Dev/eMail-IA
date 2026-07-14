@@ -111,19 +111,27 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         await api.post(`/api/cuentas/${c.id}/sync?limite=${limite}`);
         await refreshMessages();
 
+        const actualMsg = (await refreshMessages()) || 0;
         const pct = limite >= MAX ? 100 : Math.round((limite / MAX) * 100);
-        setState(s => ({
-          ...s, syncing: false, progress: pct,
-          statusText: limite >= MAX
-            ? `${s.totalMessages} mensajes · ${new Date().toLocaleTimeString()}`
-            : `${limite}/${MAX} mensajes cargados`,
-          lastSync: new Date().toISOString(),
-        }));
+        if (actualMsg > 0) {
+          setState(s => ({
+            ...s, syncing: false, progress: pct,
+            statusText: limite >= MAX
+              ? `${actualMsg} mensajes · ${new Date().toLocaleTimeString()}`
+              : `${limite}/${MAX} · ${actualMsg} descargados`,
+            lastSync: new Date().toISOString(),
+          }));
+        }
         if (limite >= MAX) {
           setTimeout(() => setState(s => ({ ...s, progress: 0 })), 3000);
         }
-      } catch {
-        // silencioso en auto-sync
+      } catch (e: any) {
+        const errMsg = e?.response?.data?.message || e?.message || 'Error de conexión IMAP';
+        setState(s => ({
+          ...s, syncing: false, progress: 0,
+          statusText: `⚠️ ${errMsg}`,
+        }));
+        setTimeout(() => setState(s => ({ ...s, statusText: 'Error IMAP. Revisa credenciales.' })), 5000);
       }
     };
 
