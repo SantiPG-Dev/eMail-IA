@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { mensajeApi } from '../api/client';
+import { enviarApi } from '../api/client';
 
 interface Props {
   mode: 'nuevo' | 'responder' | 'reenviar';
@@ -22,13 +22,15 @@ export default function ComposePage({ mode, to, subject, body, onClose }: Props)
     setSending(true);
     setStatus('Enviando...');
     try {
-      // Por ahora guardamos como borrador en mensajes
-      // En el futuro: enviar via SMTP
-      await mensajeApi.list('local');
-      setStatus('Mensaje preparado. (SMTP pendiente de configurar)');
-      setTimeout(() => onClose(), 1500);
+      const res = await enviarApi.send({ para, cc, asunto, cuerpo });
+      if (res.data.ok) {
+        setStatus('✅ Enviado correctamente');
+        setTimeout(() => onClose(), 1500);
+      } else {
+        setStatus('Error: ' + (res.data.error || 'desconocido'));
+      }
     } catch (err: any) {
-      setStatus('Error: ' + (err.message || 'desconocido'));
+      setStatus('Error: ' + (err.response?.data?.error || err.message || 'desconocido'));
     } finally {
       setSending(false);
     }

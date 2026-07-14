@@ -18,6 +18,7 @@ import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
+import jakarta.mail.Transport;
 import jakarta.mail.URLName;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
@@ -352,6 +353,48 @@ public class MailService {
             log.warn("Error moviendo mensaje: {}", e.getMessage());
         }
         return false;
+    }
+
+    // ── Envio SMTP ──────────────────────────────────────────────
+
+    /**
+     * Envia un correo via SMTP.
+     */
+    public boolean enviarCorreo(String smtpHost, int smtpPort, String user, String password,
+                                 String to, String cc, String subject, String body) {
+        try {
+            Properties props = new Properties();
+            props.put("mail.smtp.host", smtpHost);
+            props.put("mail.smtp.port", smtpPort);
+            props.put("mail.smtp.auth", "true");
+            props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.smtp.connectiontimeout", "10000");
+            props.put("mail.smtp.timeout", "10000");
+
+            Session session = Session.getInstance(props, new jakarta.mail.Authenticator() {
+                @Override
+                protected jakarta.mail.PasswordAuthentication getPasswordAuthentication() {
+                    return new jakarta.mail.PasswordAuthentication(user, password);
+                }
+            });
+
+            var msg = new MimeMessage(session);
+            msg.setFrom(new InternetAddress(user));
+            msg.setRecipients(jakarta.mail.Message.RecipientType.TO, InternetAddress.parse(to));
+            if (cc != null && !cc.isBlank()) {
+                msg.setRecipients(jakarta.mail.Message.RecipientType.CC, InternetAddress.parse(cc));
+            }
+            msg.setSubject(subject);
+            msg.setText(body);
+            msg.setSentDate(new java.util.Date());
+
+            Transport.send(msg);
+            log.info("Correo enviado a {} desde {}", to, user);
+            return true;
+        } catch (Exception e) {
+            log.error("Error enviando correo: {}", e.getMessage());
+            return false;
+        }
     }
 
     // ── Resultado ───────────────────────────────────────────────

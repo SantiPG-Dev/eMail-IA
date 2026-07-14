@@ -94,6 +94,11 @@ export const configApi = {
     api.post('/api/config', null, { params: { key, value } }),
 };
 
+export const enviarApi = {
+  send: (data: { para: string; cc?: string; asunto: string; cuerpo: string }) =>
+    api.post('/api/enviar', data),
+};
+
 export const utilApi = {
   syncAll: () => api.post('/api/util/sync-all'),
 };
