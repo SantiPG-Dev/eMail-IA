@@ -1,0 +1,57 @@
+# =========================
+# eMail-IA — Monorepo .gitignore
+# =========================
+
+# --- Java / Backend ---
+backend/target/
+*.class
+*.jar
+!backend/**/*.jar
+*.war
+
+# --- Node.js / Frontend / Electron ---
+node_modules/
+frontend/dist/
+frontend/node_modules/
+electron/dist/
+electron/out/
+electron/node_modules/
+*.tsbuildinfo
+
+# --- Vite ---
+*.local
+
+# --- Electron builder ---
+electron/release/
+electron-builder-cache/
+
+# --- Archivos de datos locales (H2 cifrada, modelos Weka) ---
+*.mv.db
+*.trace.db
+emailAI.db
+*.model
+DB/
+.eMailAI/
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Security audit (no se commitea) ---
+SecurityAudit.md
+
+# --- Entorno ---
+.env
+.env.local
+.env.*.local
+
+# --- IDE ---
+.metadata/
+.vscode/
+*.iml
+# .idea/ se mantiene versionado (config IntelliJ compartida)
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
