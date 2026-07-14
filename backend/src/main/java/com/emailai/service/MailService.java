@@ -23,6 +23,7 @@ import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 import jakarta.mail.search.SearchTerm;
 
+import com.emailai.ai.AiService;
 import com.emailai.domain.entities.Mensaje;
 
 /**

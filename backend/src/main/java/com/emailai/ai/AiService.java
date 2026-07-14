@@ -1,4 +1,4 @@
-package com.emailai.service;
+package com.emailai.ai;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
