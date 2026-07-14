@@ -10,6 +10,8 @@ files:
   - dist/**/*
   - assets/**/*
 
+icon: assets/icon-256.png
+
 extraResources:
   - from: ../backend/target/emailai-backend-1.0-SNAPSHOT.jar
     to: backend.jar

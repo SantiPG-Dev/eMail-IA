@@ -171,11 +171,15 @@ function createWindow() {
     mainWindow = null;
   });
 
-  // Tray icon
+  // Tray icon (64x64 para mejor visibilidad en HiDPI)
   try {
-    const iconPath = path.join(__dirname, '..', 'assets', 'icon-32.png');
-    if (fs.existsSync(iconPath)) {
-      tray = new Tray(nativeImage.createFromPath(iconPath));
+    let trayIconPath = path.join(__dirname, '..', 'assets', 'icon-64.png');
+    if (!fs.existsSync(trayIconPath)) {
+      trayIconPath = path.join(__dirname, '..', 'assets', 'icon-256.png');
+    }
+    if (fs.existsSync(trayIconPath)) {
+      const trayIcon = nativeImage.createFromPath(trayIconPath);
+      tray = new Tray(trayIcon);
       tray.setToolTip('eMail-IA');
       const contextMenu = Menu.buildFromTemplate([
         { label: 'Abrir eMail-IA', click: () => mainWindow?.show() },
