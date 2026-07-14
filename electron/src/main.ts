@@ -7,8 +7,20 @@ import * as http from 'http';
 // ── Config ──────────────────────────────────────────────────────
 const BACKEND_PORT = 8420;
 const HEALTH_URL = `http://localhost:${BACKEND_PORT}/health`;
-const APP_URL = `http://localhost:${BACKEND_PORT}`;
+const DEV_FRONTEND = 'http://localhost:5173';
+let APP_URL = `http://localhost:${BACKEND_PORT}`;
 const BACKEND_JAR = findJar();
+
+function detectFrontendUrl(): Promise<string> {
+  return new Promise((resolve) => {
+    const req = http.get(DEV_FRONTEND, (res) => {
+      res.resume();
+      resolve(res.statusCode === 200 ? DEV_FRONTEND : `http://localhost:${BACKEND_PORT}`);
+    });
+    req.on('error', () => resolve(`http://localhost:${BACKEND_PORT}`));
+    req.setTimeout(1000, () => { req.destroy(); resolve(`http://localhost:${BACKEND_PORT}`); });
+  });
+}
 
 let mainWindow: BrowserWindow | null = null;
 let backendProcess: ChildProcess | null = null;
@@ -159,6 +171,9 @@ function createWindow() {
 app.whenReady().then(async () => {
   try {
     await startBackend();
+    // Detectar si Vite dev server esta corriendo (desarrollo)
+    APP_URL = await detectFrontendUrl();
+    console.log(`[Electron] Abriendo ${APP_URL}`);
     createWindow();
   } catch (err) {
     console.error('[Electron] Error al iniciar:', err);
