@@ -56,9 +56,9 @@ eMail-IA/
 | F5 | Tests backend | ⏳ |
 | F6 | Frontend base (React + Tailwind + temas) | ⏳ |
 | F7 | Frontend completo (replicar vistas) | ⏳ |
-| F8 | Tests frontend | ⏳ |
-| F9 | Electron wrapper | ⏳ |
-| F10 | Packaging + CI | ⏳ |
+| F8 | Tests frontend | ✅ |
+| F9 | Electron wrapper | ✅ |
+| F10 | Packaging + CI | ✅ |
 
 ---
 
