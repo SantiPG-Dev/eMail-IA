@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { mensajeApi, cuentaApi, utilApi } from '../api/client';
+import api, { mensajeApi, cuentaApi, utilApi } from '../api/client';
 import axios from 'axios';
 import ComposePage from './ComposePage';
 
@@ -57,21 +57,24 @@ export default function CorreoPage() {
         return;
       }
       const c = cuentas.data[0];
-      const BATCH = 50;
+      const BATCH = 25;
       const TOTAL = 300;
 
-      // Sincronizar en lotes de 50 para mostrar progreso
-      for (let loaded = 0; loaded < TOTAL; loaded += BATCH) {
-        const pct = Math.round((loaded / TOTAL) * 100);
+      // Sincronizar en lotes incrementales: cada llamada pide mas mensajes
+      // (maxSync se expande: 25, 50, 75... hasta 300)
+      for (let maxSync = BATCH; maxSync <= TOTAL; maxSync += BATCH) {
+        const pct = Math.round((maxSync / TOTAL) * 100);
         setProgress(pct);
-        setSyncMsg(`Descargando ${loaded + BATCH}/${TOTAL}...`);
+        setSyncMsg(`Descargando ${Math.min(maxSync, TOTAL)}/${TOTAL}...`);
         try {
-          await cuentaApi.sync(c.id);
+          // Pasar ?limite= maxSync para que cada vez traiga mas
+          await api.post(`/api/cuentas/${c.id}/sync?limite=${maxSync}`);
         } catch (e) {
-          // Si falla un lote, continuar con el siguiente
+          // Si falla, continuar
         }
-        // Pequeña pausa para que se vea el progreso
-        await new Promise(r => setTimeout(r, 300));
+        // Recargar mensajes para que se vean en tiempo real
+        await cargarMensajes();
+        await new Promise(r => setTimeout(r, 200));
       }
 
       setProgress(100);

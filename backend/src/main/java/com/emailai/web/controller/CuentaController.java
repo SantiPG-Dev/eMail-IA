@@ -68,7 +68,7 @@ public class CuentaController {
         if (c.getOauthProvider() != null) {
             password = c.getOauthAccessToken();
         }
-        return mailService.sincronizarTodo(servidor, user, password, c.getEmail());
+        return mailService.sincronizarTodo(servidor, user, password, c.getEmail(), limite);
     }
 
     private CuentaResponse toResponse(Cuenta c) {
