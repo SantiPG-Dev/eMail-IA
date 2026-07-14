@@ -1,0 +1,57 @@
+package com.emailai.service;
+
+import java.time.LocalDate;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.emailai.common.NotFoundException;
+import com.emailai.domain.entities.EventoCalendario;
+import com.emailai.repository.EventoCalendarioRepository;
+
+/**
+ * Servicio CRUD de eventos de calendario.
+ */
+@Service
+@Transactional
+public class EventoCalendarioService {
+
+    private final EventoCalendarioRepository repo;
+
+    public EventoCalendarioService(EventoCalendarioRepository repo) {
+        this.repo = repo;
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventoCalendario> listarTodos() {
+        return repo.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventoCalendario> listarPorFecha(LocalDate fecha) {
+        return repo.findByFechaOrderByHoraAscIdAsc(fecha.toString());
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> fechasConEventos() {
+        return repo.findDistinctFechas();
+    }
+
+    @Transactional(readOnly = true)
+    public EventoCalendario buscarPorId(Integer id) {
+        return repo.findById(id)
+                .orElseThrow(() -> new NotFoundException("Evento", id));
+    }
+
+    public EventoCalendario guardar(EventoCalendario evento) {
+        if (evento.getOrigen() == null) {
+            evento.setOrigen("local");
+        }
+        return repo.save(evento);
+    }
+
+    public void eliminar(Integer id) {
+        repo.delete(buscarPorId(id));
+    }
+}
