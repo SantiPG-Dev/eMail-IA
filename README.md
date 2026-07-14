@@ -51,7 +51,7 @@ eMail-IA/
 | F0 | Scaffolding monorepo | ✅ |
 | F1 | Backend Spring Boot base | ✅ |
 | F2 | Dominio (JPA + repos + servicios) | ✅ |
-| F3 | REST API + WebSocket | ⏳ |
+| F3 | REST API + WebSocket | ✅ |
 | F4 | Seguridad (master-pass, OAuth) | ⏳ |
 | F5 | Tests backend | ⏳ |
 | F6 | Frontend base (React + Tailwind + temas) | ⏳ |
