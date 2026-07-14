@@ -108,30 +108,34 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           accountEmail: c.email, currentLimite: limite,
         }));
 
-        await api.post(`/api/cuentas/${c.id}/sync?limite=${limite}`);
-        await refreshMessages();
+        try {
+          await api.post(`/api/cuentas/${c.id}/sync?limite=${limite}`);
+        } catch (e: any) {
+          const errMsg = e?.response?.data?.message || e?.message || 'Error de conexión IMAP';
+          setState(s => ({
+            ...s, syncing: false, progress: 0,
+            statusText: `⚠️ ${errMsg}`,
+          }));
+          setTimeout(() => setState(s => ({ ...s, statusText: 'Error IMAP. Revisa credenciales.' })), 5000);
+          return;
+        }
 
         const actualMsg = (await refreshMessages()) || 0;
         const pct = limite >= MAX ? 100 : Math.round((limite / MAX) * 100);
-        if (actualMsg > 0) {
-          setState(s => ({
-            ...s, syncing: false, progress: pct,
-            statusText: limite >= MAX
+        setState(s => ({
+          ...s, syncing: false, progress: pct,
+          statusText: actualMsg > 0
+            ? (limite >= MAX
               ? `${actualMsg} mensajes · ${new Date().toLocaleTimeString()}`
-              : `${limite}/${MAX} · ${actualMsg} descargados`,
-            lastSync: new Date().toISOString(),
-          }));
-        }
-        if (limite >= MAX) {
+              : `${limite}/${MAX} · ${actualMsg} descargados`)
+            : `Sin mensajes (${limite}/${MAX})`,
+          lastSync: new Date().toISOString(),
+        }));
+        if (limite >= MAX || actualMsg === 0) {
           setTimeout(() => setState(s => ({ ...s, progress: 0 })), 3000);
         }
-      } catch (e: any) {
-        const errMsg = e?.response?.data?.message || e?.message || 'Error de conexión IMAP';
-        setState(s => ({
-          ...s, syncing: false, progress: 0,
-          statusText: `⚠️ ${errMsg}`,
-        }));
-        setTimeout(() => setState(s => ({ ...s, statusText: 'Error IMAP. Revisa credenciales.' })), 5000);
+      } catch {
+        // Error inesperado fuera del bloque IMAP
       }
     };
 
