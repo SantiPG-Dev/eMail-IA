@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.emailai.domain.entities.Mensaje;
+import com.emailai.service.CuentaService;
 import com.emailai.service.MailService;
 import com.emailai.service.MensajeService;
 import com.emailai.web.dto.MensajeListResponse;
@@ -17,10 +18,13 @@ public class MensajeController {
 
     private final MensajeService mensajeService;
     private final MailService mailService;
+    private final CuentaService cuentaService;
 
-    public MensajeController(MensajeService mensajeService, MailService mailService) {
+    public MensajeController(MensajeService mensajeService, MailService mailService,
+                             CuentaService cuentaService) {
         this.mensajeService = mensajeService;
         this.mailService = mailService;
+        this.cuentaService = cuentaService;
     }
 
     @GetMapping
@@ -76,6 +80,54 @@ public class MensajeController {
     public String sugerir(@PathVariable Long id) {
         Mensaje m = mensajeService.buscarPorId(id);
         return mailService.sugerirRespuesta(m);
+    }
+
+    // ── Acciones IMAP ───────────────────────────────────────────
+
+    private String getPasswordFromCuenta(String cuentaHash) {
+        try {
+            var cuenta = cuentaService.buscarPorEmail(cuentaHash);
+            if (cuenta.isPresent()) {
+                String pass = cuenta.get().getPasswordCifrada();
+                if (pass != null && !pass.isBlank()) return pass;
+                String token = cuenta.get().getOauthAccessToken();
+                if (token != null && !token.isBlank()) return token;
+            }
+        } catch (Exception ignored) {}
+        return cuentaHash;
+    }
+
+    private String getImapHost(String cuentaHash) {
+        try {
+            var cuenta = cuentaService.buscarPorEmail(cuentaHash);
+            if (cuenta.isPresent() && cuenta.get().getServidor() != null)
+                return cuenta.get().getServidor();
+        } catch (Exception ignored) {}
+        return cuentaHash != null && cuentaHash.contains("outlook")
+                ? "outlook.office365.com" : "imap.gmail.com";
+    }
+
+    /** Elimina del servidor IMAP (mueve a papelera). */
+    @DeleteMapping("/{id}/servidor")
+    public String eliminarDelServidor(@PathVariable Long id) {
+        Mensaje m = mensajeService.buscarPorId(id);
+        String pass = getPasswordFromCuenta(m.getCuentaHash());
+        String host = getImapHost(m.getCuentaHash());
+        mailService.eliminarDelServidor(host, m.getCuentaHash(), pass,
+                m.getCarpetaImap(), m.getUid());
+        mensajeService.eliminar(id);
+        return "Eliminado";
+    }
+
+    /** Mueve a otra carpeta (spam, papelera, etc.). */
+    @PostMapping("/{id}/mover")
+    public String mover(@PathVariable Long id, @RequestParam String destino) {
+        Mensaje m = mensajeService.buscarPorId(id);
+        String pass = getPasswordFromCuenta(m.getCuentaHash());
+        String host = getImapHost(m.getCuentaHash());
+        mailService.moverACarpeta(host, m.getCuentaHash(), pass,
+                m.getCarpetaImap(), destino, m.getUid());
+        return "Movido a " + destino;
     }
 
     private MensajeResponse toResponse(Mensaje m) {

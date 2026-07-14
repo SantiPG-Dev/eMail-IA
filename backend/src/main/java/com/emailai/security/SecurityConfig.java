@@ -47,7 +47,9 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/health").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
-                .anyRequest().authenticated()
+                .requestMatchers("/", "/index.html", "/assets/**", "/src/**", "/*.png", "/*.svg", "/*.ico").permitAll()
+                .requestMatchers("/api/**").authenticated()
+                .anyRequest().permitAll()
             )
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) -> {
@@ -73,8 +75,12 @@ public class SecurityConfig {
                 HttpServletRequest req = (HttpServletRequest) request;
                 String path = req.getRequestURI();
 
-                // Saltar rutas públicas
-                if (path.equals("/health") || path.startsWith("/api/auth/")) {
+                // Solo proteger rutas /api/ (excepto auth)
+                if (!path.startsWith("/api/")) {
+                    chain.doFilter(request, response);
+                    return;
+                }
+                if (path.startsWith("/api/auth/") || path.equals("/api/auth")) {
                     chain.doFilter(request, response);
                     return;
                 }
@@ -92,7 +98,7 @@ public class SecurityConfig {
                     }
                 }
 
-                // No autenticado
+                // API sin token valido
                 HttpServletResponse resp = (HttpServletResponse) response;
                 resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 resp.setContentType("application/json");

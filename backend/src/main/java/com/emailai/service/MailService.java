@@ -12,11 +12,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import jakarta.mail.FetchProfile;
+import jakarta.mail.Flags;
 import jakarta.mail.Folder;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
+import jakarta.mail.Transport;
 import jakarta.mail.URLName;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
@@ -115,13 +117,19 @@ public class MailService {
     public SyncResult sincronizarCarpeta(String imapHost, String user, String password,
                                            String cuentaHash, String carpetaImap)
             throws MessagingException, IOException {
+        return sincronizarCarpeta(imapHost, user, password, cuentaHash, carpetaImap, 300);
+    }
+
+    public SyncResult sincronizarCarpeta(String imapHost, String user, String password,
+                                           String cuentaHash, String carpetaImap, int maxSync)
+            throws MessagingException, IOException {
         Store store = conectarIMAP(imapHost, user, password);
         try {
             Folder folder = store.getFolder(carpetaImap);
             folder.open(Folder.READ_ONLY);
 
             int total = folder.getMessageCount();
-            int start = Math.max(1, total - 50); // últimos 50 mensajes
+            int start = Math.max(1, total - maxSync);
             Message[] msgs = folder.getMessages(start, total);
 
             FetchProfile fp = new FetchProfile();
@@ -281,6 +289,112 @@ public class MailService {
             mensajeService.limpiarAntiguos(cuentaHash, carpeta);
         }
         return resultados;
+    }
+
+    // ── Acciones IMAP ───────────────────────────────────────────
+
+    /**
+     * Elimina un mensaje del servidor IMAP (mueve a papelera/borrados).
+     */
+    public boolean eliminarDelServidor(String imapHost, String user, String password,
+                                        String carpetaOrigen, String uid) {
+        try {
+            Store store = conectarIMAP(imapHost, user, password);
+            try {
+                Folder folder = store.getFolder(carpetaOrigen);
+                folder.open(Folder.READ_WRITE);
+                Message[] msgs = folder.getMessages();
+                for (Message msg : msgs) {
+                    String[] mid = msg.getHeader("Message-ID");
+                    if (mid != null && mid[0].equals(uid)) {
+                        msg.setFlag(Flags.Flag.DELETED, true);
+                        folder.expunge();
+                        return true;
+                    }
+                }
+                folder.close(true);
+            } finally {
+                store.close();
+            }
+        } catch (Exception e) {
+            log.warn("Error eliminando mensaje del servidor: {}", e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Mueve un mensaje a otra carpeta (ej: SPAM, Papelera).
+     */
+    public boolean moverACarpeta(String imapHost, String user, String password,
+                                  String carpetaOrigen, String carpetaDestino, String uid) {
+        try {
+            Store store = conectarIMAP(imapHost, user, password);
+            try {
+                Folder origen = store.getFolder(carpetaOrigen);
+                Folder destino = store.getFolder(carpetaDestino);
+                if (!destino.exists()) destino.create(Folder.HOLDS_MESSAGES);
+
+                origen.open(Folder.READ_WRITE);
+                Message[] msgs = origen.getMessages();
+                for (Message msg : msgs) {
+                    String[] mid = msg.getHeader("Message-ID");
+                    if (mid != null && mid[0].equals(uid)) {
+                        origen.copyMessages(new Message[]{msg}, destino);
+                        msg.setFlag(Flags.Flag.DELETED, true);
+                        origen.expunge();
+                        return true;
+                    }
+                }
+                origen.close(true);
+            } finally {
+                store.close();
+            }
+        } catch (Exception e) {
+            log.warn("Error moviendo mensaje: {}", e.getMessage());
+        }
+        return false;
+    }
+
+    // ── Envio SMTP ──────────────────────────────────────────────
+
+    /**
+     * Envia un correo via SMTP.
+     */
+    public boolean enviarCorreo(String smtpHost, int smtpPort, String user, String password,
+                                 String to, String cc, String subject, String body) {
+        try {
+            Properties props = new Properties();
+            props.put("mail.smtp.host", smtpHost);
+            props.put("mail.smtp.port", smtpPort);
+            props.put("mail.smtp.auth", "true");
+            props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.smtp.connectiontimeout", "10000");
+            props.put("mail.smtp.timeout", "10000");
+
+            Session session = Session.getInstance(props, new jakarta.mail.Authenticator() {
+                @Override
+                protected jakarta.mail.PasswordAuthentication getPasswordAuthentication() {
+                    return new jakarta.mail.PasswordAuthentication(user, password);
+                }
+            });
+
+            var msg = new MimeMessage(session);
+            msg.setFrom(new InternetAddress(user));
+            msg.setRecipients(jakarta.mail.Message.RecipientType.TO, InternetAddress.parse(to));
+            if (cc != null && !cc.isBlank()) {
+                msg.setRecipients(jakarta.mail.Message.RecipientType.CC, InternetAddress.parse(cc));
+            }
+            msg.setSubject(subject);
+            msg.setText(body);
+            msg.setSentDate(new java.util.Date());
+
+            Transport.send(msg);
+            log.info("Correo enviado a {} desde {}", to, user);
+            return true;
+        } catch (Exception e) {
+            log.error("Error enviando correo: {}", e.getMessage());
+            return false;
+        }
     }
 
     // ── Resultado ───────────────────────────────────────────────

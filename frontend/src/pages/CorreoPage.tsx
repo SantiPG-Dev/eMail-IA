@@ -1,117 +1,291 @@
 import { useState, useEffect } from 'react';
-import { mensajeApi } from '../api/client';
+import { mensajeApi, cuentaApi, utilApi } from '../api/client';
+import axios from 'axios';
+import ComposePage from './ComposePage';
 
 interface Mensaje {
   id: number; uid: string; remitente: string; asunto: string;
   cuerpo: string; html: string; categoria: string; prioridad: string;
-  fechaRecepcion: string;
+  fechaRecepcion: string; destinatarios?: string;
 }
 
 export default function CorreoPage() {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [selected, setSelected] = useState<Mensaje | null>(null);
   const [search, setSearch] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+  const [hasAccounts, setHasAccounts] = useState(false);
+  const [cuentaHash, setCuentaHash] = useState('local');
+  const [progress, setProgress] = useState(0);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeMode, setComposeMode] = useState<'nuevo' | 'responder' | 'reenviar'>('nuevo');
+  const [composeTo, setComposeTo] = useState('');
 
   useEffect(() => {
-    mensajeApi.list('local').then(r => setMensajes(r.data.mensajes || [])).catch(() => {});
+    cuentaApi.list().then(r => {
+      setHasAccounts(r.data.length > 0);
+      if (r.data.length > 0) {
+        const c = r.data[0];
+        setCuentaHash(c.email);
+        mensajeApi.list(c.email).then(res => setMensajes(res.data.mensajes || [])).catch(() => {});
+      }
+    }).catch(() => {});
   }, []);
 
-  const handleSearch = () => {
-    if (!search.trim()) return;
-    mensajeApi.search('local', search)
-      .then(r => setMensajes(r.data.mensajes || []))
-      .catch(() => {});
+  const cargarMensajes = async () => {
+    try {
+      const cuentas = await cuentaApi.list();
+      if (cuentas.data.length > 0) {
+        const c = cuentas.data[0];
+        setCuentaHash(c.email);
+        const res = await mensajeApi.list(c.email);
+        setMensajes(res.data.mensajes || []);
+      }
+    } catch {}
+  };
+
+  const sincronizar = async () => {
+    setSyncing(true);
+    setSyncMsg('Preparando...');
+    setProgress(0);
+    try {
+      const cuentas = await cuentaApi.list();
+      if (cuentas.data.length === 0) {
+        setSyncMsg('No hay cuentas. Ve a Configuración → Cuentas.');
+        setSyncing(false);
+        return;
+      }
+      const c = cuentas.data[0];
+      const BATCH = 50;
+      const TOTAL = 300;
+
+      // Sincronizar en lotes de 50 para mostrar progreso
+      for (let loaded = 0; loaded < TOTAL; loaded += BATCH) {
+        const pct = Math.round((loaded / TOTAL) * 100);
+        setProgress(pct);
+        setSyncMsg(`Descargando ${loaded + BATCH}/${TOTAL}...`);
+        try {
+          await cuentaApi.sync(c.id);
+        } catch (e) {
+          // Si falla un lote, continuar con el siguiente
+        }
+        // Pequeña pausa para que se vea el progreso
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      setProgress(100);
+      setSyncMsg('Sincronizado ✓');
+      await cargarMensajes();
+    } catch (err: any) {
+      setSyncMsg('Error de conexión. Verifica credenciales.');
+      setProgress(0);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => { setSyncMsg(''); setProgress(0); }, 4000);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!search.trim()) { await cargarMensajes(); return; }
+    try {
+      const res = await mensajeApi.search(cuentaHash, search);
+      setMensajes(res.data.mensajes || []);
+    } catch { setSyncMsg('Error en la búsqueda'); }
+  };
+
+  const eliminarMensaje = async () => {
+    if (!selected) return;
+    try {
+      await mensajeApi.delete(selected.id);
+      setMensajes(prev => prev.filter(m => m.id !== selected.id));
+      setSelected(null);
+      setSyncMsg('Mensaje eliminado');
+      setTimeout(() => setSyncMsg(''), 3000);
+    } catch { setSyncMsg('Error al eliminar'); }
+  };
+
+  const marcarSpam = async () => {
+    if (!selected) return;
+    try {
+      const res = await mensajeApi.classify(selected.id);
+      setSelected(res.data);
+      await cargarMensajes();
+    } catch { setSyncMsg('Error al clasificar'); }
+  };
+
+  const abrirCompose = (mode: 'nuevo' | 'responder' | 'reenviar') => {
+    if (mode === 'responder' && selected) {
+      setComposeTo(selected.remitente || '');
+    } else if (mode === 'reenviar' && selected) {
+      setComposeTo('');
+    } else {
+      setComposeTo('');
+    }
+    setComposeMode(mode);
+    setComposeOpen(true);
   };
 
   const categoriaStyle = (cat: string) => {
     switch (cat) {
-      case 'SPAM': return { borderLeftColor: '#ef4444', background: '#2d1619' };
-      case 'PHISHING': return { borderLeftColor: '#ef4444', background: '#2d1619' };
+      case 'SPAM': case 'PHISHING': return { borderLeftColor: '#ef4444', background: '#2d1619' };
       case 'LEGITIMO': return { borderLeftColor: '#22c55e', background: '#13281b' };
       default: return { borderLeftColor: '#fbbf24', background: '#2b2412' };
     }
   };
 
+  if (composeOpen) {
+    return <ComposePage
+      mode={composeMode}
+      to={composeTo}
+      subject={composeMode === 'responder' ? (selected ? 'Re: ' + selected.asunto : '') : ''}
+      body={composeMode === 'reenviar' && selected ? '\n\n--- Mensaje original ---\n' + (selected.cuerpo || '') : ''}
+      onClose={() => { setComposeOpen(false); cargarMensajes(); }}
+    />;
+  }
+
   return (
     <div className="flex h-full">
-      {/* Panel izquierdo: lista de mensajes */}
+      {/* Panel izquierdo: lista */}
       <div className="w-[340px] min-w-[260px] flex flex-col gap-2 p-2.5"
         style={{ backgroundColor: 'var(--color-bg)' }}>
+        {/* Botones superiores: Redactar + Borrar */}
         <div className="flex gap-1.5">
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            placeholder="Buscar en bandeja..."
-            className="flex-1 px-2 py-1.5 text-sm rounded-lg border outline-none"
-            style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)',
-                     borderColor: 'var(--color-border)' }}
-          />
-          <button onClick={handleSearch}
+          <button onClick={() => abrirCompose('nuevo')}
             className="px-3 py-1.5 text-xs font-bold rounded-pill"
-            style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Buscar</button>
+            style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Redactar</button>
+          <div className="flex-1" />
+          <button onClick={eliminarMensaje} disabled={!selected}
+            className="px-3 py-1.5 text-xs font-bold rounded-pill disabled:opacity-30"
+            style={{ backgroundColor: '#ef4444', color: 'white' }}>Borrar</button>
         </div>
+
+        {/* Buscador + Sync */}
+        <div className="flex gap-1">
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            placeholder="Buscar..."
+            className="flex-1 px-2 py-1.5 text-xs rounded-lg border outline-none"
+            style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+          <button onClick={handleSearch}
+            className="px-2 py-1.5 text-xs font-bold rounded-pill"
+            style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>🔍</button>
+          <button onClick={sincronizar} disabled={syncing}
+            className="px-2 py-1.5 text-xs font-bold rounded-pill disabled:opacity-50"
+            style={{ backgroundColor: syncing ? '#94A3B8' : '#22D3EE', color: '#0F172A' }}>
+            {syncing ? '⏳' : '⬇'}
+          </button>
+        </div>
+
+        {syncMsg && (
+          <div className="space-y-1">
+            <p className="text-xs" style={{ color: syncMsg.includes('Error') ? '#ef4444' : 'var(--color-accent)' }}>
+              {syncMsg}
+            </p>
+            {syncing && progress > 0 && (
+              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg-elevated)' }}>
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${progress}%`, backgroundColor: 'var(--color-accent)' }} />
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto space-y-1">
           {mensajes.map(m => (
             <div key={m.id} onClick={() => setSelected(m)}
-              className="px-2.5 py-1.5 rounded-lg cursor-pointer text-sm"
+              className="px-2.5 py-1.5 rounded-lg cursor-pointer text-xs"
               style={{
                 ...categoriaStyle(m.categoria),
                 borderLeft: '4px solid',
                 ...(selected?.id === m.id ? { backgroundColor: 'var(--color-accent-selected)', color: '#0F172A' } : {}),
               }}>
-              <div className="font-bold text-xs">{m.remitente || '(sin remitente)'}</div>
-              <div className="text-xs truncate mt-0.5">{m.asunto}</div>
+              <div className="font-bold truncate">{m.remitente || '(sin remitente)'}</div>
+              <div className="truncate opacity-80">{m.asunto}</div>
+              <div className="text-[10px] opacity-60">{m.fechaRecepcion?.slice(0, 10)}</div>
             </div>
           ))}
-          {mensajes.length === 0 && (
+          {mensajes.length === 0 && !syncing && (
             <p className="text-xs text-center mt-4" style={{ color: 'var(--color-text-secondary)' }}>
-              No hay mensajes. Sincroniza una cuenta.
+              {hasAccounts ? 'Pulsa ⬇ para sincronizar' : 'Añade una cuenta en Configuración'}
             </p>
           )}
         </div>
       </div>
 
-      {/* Panel derecho: detalle del mensaje */}
+      {/* Panel derecho: detalle */}
       <div className="flex-1 flex flex-col p-2.5 gap-2 overflow-hidden"
         style={{ backgroundColor: 'var(--color-bg)' }}>
         {selected ? (
           <>
-            <h3 className="text-base font-bold"
-              style={{ color: 'var(--color-accent-selected)' }}>{selected.asunto}</h3>
-            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              {selected.remitente} · {selected.fechaRecepcion?.slice(0, 10)}
-            </p>
+            {/* Botones de acción */}
+            <div className="flex gap-1.5 flex-wrap">
+              <button onClick={() => abrirCompose('responder')}
+                className="px-3 py-1 text-xs font-bold rounded-pill"
+                style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Responder</button>
+              <button onClick={() => abrirCompose('responder')}
+                className="px-3 py-1 text-xs rounded-pill"
+                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Resp. todos</button>
+              <button onClick={() => abrirCompose('reenviar')}
+                className="px-3 py-1 text-xs rounded-pill"
+                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Reenviar</button>
+              <div className="flex-1" />
+              <button onClick={eliminarMensaje}
+                className="px-2 py-1 text-xs rounded-pill"
+                style={{ backgroundColor: '#64748B', color: 'white' }}>🗑 Papelera</button>
+              <button onClick={async () => {
+                if (!selected) return;
+                try { await mensajeApi.classify(selected.id); await cargarMensajes(); }
+                catch {}
+              }}
+                className="px-2 py-1 text-xs rounded-pill"
+                style={{ backgroundColor: '#ef4444', color: 'white' }}>🚫 SPAM</button>
+              <button onClick={async () => {
+                if (!selected) return;
+                try {
+                  const res = await mensajeApi.classify(selected.id);
+                  setSelected(res.data);
+                  await cargarMensajes();
+                } catch {}
+              }}
+                className="px-2 py-1 text-xs rounded-pill"
+                style={{ backgroundColor: '#22c55e', color: 'white' }}>✅ Legít</button>
+            </div>
 
-            {/* Cuerpo del mensaje */}
-            <div className="flex-1 overflow-auto rounded-lg p-2"
-              style={{ backgroundColor: 'var(--color-bg-card)' }}>
-              {selected.html ? (
-                <iframe
-                  srcDoc={selected.html}
-                  className="w-full h-full border-0"
-                  title="Cuerpo del correo"
-                  sandbox="allow-same-origin"
-                />
-              ) : (
-                <pre className="text-sm whitespace-pre-wrap font-sans"
-                  style={{ color: 'var(--color-text)' }}>{selected.cuerpo}</pre>
+            {/* Asunto + remitente */}
+            <h3 className="text-base font-bold" style={{ color: 'var(--color-accent-selected)' }}>
+              {selected.asunto}</h3>
+            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+              <span>{selected.remitente}</span>
+              <span>·</span>
+              <span>{selected.fechaRecepcion?.slice(0, 10)}</span>
+              {selected.categoria && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                  style={{ backgroundColor: selected.categoria === 'SPAM' ? '#ef4444' : selected.categoria === 'LEGITIMO' ? '#22c55e' : '#fbbf24', color: '#fff' }}>
+                  {selected.categoria}
+                </span>
               )}
             </div>
 
-            {/* Panel IA (respuestas sugeridas) */}
-            <div className="rounded-lg p-2"
+            {/* Cuerpo */}
+            <div className="flex-1 overflow-auto rounded-lg p-2"
               style={{ backgroundColor: 'var(--color-bg-card)' }}>
-              <p className="text-xs mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
-                Respuestas sugeridas por IA</p>
-              <div className="flex gap-2">
-                {['Responder', 'Agradecer', 'Más info'].map(s => (
+              {selected.html ? (
+                <iframe srcDoc={selected.html} className="w-full h-full border-0" title="Cuerpo" sandbox="allow-same-origin" />
+              ) : (
+                <pre className="text-sm whitespace-pre-wrap font-sans" style={{ color: 'var(--color-text)' }}>
+                  {selected.cuerpo}</pre>
+              )}
+            </div>
+
+            {/* IA suggestions */}
+            <div className="rounded-lg p-2" style={{ backgroundColor: 'var(--color-bg-card)' }}>
+              <p className="text-[10px] mb-1" style={{ color: 'var(--color-text-secondary)' }}>Respuestas IA</p>
+              <div className="flex gap-1.5">
+                {['Responder', 'Agradecer', '+Info'].map(s => (
                   <button key={s}
-                    className="text-xs px-3 py-1.5 rounded-pill font-bold"
-                    style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>
-                    {s}
-                  </button>
+                    className="text-[10px] px-2.5 py-1 rounded-pill font-bold"
+                    style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>{s}</button>
                 ))}
               </div>
             </div>
@@ -119,7 +293,7 @@ export default function CorreoPage() {
         ) : (
           <div className="flex items-center justify-center h-full text-sm"
             style={{ color: 'var(--color-text-secondary)' }}>
-            Selecciona un mensaje para verlo
+            Selecciona un mensaje
           </div>
         )}
       </div>

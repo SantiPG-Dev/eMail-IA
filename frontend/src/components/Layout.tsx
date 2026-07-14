@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import StatusBar from './StatusBar';
 
 const NAV_ITEMS = [
   { to: '/correo', label: '📬 Correo' },
@@ -34,10 +35,8 @@ export default function Layout() {
         style={{ backgroundColor: 'var(--color-bg-sidebar)' }}>
         {/* Logo + Brand */}
         <div className="flex flex-col items-center gap-2.5 px-2.5 pt-3.5 pb-3.5">
-          <div className="flex items-center justify-center w-[168px] h-[50px] rounded-lg"
-            style={{ backgroundColor: 'var(--color-bg-card)' }}>
-            <span className="text-lg font-bold" style={{ color: 'var(--color-accent)' }}>eMail·IA</span>
-          </div>
+          <img src="/logo.png" alt="eMail-IA"
+          className="w-[168px] object-contain" />
         </div>
 
         {/* Nav Menu */}
@@ -110,8 +109,11 @@ export default function Layout() {
       </aside>
 
       {/* Contenido principal */}
-      <main className="flex-1 overflow-hidden">
-        <Outlet />
+      <main className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-hidden">
+          <Outlet />
+        </div>
+        <StatusBar />
       </main>
     </div>
   );

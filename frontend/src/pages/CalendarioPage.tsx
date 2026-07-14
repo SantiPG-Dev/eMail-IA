@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { eventoApi } from '../api/client';
+import EventoDialog from '../components/EventoDialog';
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -10,6 +11,8 @@ export default function CalendarioPage() {
   const [month, setMonth] = useState(today.getMonth());
   const [year, setYear] = useState(today.getFullYear());
   const [events, setEvents] = useState<string[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState('');
 
   useEffect(() => {
     eventoApi.datesWithEvents()
@@ -51,7 +54,7 @@ export default function CalendarioPage() {
           const isToday = fs === todayStr;
           const hasEvents = events.includes(fs);
           return (
-            <div key={i}
+            <div key={i} onClick={() => { if (d) { setSelectedDate(fs); setDialogOpen(true); } }}
               className="min-h-[80px] p-1 text-sm rounded transition-colors cursor-pointer"
               style={{
                 backgroundColor: d ? (isToday ? '#1a3a5c' : 'var(--color-bg-card)') : 'transparent',
@@ -65,6 +68,15 @@ export default function CalendarioPage() {
           );
         })}
       </div>
+      {/* Dialog para crear evento */}
+      <EventoDialog
+        open={dialogOpen}
+        fecha={selectedDate}
+        onClose={() => setDialogOpen(false)}
+        onSaved={() => {
+          eventoApi.datesWithEvents().then(r => setEvents(r.data || [])).catch(() => {});
+        }}
+      />
     </div>
   );
 }

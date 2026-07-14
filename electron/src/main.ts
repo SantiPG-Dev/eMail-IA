@@ -7,42 +7,77 @@ import * as http from 'http';
 // ── Config ──────────────────────────────────────────────────────
 const BACKEND_PORT = 8420;
 const HEALTH_URL = `http://localhost:${BACKEND_PORT}/health`;
-const APP_URL = `http://localhost:${BACKEND_PORT}`;
+const DEV_FRONTEND = 'http://localhost:5173';
+let APP_URL = `http://localhost:${BACKEND_PORT}`;
 const BACKEND_JAR = findJar();
+
+function detectFrontendUrl(): Promise<string> {
+  return new Promise((resolve) => {
+    const req = http.get(DEV_FRONTEND, (res) => {
+      res.resume();
+      resolve(res.statusCode === 200 ? DEV_FRONTEND : `http://localhost:${BACKEND_PORT}`);
+    });
+    req.on('error', () => resolve(`http://localhost:${BACKEND_PORT}`));
+    req.setTimeout(1000, () => { req.destroy(); resolve(`http://localhost:${BACKEND_PORT}`); });
+  });
+}
 
 let mainWindow: BrowserWindow | null = null;
 let backendProcess: ChildProcess | null = null;
 let tray: Tray | null = null;
 
 // ── Buscar el JAR del backend ────────────────────────────────────
-function findJar(): string {
-  // Prioridad: 1) argumento --jar, 2) desarrollo en ../backend/target, 3) junto al ejecutable
+function findJar(): string | null {
+  // 1) Argumento --jar
   const jarArg = process.argv.find(a => a.startsWith('--jar='));
   if (jarArg) return jarArg.slice('--jar='.length);
 
+  // 2) Desarrollo: JAR compilado en backend/target/
   const devJar = path.resolve(__dirname, '..', '..', 'backend', 'target', 'emailai-backend-1.0-SNAPSHOT.jar');
   if (fs.existsSync(devJar)) return devJar;
 
-  // En producción, el JAR está en resources/
+  // 3) Producción: JAR en resources/
   const prodJar = path.join(process.resourcesPath || '', 'backend.jar');
   if (fs.existsSync(prodJar)) return prodJar;
 
-  throw new Error(`No se encontró el JAR del backend. Buscado en: ${devJar}, ${prodJar}`);
+  return null; // Se usará mvn spring-boot:run
 }
 
 // ── Spawn backend ────────────────────────────────────────────────
+function ensureFrontendBuilt(): Promise<void> {
+  return new Promise((resolve) => {
+    const frontendDir = path.resolve(__dirname, '..', '..', 'frontend');
+    const indexPath = path.join(frontendDir, 'dist', 'index.html');
+    if (fs.existsSync(indexPath)) { resolve(); return; }
+
+    console.log('[Electron] Construyendo frontend React...');
+    const pnpm = spawn('pnpm', ['build'], { cwd: frontendDir, stdio: 'pipe' });
+    pnpm.on('close', (code) => {
+      if (code === 0) console.log('[Electron] Frontend construido');
+      else console.warn(`[Electron] Frontend build fallo (codigo ${code}), usando fallback`);
+      resolve(); // Seguir aunque falle
+    });
+  });
+}
+
 function startBackend(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const jar = BACKEND_JAR;
-    console.log(`[Electron] Iniciando backend: java -jar ${jar} --server.port=${BACKEND_PORT}`);
-
-    backendProcess = spawn('java', [
-      '-jar', jar,
-      `--server.port=${BACKEND_PORT}`,
-      '--emailai.data-dir=DB',
-    ], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    if (BACKEND_JAR) {
+      console.log(`[Electron] Iniciando backend: java -jar ${BACKEND_JAR}`);
+      backendProcess = spawn('java', [
+        '-jar', BACKEND_JAR,
+        `--server.port=${BACKEND_PORT}`,
+        '--emailai.data-dir=DB',
+      ], { stdio: ['ignore', 'pipe', 'pipe'] });
+    } else {
+      const backendDir = path.resolve(__dirname, '..', '..', 'backend');
+      console.log(`[Electron] Iniciando backend: mvn spring-boot:run en ${backendDir}`);
+      backendProcess = spawn('mvn', ['spring-boot:run'], {
+        cwd: backendDir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, SERVER_PORT: String(BACKEND_PORT) },
+      });
+    }
 
     backendProcess.stdout?.on('data', (data: Buffer) => {
       console.log(`[Backend] ${data.toString().trim()}`);
@@ -113,7 +148,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'eMail-IA',
-    icon: path.join(__dirname, '..', 'assets', 'icon-256.png'),
+    icon: path.join(__dirname, '..', 'assets', 'icon-512.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -136,11 +171,15 @@ function createWindow() {
     mainWindow = null;
   });
 
-  // Tray icon
+  // Tray icon (64x64 para mejor visibilidad en HiDPI)
   try {
-    const iconPath = path.join(__dirname, '..', 'assets', 'icon-32.png');
-    if (fs.existsSync(iconPath)) {
-      tray = new Tray(nativeImage.createFromPath(iconPath));
+    let trayIconPath = path.join(__dirname, '..', 'assets', 'icon-128.png');
+    if (!fs.existsSync(trayIconPath)) {
+      trayIconPath = path.join(__dirname, '..', 'assets', 'icon-512.png');
+    }
+    if (fs.existsSync(trayIconPath)) {
+      const trayIcon = nativeImage.createFromPath(trayIconPath);
+      tray = new Tray(trayIcon);
       tray.setToolTip('eMail-IA');
       const contextMenu = Menu.buildFromTemplate([
         { label: 'Abrir eMail-IA', click: () => mainWindow?.show() },
@@ -158,7 +197,12 @@ function createWindow() {
 // ── App lifecycle ────────────────────────────────────────────────
 app.whenReady().then(async () => {
   try {
+    // Construir frontend si no existe (lo sirve el backend desde frontend/dist/)
+    await ensureFrontendBuilt();
     await startBackend();
+    // Detectar si Vite dev server esta corriendo (desarrollo)
+    APP_URL = await detectFrontendUrl();
+    console.log(`[Electron] Abriendo ${APP_URL}`);
     createWindow();
   } catch (err) {
     console.error('[Electron] Error al iniciar:', err);
