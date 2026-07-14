@@ -9,6 +9,7 @@ interface SyncState {
   totalMessages: number;
   accountEmail: string;
   currentLimite: number;
+  refreshKey: number;  // Se incrementa tras cada sync, para que las vistas sepan recargar
 }
 
 interface SyncContextType extends SyncState {
@@ -31,6 +32,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     totalMessages: 0,
     accountEmail: 'Sin cuenta',
     currentLimite: 0,
+    refreshKey: 0,
   });
   const syncingRef = useRef(false);
 
@@ -41,7 +43,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const c = cuentas.data[0];
       const res = await mensajeApi.list(c.email);
       const count = (res.data.mensajes || []).length;
-      setState(s => ({ ...s, totalMessages: count, accountEmail: c.email }));
+      setState(s => ({ ...s, totalMessages: count, accountEmail: c.email, refreshKey: s.refreshKey + 1 }));
       return count;
     } catch { return 0; }
   }, []);

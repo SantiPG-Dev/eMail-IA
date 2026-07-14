@@ -11,7 +11,7 @@ interface Mensaje {
 
 export default function CorreoPage() {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
-  const { triggerSync, refreshMessages, syncing, progress, statusText } = useSync();
+  const { triggerSync, refreshMessages, syncing, progress, statusText, refreshKey } = useSync();
   const [selected, setSelected] = useState<Mensaje | null>(null);
   const [search, setSearch] = useState('');
   const [hasAccounts, setHasAccounts] = useState(false);
@@ -20,6 +20,7 @@ export default function CorreoPage() {
   const [composeMode, setComposeMode] = useState<'nuevo' | 'responder' | 'reenviar'>('nuevo');
   const [composeTo, setComposeTo] = useState('');
 
+  // Carga inicial y recarga cuando SyncContext refresca (refreshKey cambia)
   useEffect(() => {
     cuentaApi.list().then(r => {
       setHasAccounts(r.data.length > 0);
@@ -30,6 +31,17 @@ export default function CorreoPage() {
       }
     }).catch(() => {});
   }, []);
+
+  // Recargar mensajes cuando SyncContext completa un sync
+  useEffect(() => {
+    if (refreshKey > 0) {
+      cuentaApi.list().then(r => {
+        if (r.data.length > 0) {
+          mensajeApi.list(r.data[0].email).then(res => setMensajes(res.data.mensajes || [])).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  }, [refreshKey]);
 
   const cargarMensajes = async () => {
     try {
