@@ -23,6 +23,12 @@ server:
 # Configuración de la app
 emailai:
   data-dir: DB                    # Directorio de datos locales (H2, cipher.key)
+  ai:
+    base-url: ${EMAILAI_AI_BASE_URL:http://localhost:1234}
+    model: ${EMAILAI_AI_MODEL:qwen3.5:9b}
+    timeout: 30
+  todoist:
+    api-key: ${EMAILAI_TODOIST_API_KEY:}
 
 logging:
   level:
