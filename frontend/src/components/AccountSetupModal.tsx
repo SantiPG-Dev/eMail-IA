@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { cuentaApi } from '../api/client';
+import { useState } from 'react';
+import { cuentaApi, utilApi } from '../api/client';
 
 interface Props {
   open: boolean;
@@ -68,7 +68,9 @@ export default function AccountSetupModal({ open, onClose }: Props) {
         oauthExpiresAt: null,
       });
       setStep('done');
-      setStatus('Cuenta configurada correctamente');
+      setStatus('Cuenta guardada. Sincronizando...');
+      // Sincronizar automaticamente
+      utilApi.syncAll().catch(() => {});
       setTimeout(() => onClose(), 2000);
     } catch (err: any) {
       setStatus(err.response?.data?.message || 'Error al guardar la cuenta');

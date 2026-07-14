@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { mensajeApi } from '../api/client';
+import { mensajeApi, cuentaApi, utilApi } from '../api/client';
 
 interface Mensaje {
   id: number; uid: string; remitente: string; asunto: string;
@@ -11,10 +11,43 @@ export default function CorreoPage() {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [selected, setSelected] = useState<Mensaje | null>(null);
   const [search, setSearch] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+  const [hasAccounts, setHasAccounts] = useState(false);
 
+  // Cargar cuentas disponibles
   useEffect(() => {
-    mensajeApi.list('local').then(r => setMensajes(r.data.mensajes || [])).catch(() => {});
+    cuentaApi.list().then(r => {
+      setHasAccounts(r.data.length > 0);
+      if (r.data.length > 0) {
+        const c = r.data[0];
+        mensajeApi.list(c.email).then(res => setMensajes(res.data.mensajes || [])).catch(() => {});
+      }
+    }).catch(() => {});
   }, []);
+
+  const sincronizar = async () => {
+    setSyncing(true);
+    setSyncMsg('Sincronizando...');
+    try {
+      const cuentas = await cuentaApi.list();
+      if (cuentas.data.length === 0) {
+        setSyncMsg('No hay cuentas configuradas. Ve a Configuración → Cuentas.');
+        return;
+      }
+      const res = await utilApi.syncAll();
+      setSyncMsg(res.data || 'Sincronización iniciada');
+      // Recargar mensajes
+      const c = cuentas.data[0];
+      const msgs = await mensajeApi.list(c.email);
+      setMensajes(msgs.data.mensajes || []);
+    } catch (err: any) {
+      setSyncMsg('Error: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(''), 5000);
+    }
+  };
 
   const handleSearch = () => {
     if (!search.trim()) return;
@@ -50,7 +83,22 @@ export default function CorreoPage() {
           <button onClick={handleSearch}
             className="px-3 py-1.5 text-xs font-bold rounded-pill"
             style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Buscar</button>
+          <button onClick={sincronizar} disabled={syncing}
+            className="px-3 py-1.5 text-xs font-bold rounded-pill disabled:opacity-50"
+            style={{ backgroundColor: syncing ? '#94A3B8' : '#22D3EE', color: '#0F172A' }}>
+            {syncing ? '...' : '⬇'}
+          </button>
         </div>
+        {syncMsg && (
+          <p className="text-xs" style={{ color: syncMsg.includes('Error') ? '#ef4444' : '#22c55e' }}>
+            {syncMsg}
+          </p>
+        )}
+        {!hasAccounts && (
+          <p className="text-xs text-center py-2" style={{ color: 'var(--color-accent)' }}>
+            Sin cuentas. Ve a Configuración → Cuentas para añadir una.
+          </p>
+        )}
 
         <div className="flex-1 overflow-y-auto space-y-1">
           {mensajes.map(m => (
