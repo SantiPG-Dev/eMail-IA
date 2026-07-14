@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import api, { mensajeApi, cuentaApi, utilApi } from '../api/client';
-import axios from 'axios';
+import api, { mensajeApi, cuentaApi } from '../api/client';
 import ComposePage from './ComposePage';
 
 interface Mensaje {
@@ -45,47 +44,51 @@ export default function CorreoPage() {
     } catch {}
   };
 
+  // Auto-sync silencioso cada 60 segundos
+  useEffect(() => {
+    const autoSync = async () => {
+      try {
+        const cuentas = await cuentaApi.list();
+        if (cuentas.data.length === 0) return;
+        await api.post(`/api/cuentas/${cuentas.data[0].id}/sync?limite=300`);
+        const res = await mensajeApi.list(cuentas.data[0].email);
+        setMensajes(res.data.mensajes || []);
+      } catch { /* auto-sync silencioso */ }
+    };
+    autoSync(); // primera sincronizacion al cargar
+    const interval = setInterval(autoSync, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const sincronizar = async () => {
     setSyncing(true);
-    setSyncMsg('Preparando...');
-    setProgress(0);
+    setProgress(20);
+    setSyncMsg('Sincronizando...');
     try {
       const cuentas = await cuentaApi.list();
       if (cuentas.data.length === 0) {
-        setSyncMsg('No hay cuentas. Ve a Configuración → Cuentas.');
+        setSyncMsg('Sin cuentas. Ve a Configuración → Cuentas.');
         setSyncing(false);
         return;
       }
       const c = cuentas.data[0];
-      const BATCH = 25;
-      const TOTAL = 300;
+      setProgress(50);
+      setSyncMsg('Descargando correos...');
 
-      // Sincronizar en lotes incrementales: cada llamada pide mas mensajes
-      // (maxSync se expande: 25, 50, 75... hasta 300)
-      for (let maxSync = BATCH; maxSync <= TOTAL; maxSync += BATCH) {
-        const pct = Math.round((maxSync / TOTAL) * 100);
-        setProgress(pct);
-        setSyncMsg(`Descargando ${Math.min(maxSync, TOTAL)}/${TOTAL}...`);
-        try {
-          // Pasar ?limite= maxSync para que cada vez traiga mas
-          await api.post(`/api/cuentas/${c.id}/sync?limite=${maxSync}`);
-        } catch (e) {
-          // Si falla, continuar
-        }
-        // Recargar mensajes para que se vean en tiempo real
-        await cargarMensajes();
-        await new Promise(r => setTimeout(r, 200));
-      }
+      await api.post(`/api/cuentas/${c.id}/sync?limite=300`);
+      setProgress(80);
+
+      await cargarMensajes();
 
       setProgress(100);
-      setSyncMsg('Sincronizado ✓');
-      await cargarMensajes();
+      setSyncMsg(`${mensajes.length} mensajes`);
+      setTimeout(() => { setSyncMsg(''); setProgress(0); }, 3000);
     } catch (err: any) {
       setSyncMsg('Error de conexión. Verifica credenciales.');
       setProgress(0);
+      setTimeout(() => setSyncMsg(''), 4000);
     } finally {
       setSyncing(false);
-      setTimeout(() => { setSyncMsg(''); setProgress(0); }, 4000);
     }
   };
 
