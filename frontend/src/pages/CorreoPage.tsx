@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { mensajeApi, cuentaApi, utilApi } from '../api/client';
+import axios from 'axios';
 import ComposePage from './ComposePage';
 
 interface Mensaje {
@@ -195,17 +196,31 @@ export default function CorreoPage() {
                 style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Responder</button>
               <button onClick={() => abrirCompose('responder')}
                 className="px-3 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Responder a todos</button>
+                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Resp. todos</button>
               <button onClick={() => abrirCompose('reenviar')}
                 className="px-3 py-1 text-xs rounded-pill"
                 style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Reenviar</button>
               <div className="flex-1" />
-              <button onClick={marcarSpam}
-                className="px-3 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: '#ef4444', color: 'white' }}>SPAM</button>
-              <button onClick={marcarSpam}
-                className="px-3 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: '#22c55e', color: 'white' }}>Legítimo</button>
+              <button onClick={eliminarMensaje}
+                className="px-2 py-1 text-xs rounded-pill"
+                style={{ backgroundColor: '#64748B', color: 'white' }}>🗑 Papelera</button>
+              <button onClick={async () => {
+                if (!selected) return;
+                try { await mensajeApi.classify(selected.id); await cargarMensajes(); }
+                catch {}
+              }}
+                className="px-2 py-1 text-xs rounded-pill"
+                style={{ backgroundColor: '#ef4444', color: 'white' }}>🚫 SPAM</button>
+              <button onClick={async () => {
+                if (!selected) return;
+                try {
+                  const res = await mensajeApi.classify(selected.id);
+                  setSelected(res.data);
+                  await cargarMensajes();
+                } catch {}
+              }}
+                className="px-2 py-1 text-xs rounded-pill"
+                style={{ backgroundColor: '#22c55e', color: 'white' }}>✅ Legít</button>
             </div>
 
             {/* Asunto + remitente */}
