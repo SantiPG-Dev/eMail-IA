@@ -44,10 +44,25 @@ function findJar(): string | null {
 }
 
 // ── Spawn backend ────────────────────────────────────────────────
+function ensureFrontendBuilt(): Promise<void> {
+  return new Promise((resolve) => {
+    const frontendDir = path.resolve(__dirname, '..', '..', 'frontend');
+    const indexPath = path.join(frontendDir, 'dist', 'index.html');
+    if (fs.existsSync(indexPath)) { resolve(); return; }
+
+    console.log('[Electron] Construyendo frontend React...');
+    const pnpm = spawn('pnpm', ['build'], { cwd: frontendDir, stdio: 'pipe' });
+    pnpm.on('close', (code) => {
+      if (code === 0) console.log('[Electron] Frontend construido');
+      else console.warn(`[Electron] Frontend build fallo (codigo ${code}), usando fallback`);
+      resolve(); // Seguir aunque falle
+    });
+  });
+}
+
 function startBackend(): Promise<void> {
   return new Promise((resolve, reject) => {
     if (BACKEND_JAR) {
-      // Produccion: ejecutar JAR directamente
       console.log(`[Electron] Iniciando backend: java -jar ${BACKEND_JAR}`);
       backendProcess = spawn('java', [
         '-jar', BACKEND_JAR,
@@ -55,7 +70,6 @@ function startBackend(): Promise<void> {
         '--emailai.data-dir=DB',
       ], { stdio: ['ignore', 'pipe', 'pipe'] });
     } else {
-      // Desarrollo: usar mvn spring-boot:run
       const backendDir = path.resolve(__dirname, '..', '..', 'backend');
       console.log(`[Electron] Iniciando backend: mvn spring-boot:run en ${backendDir}`);
       backendProcess = spawn('mvn', ['spring-boot:run'], {
@@ -179,6 +193,8 @@ function createWindow() {
 // ── App lifecycle ────────────────────────────────────────────────
 app.whenReady().then(async () => {
   try {
+    // Construir frontend si no existe (lo sirve el backend desde frontend/dist/)
+    await ensureFrontendBuilt();
     await startBackend();
     // Detectar si Vite dev server esta corriendo (desarrollo)
     APP_URL = await detectFrontendUrl();
