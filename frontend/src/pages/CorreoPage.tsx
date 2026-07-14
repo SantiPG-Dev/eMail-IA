@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api, { mensajeApi, cuentaApi } from '../api/client';
+import { useSync } from '../context/SyncContext';
 import ComposePage from './ComposePage';
 
 interface Mensaje {
@@ -10,13 +11,11 @@ interface Mensaje {
 
 export default function CorreoPage() {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  const { triggerSync, refreshMessages, syncing, progress, statusText } = useSync();
   const [selected, setSelected] = useState<Mensaje | null>(null);
   const [search, setSearch] = useState('');
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState('');
   const [hasAccounts, setHasAccounts] = useState(false);
   const [cuentaHash, setCuentaHash] = useState('local');
-  const [progress, setProgress] = useState(0);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<'nuevo' | 'responder' | 'reenviar'>('nuevo');
   const [composeTo, setComposeTo] = useState('');
@@ -44,71 +43,9 @@ export default function CorreoPage() {
     } catch {}
   };
 
-  // Sincronización progresiva: cada minuto descarga 25 mensajes más
-  // hasta llegar a 300. Luego se mantiene en 300 para nuevos correos.
-  useEffect(() => {
-    const CUENTA_KEY = 'emailai_sync_limite';
-    const MAX = 300;
-    const STEP = 25;
-
-    const syncStep = async () => {
-      try {
-        const cuentas = await cuentaApi.list();
-        if (cuentas.data.length === 0) return;
-        const c = cuentas.data[0];
-
-        // Leer el limite actual desde localStorage
-        let limite = parseInt(localStorage.getItem(CUENTA_KEY) || '0');
-        if (limite <= 0) limite = STEP; // primera vez: 25
-        else if (limite < MAX) limite = Math.min(limite + STEP, MAX); // expandir
-        // Si ya llego a MAX, se queda en 300 (solo nuevos correos)
-
-        localStorage.setItem(CUENTA_KEY, String(limite));
-
-        await api.post(`/api/cuentas/${c.id}/sync?limite=${limite}`);
-        const res = await mensajeApi.list(c.email);
-        setMensajes(res.data.mensajes || []);
-      } catch { /* silencioso */ }
-    };
-
-    // Primera sincronización al cargar (arranca con 25)
-    syncStep();
-    const interval = setInterval(syncStep, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
   const sincronizar = async () => {
-    setSyncing(true);
-    setProgress(20);
-    setSyncMsg('Sincronizando...');
-    try {
-      const cuentas = await cuentaApi.list();
-      if (cuentas.data.length === 0) {
-        setSyncMsg('Sin cuentas. Ve a Configuración → Cuentas.');
-        setSyncing(false);
-        return;
-      }
-      const c = cuentas.data[0];
-      setProgress(50);
-      setSyncMsg('Descargando...');
-
-      // Sincronización manual: forzar a 300 directamente
-      await api.post(`/api/cuentas/${c.id}/sync?limite=300`);
-      localStorage.setItem('emailai_sync_limite', '300');
-      setProgress(80);
-
-      await cargarMensajes();
-
-      setProgress(100);
-      setSyncMsg(`${mensajes.length} mensajes`);
-      setTimeout(() => { setSyncMsg(''); setProgress(0); }, 3000);
-    } catch (err: any) {
-      setSyncMsg('Error de conexión. Verifica credenciales.');
-      setProgress(0);
-      setTimeout(() => setSyncMsg(''), 4000);
-    } finally {
-      setSyncing(false);
-    }
+    await triggerSync();
+    await cargarMensajes();
   };
 
   const handleSearch = async () => {
@@ -116,7 +53,7 @@ export default function CorreoPage() {
     try {
       const res = await mensajeApi.search(cuentaHash, search);
       setMensajes(res.data.mensajes || []);
-    } catch { setSyncMsg('Error en la búsqueda'); }
+    } catch { /* error silencioso */ }
   };
 
   const eliminarMensaje = async () => {
@@ -125,9 +62,7 @@ export default function CorreoPage() {
       await mensajeApi.delete(selected.id);
       setMensajes(prev => prev.filter(m => m.id !== selected.id));
       setSelected(null);
-      setSyncMsg('Mensaje eliminado');
-      setTimeout(() => setSyncMsg(''), 3000);
-    } catch { setSyncMsg('Error al eliminar'); }
+    } catch { /* error silencioso */ }
   };
 
   const marcarSpam = async () => {
@@ -136,7 +71,7 @@ export default function CorreoPage() {
       const res = await mensajeApi.classify(selected.id);
       setSelected(res.data);
       await cargarMensajes();
-    } catch { setSyncMsg('Error al clasificar'); }
+    } catch { /* error silencioso */ }
   };
 
   const abrirCompose = (mode: 'nuevo' | 'responder' | 'reenviar') => {
@@ -202,18 +137,10 @@ export default function CorreoPage() {
           </button>
         </div>
 
-        {syncMsg && (
-          <div className="space-y-1">
-            <p className="text-xs" style={{ color: syncMsg.includes('Error') ? '#ef4444' : 'var(--color-accent)' }}>
-              {syncMsg}
-            </p>
-            {syncing && progress > 0 && (
-              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg-elevated)' }}>
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${progress}%`, backgroundColor: 'var(--color-accent)' }} />
-              </div>
-            )}
-          </div>
+        {statusText !== 'Inactivo' && (
+          <p className="text-xs" style={{ color: statusText.includes('Error') ? '#ef4444' : 'var(--color-accent)' }}>
+            {statusText}
+          </p>
         )}
 
         <div className="flex-1 overflow-y-auto space-y-1">
