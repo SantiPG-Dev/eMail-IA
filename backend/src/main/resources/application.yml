@@ -29,6 +29,10 @@ emailai:
     timeout: 30
   todoist:
     api-key: ${EMAILAI_TODOIST_API_KEY:}
+  security:
+    jwt:
+      secret: ${EMAILAI_JWT_SECRET:emailai-local-session-key-2026}
+      expiration-hours: 24
 
 logging:
   level:
