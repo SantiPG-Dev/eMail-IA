@@ -55,3 +55,4 @@ SecurityAudit.md
 .DS_Store
 Thumbs.db
 desktop.ini
+frontend/pnpm-workspace.yaml
