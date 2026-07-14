@@ -17,6 +17,7 @@ export default function CorreoPage() {
   const [syncMsg, setSyncMsg] = useState('');
   const [hasAccounts, setHasAccounts] = useState(false);
   const [cuentaHash, setCuentaHash] = useState('local');
+  const [progress, setProgress] = useState(0);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<'nuevo' | 'responder' | 'reenviar'>('nuevo');
   const [composeTo, setComposeTo] = useState('');
@@ -46,7 +47,8 @@ export default function CorreoPage() {
 
   const sincronizar = async () => {
     setSyncing(true);
-    setSyncMsg('Sincronizando...');
+    setSyncMsg('Preparando...');
+    setProgress(0);
     try {
       const cuentas = await cuentaApi.list();
       if (cuentas.data.length === 0) {
@@ -54,14 +56,33 @@ export default function CorreoPage() {
         setSyncing(false);
         return;
       }
-      await utilApi.syncAll();
-      setSyncMsg('Sincronizado');
+      const c = cuentas.data[0];
+      const BATCH = 50;
+      const TOTAL = 300;
+
+      // Sincronizar en lotes de 50 para mostrar progreso
+      for (let loaded = 0; loaded < TOTAL; loaded += BATCH) {
+        const pct = Math.round((loaded / TOTAL) * 100);
+        setProgress(pct);
+        setSyncMsg(`Descargando ${loaded + BATCH}/${TOTAL}...`);
+        try {
+          await cuentaApi.sync(c.id);
+        } catch (e) {
+          // Si falla un lote, continuar con el siguiente
+        }
+        // Pequeña pausa para que se vea el progreso
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      setProgress(100);
+      setSyncMsg('Sincronizado ✓');
       await cargarMensajes();
     } catch (err: any) {
-      setSyncMsg('Error de conexión IMAP. Verifica las credenciales en Configuración.');
+      setSyncMsg('Error de conexión. Verifica credenciales.');
+      setProgress(0);
     } finally {
       setSyncing(false);
-      setTimeout(() => setSyncMsg(''), 4000);
+      setTimeout(() => { setSyncMsg(''); setProgress(0); }, 4000);
     }
   };
 
@@ -157,9 +178,17 @@ export default function CorreoPage() {
         </div>
 
         {syncMsg && (
-          <p className="text-xs" style={{ color: syncMsg.includes('Error') || syncMsg.includes('IMAP') ? '#ef4444' : '#22c55e' }}>
-            {syncMsg}
-          </p>
+          <div className="space-y-1">
+            <p className="text-xs" style={{ color: syncMsg.includes('Error') ? '#ef4444' : 'var(--color-accent)' }}>
+              {syncMsg}
+            </p>
+            {syncing && progress > 0 && (
+              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg-elevated)' }}>
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${progress}%`, backgroundColor: 'var(--color-accent)' }} />
+              </div>
+            )}
+          </div>
         )}
 
         <div className="flex-1 overflow-y-auto space-y-1">

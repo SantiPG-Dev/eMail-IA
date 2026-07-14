@@ -58,7 +58,8 @@ public class CuentaController {
     }
 
     @PostMapping("/{id}/sync")
-    public List<?> sincronizar(@PathVariable Integer id) throws Exception {
+    public List<?> sincronizar(@PathVariable Integer id,
+                                @RequestParam(defaultValue = "300") int limite) throws Exception {
         Cuenta c = cuentaService.buscarPorId(id);
         String servidor = c.getServidor() != null ? c.getServidor()
                 : "imap.gmail.com";
@@ -67,7 +68,6 @@ public class CuentaController {
         if (c.getOauthProvider() != null) {
             password = c.getOauthAccessToken();
         }
-        // Nota: descifrado de credenciales en Fase 4
         return mailService.sincronizarTodo(servidor, user, password, c.getEmail());
     }
 

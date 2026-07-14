@@ -116,13 +116,18 @@ public class MailService {
     public SyncResult sincronizarCarpeta(String imapHost, String user, String password,
                                            String cuentaHash, String carpetaImap)
             throws MessagingException, IOException {
+        return sincronizarCarpeta(imapHost, user, password, cuentaHash, carpetaImap, 300);
+    }
+
+    public SyncResult sincronizarCarpeta(String imapHost, String user, String password,
+                                           String cuentaHash, String carpetaImap, int maxSync)
+            throws MessagingException, IOException {
         Store store = conectarIMAP(imapHost, user, password);
         try {
             Folder folder = store.getFolder(carpetaImap);
             folder.open(Folder.READ_ONLY);
 
             int total = folder.getMessageCount();
-            int maxSync = 300; // últimos 300 mensajes
             int start = Math.max(1, total - maxSync);
             Message[] msgs = folder.getMessages(start, total);
 

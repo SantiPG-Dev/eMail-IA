@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import StatusBar from './StatusBar';
 
 const NAV_ITEMS = [
   { to: '/correo', label: '📬 Correo' },
@@ -108,8 +109,11 @@ export default function Layout() {
       </aside>
 
       {/* Contenido principal */}
-      <main className="flex-1 overflow-hidden">
-        <Outlet />
+      <main className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-hidden">
+          <Outlet />
+        </div>
+        <StatusBar />
       </main>
     </div>
   );
