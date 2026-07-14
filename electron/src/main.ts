@@ -27,34 +27,43 @@ let backendProcess: ChildProcess | null = null;
 let tray: Tray | null = null;
 
 // ── Buscar el JAR del backend ────────────────────────────────────
-function findJar(): string {
-  // Prioridad: 1) argumento --jar, 2) desarrollo en ../backend/target, 3) junto al ejecutable
+function findJar(): string | null {
+  // 1) Argumento --jar
   const jarArg = process.argv.find(a => a.startsWith('--jar='));
   if (jarArg) return jarArg.slice('--jar='.length);
 
+  // 2) Desarrollo: JAR compilado en backend/target/
   const devJar = path.resolve(__dirname, '..', '..', 'backend', 'target', 'emailai-backend-1.0-SNAPSHOT.jar');
   if (fs.existsSync(devJar)) return devJar;
 
-  // En producción, el JAR está en resources/
+  // 3) Producción: JAR en resources/
   const prodJar = path.join(process.resourcesPath || '', 'backend.jar');
   if (fs.existsSync(prodJar)) return prodJar;
 
-  throw new Error(`No se encontró el JAR del backend. Buscado en: ${devJar}, ${prodJar}`);
+  return null; // Se usará mvn spring-boot:run
 }
 
 // ── Spawn backend ────────────────────────────────────────────────
 function startBackend(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const jar = BACKEND_JAR;
-    console.log(`[Electron] Iniciando backend: java -jar ${jar} --server.port=${BACKEND_PORT}`);
-
-    backendProcess = spawn('java', [
-      '-jar', jar,
-      `--server.port=${BACKEND_PORT}`,
-      '--emailai.data-dir=DB',
-    ], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    if (BACKEND_JAR) {
+      // Produccion: ejecutar JAR directamente
+      console.log(`[Electron] Iniciando backend: java -jar ${BACKEND_JAR}`);
+      backendProcess = spawn('java', [
+        '-jar', BACKEND_JAR,
+        `--server.port=${BACKEND_PORT}`,
+        '--emailai.data-dir=DB',
+      ], { stdio: ['ignore', 'pipe', 'pipe'] });
+    } else {
+      // Desarrollo: usar mvn spring-boot:run
+      const backendDir = path.resolve(__dirname, '..', '..', 'backend');
+      console.log(`[Electron] Iniciando backend: mvn spring-boot:run en ${backendDir}`);
+      backendProcess = spawn('mvn', ['spring-boot:run'], {
+        cwd: backendDir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, SERVER_PORT: String(BACKEND_PORT) },
+      });
+    }
 
     backendProcess.stdout?.on('data', (data: Buffer) => {
       console.log(`[Backend] ${data.toString().trim()}`);
