@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===========================================================
+   eMail-IA — Estilos base y sistema de temas
+   Paleta emailIA oscuro (por defecto, idéntica al JavaFX)
+   =========================================================== */
+
+/* Tema por defecto: emailIA oscuro */
+:root,
+[data-theme="emailIA"][data-mode="dark"] {
+  --color-bg: #0F172A;
+  --color-bg-sidebar: #0B1220;
+  --color-bg-card: #1E293B;
+  --color-bg-elevated: #334155;
+  --color-text: #F1F5F9;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted: #CBD5E1;
+  --color-accent: #22D3EE;
+  --color-accent-hover: #67E8F9;
+  --color-accent-selected: #38BDF8;
+  --color-border: #334155;
+}
+
+/* emailIA claro */
+[data-theme="emailIA"][data-mode="light"] {
+  --color-bg: #E8ECEF;
+  --color-bg-sidebar: #d5d9de;
+  --color-bg-card: #ffffff;
+  --color-bg-elevated: #f0f2f4;
+  --color-text: #1E3A5F;
+  --color-text-secondary: #4b5563;
+  --color-text-muted: #6b7280;
+  --color-accent: #0891B2;
+  --color-accent-hover: #06B6D4;
+  --color-accent-selected: #38BDF8;
+  --color-border: #B8BEC4;
+}
+
+/* Aplicar colores base */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Scrollbar (oscura) */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-bg-elevated); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-accent-selected); }
