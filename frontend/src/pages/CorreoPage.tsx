@@ -44,19 +44,36 @@ export default function CorreoPage() {
     } catch {}
   };
 
-  // Auto-sync silencioso cada 60 segundos
+  // Sincronización progresiva: cada minuto descarga 25 mensajes más
+  // hasta llegar a 300. Luego se mantiene en 300 para nuevos correos.
   useEffect(() => {
-    const autoSync = async () => {
+    const CUENTA_KEY = 'emailai_sync_limite';
+    const MAX = 300;
+    const STEP = 25;
+
+    const syncStep = async () => {
       try {
         const cuentas = await cuentaApi.list();
         if (cuentas.data.length === 0) return;
-        await api.post(`/api/cuentas/${cuentas.data[0].id}/sync?limite=300`);
-        const res = await mensajeApi.list(cuentas.data[0].email);
+        const c = cuentas.data[0];
+
+        // Leer el limite actual desde localStorage
+        let limite = parseInt(localStorage.getItem(CUENTA_KEY) || '0');
+        if (limite <= 0) limite = STEP; // primera vez: 25
+        else if (limite < MAX) limite = Math.min(limite + STEP, MAX); // expandir
+        // Si ya llego a MAX, se queda en 300 (solo nuevos correos)
+
+        localStorage.setItem(CUENTA_KEY, String(limite));
+
+        await api.post(`/api/cuentas/${c.id}/sync?limite=${limite}`);
+        const res = await mensajeApi.list(c.email);
         setMensajes(res.data.mensajes || []);
-      } catch { /* auto-sync silencioso */ }
+      } catch { /* silencioso */ }
     };
-    autoSync(); // primera sincronizacion al cargar
-    const interval = setInterval(autoSync, 60000);
+
+    // Primera sincronización al cargar (arranca con 25)
+    syncStep();
+    const interval = setInterval(syncStep, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -73,9 +90,11 @@ export default function CorreoPage() {
       }
       const c = cuentas.data[0];
       setProgress(50);
-      setSyncMsg('Descargando correos...');
+      setSyncMsg('Descargando...');
 
+      // Sincronización manual: forzar a 300 directamente
       await api.post(`/api/cuentas/${c.id}/sync?limite=300`);
+      localStorage.setItem('emailai_sync_limite', '300');
       setProgress(80);
 
       await cargarMensajes();
