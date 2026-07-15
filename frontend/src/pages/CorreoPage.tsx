@@ -95,11 +95,19 @@ export default function CorreoPage() {
     setComposeOpen(true);
   };
 
-  const categoriaStyle = (cat: string) => {
+  const categoriaBorder = (cat: string) => {
     switch (cat) {
-      case 'SPAM': case 'PHISHING': return { borderLeftColor: '#ef4444', background: '#2d1619' };
-      case 'LEGITIMO': return { borderLeftColor: '#22c55e', background: '#13281b' };
-      default: return { borderLeftColor: '#fbbf24', background: '#2b2412' };
+      case 'SPAM': case 'PHISHING': return '2px solid #ef4444';
+      case 'LEGITIMO': return '2px solid #22c55e';
+      default: return '2px solid #fbbf24';
+    }
+  };
+
+  const categoriaBg = (cat: string) => {
+    switch (cat) {
+      case 'SPAM': case 'PHISHING': return '#2d1619';
+      case 'LEGITIMO': return '#13281b';
+      default: return '#2b2412';
     }
   };
 
@@ -157,9 +165,9 @@ export default function CorreoPage() {
             <div key={m.id} onClick={() => setSelected(m)}
               className="px-2.5 py-1.5 rounded-lg cursor-pointer text-xs"
               style={{
-                ...categoriaStyle(m.categoria),
-                borderLeft: '4px solid',
-                ...(selected?.id === m.id ? { backgroundColor: 'var(--color-accent-selected)', color: '#0F172A' } : {}),
+                border: categoriaBorder(m.categoria),
+                backgroundColor: selected?.id === m.id ? 'var(--color-accent-selected)' : categoriaBg(m.categoria),
+                color: selected?.id === m.id ? '#0F172A' : 'var(--color-text)',
               }}>
               <div className="font-bold truncate">{m.remitente || '(sin remitente)'}</div>
               <div className="truncate opacity-80">{m.asunto}</div>
@@ -199,7 +207,11 @@ export default function CorreoPage() {
                 try {
                   const res = await mensajeApi.classify(selected.id, 'SPAM');
                   setSelected(res.data);
+<<<<<<< HEAD
                   await cargarMensajes(carpetaImap);
+=======
+                  await cargarMensajes();
+>>>>>>> feature/fix-category-styling
                 } catch {}
               }}
                 className="px-2 py-1 text-xs rounded-pill"
@@ -223,9 +235,15 @@ export default function CorreoPage() {
               <span>{selected.remitente}</span>
               <span>·</span>
               <span>{selected.fechaRecepcion?.slice(0, 10)}</span>
-              {selected.categoria && (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold"
-                  style={{ backgroundColor: selected.categoria === 'SPAM' ? '#ef4444' : selected.categoria === 'LEGITIMO' ? '#22c55e' : '#fbbf24', color: '#fff' }}>
+              {selected.categoria && selected.categoria !== 'DESCONOCIDO' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
+                  style={{
+                    backgroundColor: selected.categoria === 'SPAM' || selected.categoria === 'PHISHING'
+                      ? '#dc2626' : selected.categoria === 'LEGITIMO' ? '#16a34a' : '#ca8a04',
+                    color: '#fff',
+                    border: selected.categoria === 'SPAM' || selected.categoria === 'PHISHING'
+                      ? '1px solid #ef4444' : selected.categoria === 'LEGITIMO' ? '1px solid #22c55e' : '1px solid #fbbf24',
+                  }}>
                   {selected.categoria}
                 </span>
               )}

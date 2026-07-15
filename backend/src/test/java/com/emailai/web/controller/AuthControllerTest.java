@@ -11,6 +11,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.emailai.config.AppConfigStore;
+
 /**
  * Test de integración del flujo de autenticación.
  *
@@ -24,11 +26,15 @@ class AuthControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private AppConfigStore configStore;
+
     @BeforeEach
     void cleanConfig() throws Exception {
         // Limpiar config entre tests para evitar estado persistente
         var configFile = new java.io.File("config/preferences.properties");
         configFile.delete();
+        configStore.recargar();
     }
 
     @Test
