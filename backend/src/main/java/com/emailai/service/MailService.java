@@ -170,6 +170,8 @@ public class MailService {
             for (Message msg : msgs) {
                 Mensaje m = convertirMensaje(msg, cuentaHash, carpeta);
                 if (m != null) {
+                    // Clasificar automaticamente con Weka (si hay modelo entrenado)
+                    clasificarMensaje(m);
                     mensajeService.guardarOActualizar(m);
                     nuevos++;
                 }
