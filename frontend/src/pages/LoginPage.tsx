@@ -63,10 +63,13 @@ export default function LoginPage() {
     }
   };
 
-  const handleAccountSaved = () => {
+  const handleAccountSaved = async () => {
+    // Recargar cuentas ANTES de cerrar el modal
+    try {
+      const res = await cuentaApi.list();
+      setCuentas(res.data || []);
+    } catch {}
     setShowSetupModal(false);
-    // Recargar cuentas
-    cuentaApi.list().then(r => setCuentas(r.data || [])).catch(() => {});
   };
 
   if (checking) {
