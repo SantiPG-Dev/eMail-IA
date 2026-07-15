@@ -207,11 +207,7 @@ export default function CorreoPage() {
                 try {
                   const res = await mensajeApi.classify(selected.id, 'SPAM');
                   setSelected(res.data);
-<<<<<<< HEAD
                   await cargarMensajes(carpetaImap);
-=======
-                  await cargarMensajes();
->>>>>>> feature/fix-category-styling
                 } catch {}
               }}
                 className="px-2 py-1 text-xs rounded-pill"
