@@ -48,6 +48,7 @@ public class CuentaController {
         c.setPuerto(req.puerto());
         c.setUsuarioCifrado(req.usuario());
         c.setPasswordCifrada(req.password());  // cifrado en Fase 4
+        c.setTipoConexion(req.tipoConexion() != null ? req.tipoConexion() : "IMAP");
         c.setEsDefault(req.esDefault());
         c.setOauthProvider(req.oauthProvider());
         c.setOauthAccessToken(req.oauthAccessToken());
@@ -113,6 +114,7 @@ public class CuentaController {
     private CuentaResponse toResponse(Cuenta c) {
         return new CuentaResponse(c.getId(), c.getNombre(), c.getEmail(),
                 c.getServidor(), c.getPuerto(),
+                c.getTipoConexion() != null ? c.getTipoConexion() : "IMAP",
                 c.getEsDefault() != null && c.getEsDefault(), c.getOauthProvider());
     }
 }

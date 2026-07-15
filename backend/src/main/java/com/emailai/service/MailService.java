@@ -58,38 +58,37 @@ public class MailService {
         this.entrenamientoService = entrenamientoService;
     }
 
-    // ── Conexión IMAP ──────────────────────────────────────────
+    // ── Conexión IMAP / POP3 ───────────────────────────────────
 
-    private Store conectarIMAP(String imapHost, String user, String password) throws MessagingException {
+    private Store conectarCorreo(String host, int port, String user, String password,
+                                  String protocol) throws MessagingException {
+        boolean ssl = port == 993 || port == 995;
+        String propPrefix = "mail." + protocol + (ssl ? "s" : "");
+
         Properties props = new Properties();
-        props.put("mail.imaps.host", imapHost);
-        props.put("mail.imaps.port", "993");
-        props.put("mail.imaps.ssl.enable", "true");
-        props.put("mail.imaps.connectiontimeout", "10000");
-        props.put("mail.imaps.timeout", "10000");
+        props.put(propPrefix + ".host", host);
+        props.put(propPrefix + ".port", String.valueOf(port));
+        if (ssl) {
+            props.put(propPrefix + ".ssl.enable", "true");
+        } else {
+            props.put(propPrefix + ".starttls.enable", "true");
+        }
+        props.put(propPrefix + ".connectiontimeout", "10000");
+        props.put(propPrefix + ".timeout", "10000");
 
         Session session = Session.getInstance(props);
-        Store store = session.getStore("imaps");
-        store.connect(imapHost, 993, user, password);
+        String storeProtocol = protocol + (ssl ? "s" : "");
+        Store store = session.getStore(storeProtocol);
+        store.connect(host, port, user, password);
         return store;
     }
 
-    private Store conectarIMAPOAuth(String imapHost, String userEmail, String accessToken)
-            throws MessagingException {
-        Properties props = new Properties();
-        props.put("mail.imaps.host", imapHost);
-        props.put("mail.imaps.port", "993");
-        props.put("mail.imaps.ssl.enable", "true");
-        props.put("mail.imaps.connectiontimeout", "10000");
-        props.put("mail.imaps.timeout", "10000");
-        props.put("mail.imaps.auth.mechanisms", "XOAUTH2");
-        props.put("mail.imaps.auth.login.disable", "true");
-        props.put("mail.imaps.auth.plain.disable", "true");
+    private Store conectarIMAP(String host, String user, String password) throws MessagingException {
+        return conectarCorreo(host, 993, user, password, "imap");
+    }
 
-        Session session = Session.getInstance(props);
-        Store store = session.getStore("imaps");
-        store.connect(imapHost, 993, userEmail, accessToken);
-        return store;
+    private Store conectarPOP3(String host, int port, String user, String password) throws MessagingException {
+        return conectarCorreo(host, port, user, password, "pop3");
     }
 
     // ── Carpetas ────────────────────────────────────────────────

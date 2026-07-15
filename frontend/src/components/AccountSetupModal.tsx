@@ -1,77 +1,147 @@
 import { useState } from 'react';
-import { cuentaApi, utilApi } from '../api/client';
+import { cuentaApi } from '../api/client';
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
+interface ProviderInfo {
+  label: string;
+  imap: { host: string; port: number };
+  pop3: { host: string; port: number };
+  smtp: { host: string; port: number };
+}
+
+const PROVIDERS: Record<string, ProviderInfo> = {
+  gmail: {
+    label: 'Gmail',
+    imap: { host: 'imap.gmail.com', port: 993 },
+    pop3: { host: 'pop.gmail.com', port: 995 },
+    smtp: { host: 'smtp.gmail.com', port: 465 },
+  },
+  outlook: {
+    label: 'Outlook / Hotmail',
+    imap: { host: 'outlook.office365.com', port: 993 },
+    pop3: { host: 'outlook.office365.com', port: 995 },
+    smtp: { host: 'smtp.office365.com', port: 587 },
+  },
+  yahoo: {
+    label: 'Yahoo Mail',
+    imap: { host: 'imap.mail.yahoo.com', port: 993 },
+    pop3: { host: 'pop.mail.yahoo.com', port: 995 },
+    smtp: { host: 'smtp.mail.yahoo.com', port: 465 },
+  },
+  gmx: {
+    label: 'GMX',
+    imap: { host: 'imap.gmx.com', port: 993 },
+    pop3: { host: 'pop.gmx.com', port: 995 },
+    smtp: { host: 'mail.gmx.com', port: 587 },
+  },
+  icloud: {
+    label: 'iCloud',
+    imap: { host: 'imap.mail.me.com', port: 993 },
+    pop3: { host: 'pop.mail.me.com', port: 995 },
+    smtp: { host: 'smtp.mail.me.com', port: 587 },
+  },
+  zoho: {
+    label: 'Zoho',
+    imap: { host: 'imap.zoho.com', port: 993 },
+    pop3: { host: 'pop.zoho.com', port: 995 },
+    smtp: { host: 'smtp.zoho.com', port: 465 },
+  },
+  yandex: {
+    label: 'Yandex',
+    imap: { host: 'imap.yandex.com', port: 993 },
+    pop3: { host: 'pop.yandex.com', port: 995 },
+    smtp: { host: 'smtp.yandex.com', port: 465 },
+  },
+  other: {
+    label: 'Otro (configuración manual)',
+    imap: { host: '', port: 993 },
+    pop3: { host: '', port: 995 },
+    smtp: { host: '', port: 587 },
+  },
+};
+
 export default function AccountSetupModal({ open, onClose }: Props) {
-  const [step, setStep] = useState<'provider' | 'manual' | 'oauth' | 'done'>('provider');
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [imapHost, setImapHost] = useState('');
-  const [imapPort, setImapPort] = useState('993');
-  const [smtpHost, setSmtpHost] = useState('');
-  const [smtpPort, setSmtpPort] = useState('465');
+  const [tipoConexion, setTipoConexion] = useState<'IMAP' | 'POP3'>('IMAP');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
-  // Auto-rellenar según proveedor
-  const selectProvider = (provider: string) => {
-    if (provider === 'gmail') {
-      setNombre('Gmail');
-      setImapHost('imap.gmail.com');
-      setImapPort('993');
-      setSmtpHost('smtp.gmail.com');
-      setSmtpPort('465');
-      setStep('manual');
-    } else if (provider === 'outlook') {
-      setNombre('Outlook');
-      setImapHost('outlook.office365.com');
-      setImapPort('993');
-      setSmtpHost('smtp.office365.com');
-      setSmtpPort('587');
-      setStep('manual');
-    } else if (provider === 'yahoo') {
-      setNombre('Yahoo');
-      setImapHost('imap.mail.yahoo.com');
-      setImapPort('993');
-      setSmtpHost('smtp.mail.yahoo.com');
-      setSmtpPort('465');
-      setStep('manual');
-    } else {
-      setStep('manual');
+  const provider = selectedProvider ? PROVIDERS[selectedProvider] : null;
+  const connInfo = provider ? (tipoConexion === 'IMAP' ? provider.imap : provider.pop3) : null;
+
+  const resetForm = () => {
+    setSelectedProvider('');
+    setNombre('');
+    setEmail('');
+    setPassword('');
+    setTipoConexion('IMAP');
+    setStatus('');
+    setLoading(false);
+    setShowDropdown(false);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const selectProvider = (key: string) => {
+    setSelectedProvider(key);
+    setShowDropdown(false);
+    const p = PROVIDERS[key];
+    if (p && key !== 'other') {
+      // Auto-sugerir nombre según proveedor
+      if (!nombre) {
+        setNombre(p.label);
+      }
+    } else if (key === 'other') {
+      setNombre('');
     }
   };
 
   const saveAccount = async () => {
+    if (!selectedProvider) {
+      setStatus('Selecciona un proveedor de correo');
+      return;
+    }
     if (!email || !password) {
       setStatus('Completa todos los campos obligatorios');
       return;
     }
+    if (!nombre.trim()) {
+      setStatus('Indica un nombre para la cuenta');
+      return;
+    }
+
     setLoading(true);
     setStatus('');
+
     try {
+      const conn = tipoConexion === 'IMAP' ? provider!.imap : provider!.pop3;
       await cuentaApi.create({
-        nombre: nombre || email.split('@')[0],
+        nombre: nombre.trim(),
         email,
-        servidor: imapHost,
-        puerto: parseInt(imapPort),
+        servidor: conn.host,
+        puerto: conn.port,
         usuario: email,
         password,
+        tipoConexion,
         esDefault: true,
         oauthProvider: null,
         oauthAccessToken: null,
         oauthRefreshToken: null,
         oauthExpiresAt: null,
       });
-      setStep('done');
-      setStatus('Cuenta guardada. Sincronizando...');
-      // Sincronizar automaticamente
-      utilApi.syncAll().catch(() => {});
-      setTimeout(() => onClose(), 2000);
+      setStatus('✅ Cuenta guardada');
+      setTimeout(() => handleClose(), 1500);
     } catch (err: any) {
       setStatus(err.response?.data?.message || 'Error al guardar la cuenta');
     } finally {
@@ -83,7 +153,7 @@ export default function AccountSetupModal({ open, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-[560px] max-h-[80vh] overflow-y-auto rounded-xl p-6 shadow-2xl"
+      <div className="w-[500px] rounded-xl p-6 shadow-2xl"
         style={{ backgroundColor: 'var(--color-bg-card)' }}>
         
         {/* Header */}
@@ -94,149 +164,182 @@ export default function AccountSetupModal({ open, onClose }: Props) {
               Configurar cuenta de correo
             </h2>
             <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              {step === 'provider' ? 'Elige tu proveedor o configúralo manualmente' :
-               step === 'done' ? 'Cuenta configurada' :
-               'Introduce tus datos de acceso'}
+              Introduce los datos de tu cuenta
             </p>
           </div>
         </div>
 
-        {/* PASO 1: Seleccionar proveedor */}
-        {step === 'provider' && (
-          <div className="space-y-3">
-            <p className="text-sm font-bold mb-2" style={{ color: 'var(--color-text)' }}>
-              Proveedor de correo
-            </p>
-            {[
-              { id: 'gmail', label: 'Gmail', icon: '📧' },
-              { id: 'outlook', label: 'Outlook / Hotmail', icon: '📨' },
-              { id: 'yahoo', label: 'Yahoo Mail', icon: '📩' },
-              { id: 'other', label: 'Otro (configuración manual)', icon: '⚙️' },
-            ].map(p => (
-              <button key={p.id} onClick={() => selectProvider(p.id)}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors"
-                style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)' }}>
-                <span className="text-lg">{p.icon}</span>
-                <span>{p.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Dropdown de proveedores */}
+        <div className="mb-4">
+          <label className="text-xs font-bold block mb-1.5" style={{ color: 'var(--color-text)' }}>
+            Proveedor de correo
+          </label>
+          <div className="relative">
+            <button
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-lg border text-left transition-colors"
+              style={{
+                backgroundColor: 'var(--color-bg)',
+                color: selectedProvider ? 'var(--color-text)' : 'var(--color-text-secondary)',
+                borderColor: 'var(--color-border)',
+              }}
+            >
+              <span className="flex-1">
+                {selectedProvider ? PROVIDERS[selectedProvider].label : 'Seleccionar proveedor...'}
+              </span>
+              <span className="text-xs">{showDropdown ? '▲' : '▼'}</span>
+            </button>
 
-        {/* PASO 2: Formulario manual */}
-        {step === 'manual' && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
-                  Nombre de la cuenta
-                </label>
-                <input value={nombre} onChange={e => setNombre(e.target.value)}
-                  placeholder="Mi correo"
-                  className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)',
-                           borderColor: 'var(--color-border)' }} />
+            {showDropdown && (
+              <div className="absolute z-10 w-full mt-1 rounded-lg border shadow-lg overflow-hidden"
+                style={{
+                  backgroundColor: 'var(--color-bg-card)',
+                  borderColor: 'var(--color-border)',
+                }}>
+                {Object.entries(PROVIDERS).map(([key, p]) => (
+                  <button
+                    key={key}
+                    onClick={() => selectProvider(key)}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-colors hover:opacity-80"
+                    style={{
+                      backgroundColor: selectedProvider === key ? 'var(--color-accent-selected)' : 'transparent',
+                      color: selectedProvider === key ? '#0F172A' : 'var(--color-text)',
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
-              <div className="col-span-2">
-                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
-                  Correo electrónico *
-                </label>
-                <input value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="usuario@dominio.com"
-                  className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)',
-                           borderColor: 'var(--color-border)' }} />
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
-                  Contraseña *
-                </label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder="Contraseña de la cuenta"
-                  className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)',
-                           borderColor: 'var(--color-border)' }} />
-              </div>
-              <div>
-                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
-                  Servidor IMAP
-                </label>
-                <input value={imapHost} onChange={e => setImapHost(e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)',
-                           borderColor: 'var(--color-border)' }} />
-              </div>
-              <div>
-                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
-                  Puerto IMAP
-                </label>
-                <input value={imapPort} onChange={e => setImapPort(e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)',
-                           borderColor: 'var(--color-border)' }} />
-              </div>
-              <div>
-                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
-                  Servidor SMTP
-                </label>
-                <input value={smtpHost} onChange={e => setSmtpHost(e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)',
-                           borderColor: 'var(--color-border)' }} />
-              </div>
-              <div>
-                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
-                  Puerto SMTP
-                </label>
-                <input value={smtpPort} onChange={e => setSmtpPort(e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)',
-                           borderColor: 'var(--color-border)' }} />
-              </div>
-            </div>
-
-            {status && (
-              <p className="text-xs" style={{
-                color: status.includes('Error') || status.includes('Completa') ? '#ef4444' : '#22c55e'
-              }}>{status}</p>
             )}
+          </div>
+        </div>
 
-            <div className="flex gap-2 pt-2">
-              <button onClick={() => setStep('provider')}
-                className="px-4 py-1.5 text-sm rounded-lg transition-colors"
-                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>
-                Atrás
+        {/* Campos del formulario */}
+        <div className="space-y-3 mb-4">
+          {/* Nombre de la cuenta */}
+          <div>
+            <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
+              Nombre de la cuenta
+            </label>
+            <input
+              value={nombre}
+              onChange={e => setNombre(e.target.value)}
+              placeholder="Ej: Personal, Trabajo, Estudio..."
+              className="w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors"
+              style={{
+                backgroundColor: 'var(--color-bg)',
+                color: 'var(--color-text)',
+                borderColor: 'var(--color-border)',
+              }}
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
+              Cuenta de correo *
+            </label>
+            <input
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="usuario@dominio.com"
+              className="w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors"
+              style={{
+                backgroundColor: 'var(--color-bg)',
+                color: 'var(--color-text)',
+                borderColor: 'var(--color-border)',
+              }}
+            />
+          </div>
+
+          {/* Contraseña */}
+          <div>
+            <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
+              Contraseña *
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Contraseña de la cuenta"
+              className="w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors"
+              style={{
+                backgroundColor: 'var(--color-bg)',
+                color: 'var(--color-text)',
+                borderColor: 'var(--color-border)',
+              }}
+            />
+          </div>
+
+          {/* Tipo de conexión: IMAP / POP3 */}
+          <div>
+            <label className="text-xs font-bold block mb-1.5" style={{ color: 'var(--color-text)' }}>
+              Tipo de conexión
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setTipoConexion('IMAP')}
+                className="flex-1 px-3 py-2 text-sm font-bold rounded-lg transition-colors"
+                style={{
+                  backgroundColor: tipoConexion === 'IMAP' ? 'var(--color-accent-selected)' : 'var(--color-bg)',
+                  color: tipoConexion === 'IMAP' ? '#0F172A' : 'var(--color-text)',
+                  border: tipoConexion === 'IMAP'
+                    ? '2px solid var(--color-accent)'
+                    : '1px solid var(--color-border)',
+                }}
+              >
+                📥 IMAP
               </button>
-              <button onClick={saveAccount} disabled={loading}
-                className="px-4 py-1.5 text-sm font-bold rounded-pill disabled:opacity-50"
-                style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>
-                {loading ? 'Guardando...' : 'Guardar cuenta'}
+              <button
+                onClick={() => setTipoConexion('POP3')}
+                className="flex-1 px-3 py-2 text-sm font-bold rounded-lg transition-colors"
+                style={{
+                  backgroundColor: tipoConexion === 'POP3' ? 'var(--color-accent-selected)' : 'var(--color-bg)',
+                  color: tipoConexion === 'POP3' ? '#0F172A' : 'var(--color-text)',
+                  border: tipoConexion === 'POP3'
+                    ? '2px solid var(--color-accent)'
+                    : '1px solid var(--color-border)',
+                }}
+              >
+                📩 POP3
               </button>
             </div>
+            {connInfo && (
+              <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                {tipoConexion}: {connInfo.host}:{connInfo.port}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Status */}
+        {status && (
+          <div className="mb-3 text-xs" style={{
+            color: status.startsWith('✅') ? '#22c55e' : '#ef4444'
+          }}>
+            {status}
           </div>
         )}
 
-        {/* PASO 3: Hecho */}
-        {step === 'done' && (
-          <div className="text-center py-6">
-            <p className="text-lg mb-2">✅</p>
-            <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
-              Cuenta configurada
-            </p>
-            <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-              {status}
-            </p>
-          </div>
-        )}
-
-        {/* Skip button */}
-        {step === 'provider' && (
-          <button onClick={onClose}
-            className="w-full mt-3 py-2 text-xs rounded-lg transition-colors"
-            style={{ color: 'var(--color-text-secondary)' }}>
-            Saltar, lo haré después
+        {/* Botón Guardar (abajo a la derecha) */}
+        <div className="flex justify-end gap-2 pt-2 border-t"
+          style={{ borderColor: 'var(--color-border)' }}>
+          <button
+            onClick={handleClose}
+            className="px-4 py-1.5 text-sm rounded-lg transition-colors"
+            style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}
+          >
+            Cancelar
           </button>
-        )}
+          <button
+            onClick={saveAccount}
+            disabled={loading}
+            className="px-5 py-1.5 text-sm font-bold rounded-pill disabled:opacity-50 transition-colors"
+            style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}
+          >
+            {loading ? 'Guardando...' : 'Guardar cuenta'}
+          </button>
+        </div>
       </div>
     </div>
   );
