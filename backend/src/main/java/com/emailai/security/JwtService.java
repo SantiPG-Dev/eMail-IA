@@ -6,8 +6,12 @@ import io.jsonwebtoken.security.Keys;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Date;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -22,13 +26,23 @@ import org.springframework.stereotype.Service;
 @Service
 public class JwtService {
 
+    private static final Logger log = LoggerFactory.getLogger(JwtService.class);
+
     private final SecretKey signingKey;
     private final long expirationMs;
 
     public JwtService(
-            @Value("${emailai.security.jwt.secret:emailai-local-session-key-change-in-prod}") String secret,
+            @Value("${emailai.security.jwt.secret:}") String secret,
             @Value("${emailai.security.jwt.expiration-hours:24}") int expirationHours) {
-        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        String key = secret;
+        if (key == null || key.isBlank()) {
+            // Generar clave aleatoria de 32 bytes si no hay configurada
+            byte[] randomKey = new byte[32];
+            new SecureRandom().nextBytes(randomKey);
+            key = Base64.getEncoder().encodeToString(randomKey);
+            log.info("JWT: clave aleatoria generada (no persistente)");
+        }
+        byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
         // Asegurar 256 bits para HS256
         if (keyBytes.length < 32) {
             byte[] padded = new byte[32];
