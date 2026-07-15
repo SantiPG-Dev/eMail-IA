@@ -3,6 +3,8 @@ package com.emailai.security;
 import java.io.IOException;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -31,6 +33,8 @@ import jakarta.servlet.http.HttpServletResponse;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     private final JwtService jwtService;
 
@@ -88,14 +92,18 @@ public class SecurityConfig {
 
                 String authHeader = req.getHeader("Authorization");
                 if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                    String token = authHeader.substring(7);
-                    String subject = jwtService.extractSubject(token);
-                    if (subject != null && jwtService.isValid(token)) {
-                        var auth = new UsernamePasswordAuthenticationToken(
-                                subject, null, List.of());
-                        SecurityContextHolder.getContext().setAuthentication(auth);
-                        chain.doFilter(request, response);
-                        return;
+                    try {
+                        String token = authHeader.substring(7);
+                        String subject = jwtService.extractSubject(token);
+                        if (subject != null && jwtService.isValid(token)) {
+                            var auth = new UsernamePasswordAuthenticationToken(
+                                    subject, null, List.of());
+                            SecurityContextHolder.getContext().setAuthentication(auth);
+                            chain.doFilter(request, response);
+                            return;
+                        }
+                    } catch (Exception e) {
+                        log.warn("Token JWT inválido: {}", e.getMessage());
                     }
                 }
 
