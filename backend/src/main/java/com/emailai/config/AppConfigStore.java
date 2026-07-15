@@ -49,6 +49,23 @@ public class AppConfigStore {
         return CONFIG_FILE.toAbsolutePath();
     }
 
+    /**
+     * Limpia la caché en memoria y recarga del archivo.
+     * Útil en tests para resetear el estado entre tests.
+     */
+    public void recargar() {
+        props.clear();
+        try {
+            if (Files.exists(CONFIG_FILE)) {
+                try (InputStream is = Files.newInputStream(CONFIG_FILE)) {
+                    props.load(is);
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("No se pudo recargar AppConfigStore", e);
+        }
+    }
+
     // ---------------------------------------------------------------
     // Lectura / escritura
     // ---------------------------------------------------------------

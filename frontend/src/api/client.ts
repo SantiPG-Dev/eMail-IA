@@ -66,7 +66,8 @@ export const mensajeApi = {
     api.get('/api/mensajes/buscar', { params: { cuentaHash, carpeta, q } }),
   get: (id: number) => api.get(`/api/mensajes/${id}`),
   delete: (id: number) => api.delete(`/api/mensajes/${id}`),
-  classify: (id: number) => api.post(`/api/mensajes/${id}/clasificar`),
+  classify: (id: number, categoria?: string) =>
+    api.post(`/api/mensajes/${id}/clasificar${categoria ? `?categoria=${categoria}` : ''}`), 
   summarize: (id: number) => api.post(`/api/mensajes/${id}/resumen`),
   suggest: (id: number) => api.post(`/api/mensajes/${id}/sugerir`),
 };

@@ -32,6 +32,9 @@ public class Cuenta {
     @Column(name = "password_cifrada", length = 500)
     private String passwordCifrada;
 
+    @Column(name = "tipo_conexion", length = 10)
+    private String tipoConexion = "IMAP";            // IMAP | POP3
+
     @Column(name = "es_default")
     private Boolean esDefault = false;
 
@@ -63,6 +66,8 @@ public class Cuenta {
     public void setUsuarioCifrado(String usuarioCifrado) { this.usuarioCifrado = usuarioCifrado; }
     public String getPasswordCifrada() { return passwordCifrada; }
     public void setPasswordCifrada(String passwordCifrada) { this.passwordCifrada = passwordCifrada; }
+    public String getTipoConexion() { return tipoConexion; }
+    public void setTipoConexion(String tipoConexion) { this.tipoConexion = tipoConexion; }
     public Boolean getEsDefault() { return esDefault; }
     public void setEsDefault(Boolean esDefault) { this.esDefault = esDefault; }
     public String getOauthProvider() { return oauthProvider; }

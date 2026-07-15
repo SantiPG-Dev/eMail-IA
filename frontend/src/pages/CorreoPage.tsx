@@ -77,15 +77,6 @@ export default function CorreoPage() {
     } catch { /* error silencioso */ }
   };
 
-  const marcarSpam = async () => {
-    if (!selected) return;
-    try {
-      const res = await mensajeApi.classify(selected.id);
-      setSelected(res.data);
-      await cargarMensajes();
-    } catch { /* error silencioso */ }
-  };
-
   const abrirCompose = (mode: 'nuevo' | 'responder' | 'reenviar') => {
     if (mode === 'responder' && selected) {
       setComposeTo(selected.remitente || '');
@@ -207,15 +198,18 @@ export default function CorreoPage() {
                 style={{ backgroundColor: '#64748B', color: 'white' }}>🗑 Papelera</button>
               <button onClick={async () => {
                 if (!selected) return;
-                try { await mensajeApi.classify(selected.id); await cargarMensajes(); }
-                catch {}
+                try {
+                  const res = await mensajeApi.classify(selected.id, 'SPAM');
+                  setSelected(res.data);
+                  await cargarMensajes();
+                } catch {}
               }}
                 className="px-2 py-1 text-xs rounded-pill"
                 style={{ backgroundColor: '#ef4444', color: 'white' }}>🚫 SPAM</button>
               <button onClick={async () => {
                 if (!selected) return;
                 try {
-                  const res = await mensajeApi.classify(selected.id);
+                  const res = await mensajeApi.classify(selected.id, 'LEGITIMO');
                   setSelected(res.data);
                   await cargarMensajes();
                 } catch {}

@@ -6,6 +6,7 @@ public record CuentaResponse(
     String email,
     String servidor,
     Integer puerto,
+    String tipoConexion,
     boolean esDefault,
     String oauthProvider
 ) {}
