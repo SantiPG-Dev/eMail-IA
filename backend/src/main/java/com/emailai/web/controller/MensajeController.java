@@ -62,10 +62,28 @@ public class MensajeController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Clasifica un mensaje.
+     *
+     * @param id       ID del mensaje
+     * @param categoria (opcional) Si se proporciona (SPAM/LEGITIMO/PHISHING),
+     *                  fuerza esa categoría (feedback del usuario) y reentrena Weka.
+     *                  Si no se proporciona, ejecuta la clasificación automática con Weka.
+     */
     @PostMapping("/{id}/clasificar")
-    public MensajeResponse clasificar(@PathVariable Long id) {
+    public MensajeResponse clasificar(
+            @PathVariable Long id,
+            @RequestParam(required = false) String categoria) {
         Mensaje m = mensajeService.buscarPorId(id);
-        m = mailService.clasificarMensaje(m);
+
+        if (categoria != null && !categoria.isBlank()) {
+            // Feedback del usuario: forzar categoría + entrenar Weka
+            m = mailService.forzarCategoria(m, categoria);
+        } else {
+            // Clasificación automática con Weka
+            m = mailService.clasificarMensaje(m);
+        }
+
         mensajeService.guardarOActualizar(m);
         return toResponse(m);
     }

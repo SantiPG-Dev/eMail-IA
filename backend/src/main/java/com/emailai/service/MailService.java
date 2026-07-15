@@ -26,6 +26,7 @@ import jakarta.mail.internet.MimeMultipart;
 import jakarta.mail.search.SearchTerm;
 
 import com.emailai.ai.AiService;
+import com.emailai.domain.entities.Entrenamiento;
 import com.emailai.domain.entities.Mensaje;
 
 /**
@@ -45,13 +46,16 @@ public class MailService {
     private final SpamIaService spamIaService;
     private final AiService aiService;
     private final RemitenteConfiableService remitenteService;
+    private final EntrenamientoService entrenamientoService;
 
     public MailService(MensajeService mensajeService, SpamIaService spamIaService,
-                       AiService aiService, RemitenteConfiableService remitenteService) {
+                       AiService aiService, RemitenteConfiableService remitenteService,
+                       EntrenamientoService entrenamientoService) {
         this.mensajeService = mensajeService;
         this.spamIaService = spamIaService;
         this.aiService = aiService;
         this.remitenteService = remitenteService;
+        this.entrenamientoService = entrenamientoService;
     }
 
     // ── Conexión IMAP ──────────────────────────────────────────
@@ -230,6 +234,61 @@ public class MailService {
             mensaje.setCategoria("DESCONOCIDO");
         }
         return mensaje;
+    }
+
+    /**
+     * Fuerza una categoría en un mensaje (feedback del usuario) y guarda
+     * el ejemplo en la tabla de entrenamiento para que Weka aprenda.
+     */
+    public Mensaje forzarCategoria(Mensaje mensaje, String categoria) {
+        mensaje.setCategoria(categoria.toUpperCase());
+
+        // Guardar ejemplo de entrenamiento
+        Entrenamiento ej = new Entrenamiento();
+        ej.setCuentaHash(mensaje.getCuentaHash());
+        ej.setTipo("spam");
+        ej.setRemitente(mensaje.getRemitente());
+        ej.setAsunto(mensaje.getAsunto());
+        ej.setCuerpo(mensaje.getCuerpo() != null ? mensaje.getCuerpo() : mensaje.getHtml());
+        ej.setEtiqueta(categoria.toUpperCase());
+        ej.setCreatedAt(java.time.LocalDateTime.now());
+        entrenamientoService.guardar(ej);
+
+        // Reentrenar modelo Weka con todos los ejemplos de entrenamiento
+        reentrenarModeloConEntrenamiento(mensaje.getCuentaHash());
+
+        return mensaje;
+    }
+
+    /**
+     * Reentrena el modelo Weka con los mensajes clasificados de una cuenta
+     * USANDO la tabla de entrenamiento (entrenamiento) en lugar de filtrar mensajes.
+     */
+    public void reentrenarModeloConEntrenamiento(String cuentaHash) {
+        try {
+            var ejemplos = entrenamientoService.listarPorCuenta(cuentaHash);
+            if (ejemplos.isEmpty()) return;
+
+            var mensajes = ejemplos.stream()
+                    .map(e -> {
+                        Mensaje m = new Mensaje();
+                        m.setCuentaHash(e.getCuentaHash());
+                        m.setRemitente(e.getRemitente());
+                        m.setAsunto(e.getAsunto());
+                        m.setCuerpo(e.getCuerpo());
+                        m.setCategoria(e.getEtiqueta());
+                        return m;
+                    })
+                    .toList();
+
+            if (mensajes.size() >= 3) {
+                spamIaService.entrenarModelo(cuentaHash, mensajes);
+                log.info("Modelo reentrenado para cuenta {} con {} ejemplos de entrenamiento",
+                        cuentaHash, mensajes.size());
+            }
+        } catch (Exception e) {
+            log.error("Error reentrenando modelo con entrenamiento: {}", e.getMessage());
+        }
     }
 
     /**
