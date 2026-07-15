@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api, { mensajeApi, cuentaApi } from '../api/client';
 import { useSync } from '../context/SyncContext';
 import ComposePage from './ComposePage';
@@ -20,48 +21,53 @@ export default function CorreoPage() {
   const [composeMode, setComposeMode] = useState<'nuevo' | 'responder' | 'reenviar'>('nuevo');
   const [composeTo, setComposeTo] = useState('');
 
-  // Carga inicial y recarga cuando SyncContext refresca (refreshKey cambia)
+  // Leer carpeta seleccionada desde query param (?carpeta=INBOX) pasado por el Layout
+  const [searchParams] = useSearchParams();
+  const carpetaImap = searchParams.get('carpeta') || 'INBOX';
+
+  const cargarMensajes = useCallback(async (carpeta?: string) => {
+    try {
+      const cuentas = await cuentaApi.list();
+      if (cuentas.data.length > 0) {
+        const c = cuentas.data[0];
+        setCuentaHash(c.email);
+        const carpetaActual = carpeta || carpetaImap;
+        const res = await mensajeApi.list(c.email, carpetaActual);
+        setMensajes(res.data.mensajes || []);
+      }
+    } catch {}
+  }, [carpetaImap]);
+
+  // Carga inicial y cuando cambia la carpeta
   useEffect(() => {
     cuentaApi.list().then(r => {
       setHasAccounts(r.data.length > 0);
       if (r.data.length > 0) {
         const c = r.data[0];
         setCuentaHash(c.email);
-        mensajeApi.list(c.email).then(res => setMensajes(res.data.mensajes || [])).catch(() => {});
+        mensajeApi.list(c.email, carpetaImap).then(res => setMensajes(res.data.mensajes || [])).catch(() => {});
       }
     }).catch(() => {});
-  }, []);
+  }, [carpetaImap]);
 
   // Recargar mensajes cuando SyncContext completa un sync
   useEffect(() => {
     if (refreshKey > 0) {
       cuentaApi.list().then(r => {
         if (r.data.length > 0) {
-          mensajeApi.list(r.data[0].email).then(res => setMensajes(res.data.mensajes || [])).catch(() => {});
+          mensajeApi.list(r.data[0].email, carpetaImap).then(res => setMensajes(res.data.mensajes || [])).catch(() => {});
         }
       }).catch(() => {});
     }
-  }, [refreshKey]);
-
-  const cargarMensajes = async () => {
-    try {
-      const cuentas = await cuentaApi.list();
-      if (cuentas.data.length > 0) {
-        const c = cuentas.data[0];
-        setCuentaHash(c.email);
-        const res = await mensajeApi.list(c.email);
-        setMensajes(res.data.mensajes || []);
-      }
-    } catch {}
-  };
+  }, [refreshKey, carpetaImap]);
 
   const sincronizar = async () => {
     await triggerSync();
-    await cargarMensajes();
+    await cargarMensajes(carpetaImap);
   };
 
   const handleSearch = async () => {
-    if (!search.trim()) { await cargarMensajes(); return; }
+    if (!search.trim()) { await cargarMensajes(carpetaImap); return; }
     try {
       const res = await mensajeApi.search(cuentaHash, search);
       setMensajes(res.data.mensajes || []);
@@ -74,15 +80,6 @@ export default function CorreoPage() {
       await mensajeApi.delete(selected.id);
       setMensajes(prev => prev.filter(m => m.id !== selected.id));
       setSelected(null);
-    } catch { /* error silencioso */ }
-  };
-
-  const marcarSpam = async () => {
-    if (!selected) return;
-    try {
-      const res = await mensajeApi.classify(selected.id);
-      setSelected(res.data);
-      await cargarMensajes();
     } catch { /* error silencioso */ }
   };
 
@@ -112,7 +109,7 @@ export default function CorreoPage() {
       to={composeTo}
       subject={composeMode === 'responder' ? (selected ? 'Re: ' + selected.asunto : '') : ''}
       body={composeMode === 'reenviar' && selected ? '\n\n--- Mensaje original ---\n' + (selected.cuerpo || '') : ''}
-      onClose={() => { setComposeOpen(false); cargarMensajes(); }}
+      onClose={() => { setComposeOpen(false); cargarMensajes(carpetaImap); }}
     />;
   }
 
@@ -199,17 +196,20 @@ export default function CorreoPage() {
                 style={{ backgroundColor: '#64748B', color: 'white' }}>🗑 Papelera</button>
               <button onClick={async () => {
                 if (!selected) return;
-                try { await mensajeApi.classify(selected.id); await cargarMensajes(); }
-                catch {}
+                try {
+                  const res = await mensajeApi.classify(selected.id, 'SPAM');
+                  setSelected(res.data);
+                  await cargarMensajes(carpetaImap);
+                } catch {}
               }}
                 className="px-2 py-1 text-xs rounded-pill"
                 style={{ backgroundColor: '#ef4444', color: 'white' }}>🚫 SPAM</button>
               <button onClick={async () => {
                 if (!selected) return;
                 try {
-                  const res = await mensajeApi.classify(selected.id);
+                  const res = await mensajeApi.classify(selected.id, 'LEGITIMO');
                   setSelected(res.data);
-                  await cargarMensajes();
+                  await cargarMensajes(carpetaImap);
                 } catch {}
               }}
                 className="px-2 py-1 text-xs rounded-pill"

@@ -9,6 +9,7 @@ public record CuentaRequest(
     Integer puerto,
     String usuario,
     String password,
+    String tipoConexion,           // IMAP | POP3
     boolean esDefault,
     String oauthProvider,
     String oauthAccessToken,

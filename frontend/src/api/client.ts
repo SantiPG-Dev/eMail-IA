@@ -66,7 +66,8 @@ export const mensajeApi = {
     api.get('/api/mensajes/buscar', { params: { cuentaHash, carpeta, q } }),
   get: (id: number) => api.get(`/api/mensajes/${id}`),
   delete: (id: number) => api.delete(`/api/mensajes/${id}`),
-  classify: (id: number) => api.post(`/api/mensajes/${id}/clasificar`),
+  classify: (id: number, categoria?: string) =>
+    api.post(`/api/mensajes/${id}/clasificar${categoria ? `?categoria=${categoria}` : ''}`), 
   summarize: (id: number) => api.post(`/api/mensajes/${id}/resumen`),
   suggest: (id: number) => api.post(`/api/mensajes/${id}/sugerir`),
 };
@@ -77,6 +78,7 @@ export const cuentaApi = {
   create: (data: any) => api.post('/api/cuentas', data),
   delete: (id: number) => api.delete(`/api/cuentas/${id}`),
   sync: (id: number) => api.post(`/api/cuentas/${id}/sync`),
+  carpetas: (id: number) => api.get(`/api/cuentas/${id}/carpetas`),
 };
 
 export const iaApi = {
