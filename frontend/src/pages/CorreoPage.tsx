@@ -249,7 +249,7 @@ export default function CorreoPage() {
             <div className="flex-1 overflow-auto rounded-lg p-2"
               style={{ backgroundColor: 'var(--color-bg-card)' }}>
               {selected.html ? (
-                <iframe srcDoc={selected.html} className="w-full h-full border-0" title="Cuerpo" sandbox="allow-same-origin" />
+                <iframe srcDoc={selected.html} className="w-full h-full border-0" title="Cuerpo" sandbox="" />
               ) : (
                 <pre className="text-sm whitespace-pre-wrap font-sans" style={{ color: 'var(--color-text)' }}>
                   {selected.cuerpo}</pre>
