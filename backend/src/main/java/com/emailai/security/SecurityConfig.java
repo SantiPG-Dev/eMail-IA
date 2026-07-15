@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -52,6 +53,7 @@ public class SecurityConfig {
                 .requestMatchers("/health").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/debug/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/cuentas").permitAll()  // Crear cuenta sin auth (primer uso)
                 .requestMatchers("/", "/index.html", "/assets/**", "/src/**", "/*.png", "/*.svg", "/*.ico").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
@@ -85,7 +87,8 @@ public class SecurityConfig {
                     chain.doFilter(request, response);
                     return;
                 }
-                if (path.startsWith("/api/auth/") || path.startsWith("/api/debug/") || path.equals("/api/auth")) {
+                if (path.startsWith("/api/auth/") || path.startsWith("/api/debug/") || path.equals("/api/auth")
+                        || (path.equals("/api/cuentas") && "POST".equalsIgnoreCase(req.getMethod()))) {
                     chain.doFilter(request, response);
                     return;
                 }
