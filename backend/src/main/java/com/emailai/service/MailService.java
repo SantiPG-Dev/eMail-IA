@@ -74,6 +74,12 @@ public class MailService {
         props.put(propPrefix + ".connectiontimeout", "10000");
         props.put(propPrefix + ".timeout", "10000");
 
+        // POP3: NO eliminar mensajes del servidor al leerlos
+        if ("pop3".equals(protocol)) {
+            props.put("mail.pop3.rsetbeforequit", "true");
+            props.put("mail.pop3.delete", "false");
+        }
+
         Session session = Session.getInstance(props);
         String storeProtocol = protocol + (ssl ? "s" : "");
         Store store = session.getStore(storeProtocol);
