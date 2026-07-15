@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useTheme, THEMES } from '../context/ThemeContext';
 import { cuentaApi } from '../api/client';
+import AccountForm from '../components/AccountForm';
+import type { AccountFormData } from '../components/AccountForm';
 
 type Section = 'general' | 'cuentas' | 'ia' | 'temas';
 const SECTIONS: { key: Section; label: string }[] = [
@@ -10,19 +12,22 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: 'temas', label: '🎨 Temas' },
 ];
 
+const PROVIDERS_LOOKUP: Record<string, { imap: { host: string; port: number }; pop3: { host: string; port: number } }> = {
+  gmail: { imap: { host: 'imap.gmail.com', port: 993 }, pop3: { host: 'pop.gmail.com', port: 995 } },
+  outlook: { imap: { host: 'outlook.office365.com', port: 993 }, pop3: { host: 'outlook.office365.com', port: 995 } },
+  yahoo: { imap: { host: 'imap.mail.yahoo.com', port: 993 }, pop3: { host: 'pop.mail.yahoo.com', port: 995 } },
+  gmx: { imap: { host: 'imap.gmx.com', port: 993 }, pop3: { host: 'pop.gmx.com', port: 995 } },
+  icloud: { imap: { host: 'imap.mail.me.com', port: 993 }, pop3: { host: 'pop.mail.me.com', port: 995 } },
+  zoho: { imap: { host: 'imap.zoho.com', port: 993 }, pop3: { host: 'pop.zoho.com', port: 995 } },
+  yandex: { imap: { host: 'imap.yandex.com', port: 993 }, pop3: { host: 'pop.yandex.com', port: 995 } },
+  other: { imap: { host: '', port: 993 }, pop3: { host: '', port: 995 } },
+};
+
 export default function ConfigPage() {
   const { theme, setTheme, mode, toggleMode } = useTheme();
   const [section, setSection] = useState<Section>('general');
 
-  // Estado del formulario de cuentas
   const [cuentas, setCuentas] = useState<any[]>([]);
-  const [nombre, setNombre] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [imapHost, setImapHost] = useState('');
-  const [imapPort, setImapPort] = useState('993');
-  const [smtpHost, setSmtpHost] = useState('');
-  const [smtpPort, setSmtpPort] = useState('465');
   const [status, setStatus] = useState('');
 
   useEffect(() => { cargarCuentas(); }, []);
@@ -31,24 +36,25 @@ export default function ConfigPage() {
     cuentaApi.list().then(r => setCuentas(r.data)).catch(() => {});
   };
 
-  const selectProvider = (p: string) => {
-    if (p === 'gmail') { setNombre('Gmail'); setImapHost('imap.gmail.com'); setImapPort('993'); setSmtpHost('smtp.gmail.com'); setSmtpPort('465'); }
-    else if (p === 'outlook') { setNombre('Outlook'); setImapHost('outlook.office365.com'); setImapPort('993'); setSmtpHost('smtp.office365.com'); setSmtpPort('587'); }
-  };
+  const handleSave = async (data: AccountFormData) => {
+    const p = PROVIDERS_LOOKUP[data.proveedor] || PROVIDERS_LOOKUP.other;
+    const conn = data.tipoConexion === 'IMAP' ? p.imap : p.pop3;
 
-  const guardarCuenta = async () => {
-    if (!email || !password) { setStatus('Email y contraseña obligatorios'); return; }
-    try {
-      await cuentaApi.create({
-        nombre: nombre || email.split('@')[0], email, servidor: imapHost, puerto: parseInt(imapPort),
-        usuario: email, password, esDefault: cuentas.length === 0,
-        oauthProvider: null, oauthAccessToken: null, oauthRefreshToken: null, oauthExpiresAt: null,
-      });
-      setStatus('Cuenta guardada');
-      setEmail(''); setPassword(''); setNombre(''); cargarCuentas();
-    } catch (err: any) {
-      setStatus(err.response?.data?.message || 'Error al guardar');
-    }
+    await cuentaApi.create({
+      nombre: data.nombre,
+      email: data.email,
+      servidor: conn.host,
+      puerto: conn.port,
+      usuario: data.email,
+      password: data.password,
+      tipoConexion: data.tipoConexion,
+      esDefault: cuentas.length === 0,
+      oauthProvider: null,
+      oauthAccessToken: null,
+      oauthRefreshToken: null,
+      oauthExpiresAt: null,
+    });
+    cargarCuentas();
   };
 
   const eliminarCuenta = async (id: number) => {
@@ -114,73 +120,10 @@ export default function ConfigPage() {
               </div>
             )}
 
-            {/* Añadir cuenta */}
+            {/* Añadir cuenta con formulario compartido */}
             <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-card)' }}>
               <p className="text-sm font-bold mb-3" style={{ color: 'var(--color-text)' }}>Añadir cuenta</p>
-
-              {/* Proveedores rápidos */}
-              <div className="flex gap-2 mb-4">
-                {[{ id: 'gmail', label: 'Gmail' }, { id: 'outlook', label: 'Outlook' }].map(p => (
-                  <button key={p.id} onClick={() => selectProvider(p.id)}
-                    className="px-3 py-1.5 text-xs rounded-lg transition-colors"
-                    style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Nombre</label>
-                  <input value={nombre} onChange={e => setNombre(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                    style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Email *</label>
-                  <input value={email} onChange={e => setEmail(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                    style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Contraseña *</label>
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                    style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
-                </div>
-                <div>
-                  <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>IMAP</label>
-                  <input value={imapHost} onChange={e => setImapHost(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                    style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
-                </div>
-                <div>
-                  <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Puerto IMAP</label>
-                  <input value={imapPort} onChange={e => setImapPort(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                    style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
-                </div>
-                <div>
-                  <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>SMTP</label>
-                  <input value={smtpHost} onChange={e => setSmtpHost(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                    style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
-                </div>
-                <div>
-                  <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Puerto SMTP</label>
-                  <input value={smtpPort} onChange={e => setSmtpPort(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-                    style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
-                </div>
-              </div>
-
-              {status && <p className="text-xs mt-2" style={{ color: status.includes('Error') ? '#ef4444' : '#22c55e' }}>{status}</p>}
-
-              <button onClick={guardarCuenta}
-                className="mt-3 px-4 py-1.5 text-sm font-bold rounded-pill"
-                style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>
-                Guardar cuenta
-              </button>
+              <AccountForm onSave={handleSave} />
             </div>
           </div>
         )}
