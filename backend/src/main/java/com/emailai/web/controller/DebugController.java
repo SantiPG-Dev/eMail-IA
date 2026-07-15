@@ -6,6 +6,7 @@ import java.util.Properties;
 import org.springframework.web.bind.annotation.*;
 
 import com.emailai.domain.entities.Cuenta;
+import com.emailai.security.CredentialService;
 import com.emailai.repository.MensajeRepository;
 import com.emailai.service.CuentaService;
 
@@ -19,10 +20,13 @@ public class DebugController {
 
     private final MensajeRepository mensajeRepo;
     private final CuentaService cuentaService;
+    private final CredentialService credentialService;
 
-    public DebugController(MensajeRepository mensajeRepo, CuentaService cuentaService) {
+    public DebugController(MensajeRepository mensajeRepo, CuentaService cuentaService,
+                           CredentialService credentialService) {
         this.mensajeRepo = mensajeRepo;
         this.cuentaService = cuentaService;
+        this.credentialService = credentialService;
     }
 
     @GetMapping("/mensajes")
@@ -58,7 +62,7 @@ public class DebugController {
             Cuenta c = cuentas.get(0);
             String host = c.getServidor() != null ? c.getServidor() : "imap.gmail.com";
             String user = c.getEmail();
-            String pass = c.getPasswordCifrada();
+            String pass = credentialService.descifrar(c.getPasswordCifrada());
 
             Properties props = new Properties();
             props.put("mail.imaps.host", host);

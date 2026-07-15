@@ -5,6 +5,7 @@ import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.emailai.security.CredentialService;
 import com.emailai.service.CuentaService;
 import com.emailai.service.MailService;
 
@@ -17,10 +18,13 @@ public class EnviarController {
 
     private final MailService mailService;
     private final CuentaService cuentaService;
+    private final CredentialService credentialService;
 
-    public EnviarController(MailService mailService, CuentaService cuentaService) {
+    public EnviarController(MailService mailService, CuentaService cuentaService,
+                            CredentialService credentialService) {
         this.mailService = mailService;
         this.cuentaService = cuentaService;
+        this.credentialService = credentialService;
     }
 
     @PostMapping
@@ -40,7 +44,7 @@ public class EnviarController {
                 : "smtp.gmail.com";
             int puerto = servidor.contains("outlook") ? 587 : 465;
             String user = cuenta.getEmail();
-            String pass = cuenta.getPasswordCifrada();
+            String pass = credentialService.descifrar(cuenta.getPasswordCifrada());
 
             if (pass == null || pass.isBlank()) {
                 return ResponseEntity.badRequest().body(Map.of(

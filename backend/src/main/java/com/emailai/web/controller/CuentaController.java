@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.emailai.domain.entities.Cuenta;
+import com.emailai.security.CredentialService;
 import com.emailai.service.CuentaService;
 import com.emailai.service.MailService;
 import com.emailai.web.dto.CuentaRequest;
@@ -23,10 +24,13 @@ public class CuentaController {
 
     private final CuentaService cuentaService;
     private final MailService mailService;
+    private final CredentialService credentialService;
 
-    public CuentaController(CuentaService cuentaService, MailService mailService) {
+    public CuentaController(CuentaService cuentaService, MailService mailService,
+                            CredentialService credentialService) {
         this.cuentaService = cuentaService;
         this.mailService = mailService;
+        this.credentialService = credentialService;
     }
 
     @GetMapping
@@ -47,7 +51,7 @@ public class CuentaController {
         c.setServidor(req.servidor());
         c.setPuerto(req.puerto());
         c.setUsuarioCifrado(req.usuario());
-        c.setPasswordCifrada(req.password());  // cifrado en Fase 4
+        c.setPasswordCifrada(credentialService.cifrar(req.password()));
         c.setTipoConexion(req.tipoConexion() != null ? req.tipoConexion() : "IMAP");
         c.setEsDefault(req.esDefault());
         c.setOauthProvider(req.oauthProvider());
@@ -91,9 +95,9 @@ public class CuentaController {
                     : (c.getEmail() != null && c.getEmail().contains("outlook")
                         ? "outlook.office365.com" : "imap.gmail.com");
             String user = c.getEmail();
-            String password = c.getPasswordCifrada();
+            String password = credentialService.descifrar(c.getPasswordCifrada());
             if (c.getOauthProvider() != null && c.getOauthAccessToken() != null) {
-                password = c.getOauthAccessToken();
+                password = credentialService.descifrar(c.getOauthAccessToken());
             }
 
             String tipoConexion = c.getTipoConexion() != null ? c.getTipoConexion() : "IMAP";
