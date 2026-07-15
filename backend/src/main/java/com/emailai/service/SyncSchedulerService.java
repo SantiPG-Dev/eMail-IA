@@ -9,6 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.emailai.domain.entities.Cuenta;
+import com.emailai.security.CredentialService;
 
 /**
  * Servicio de sincronización automática de correo en segundo plano.
@@ -22,10 +23,13 @@ public class SyncSchedulerService {
 
     private final MailService mailService;
     private final CuentaService cuentaService;
+    private final CredentialService credentialService;
 
-    public SyncSchedulerService(MailService mailService, CuentaService cuentaService) {
+    public SyncSchedulerService(MailService mailService, CuentaService cuentaService,
+                                CredentialService credentialService) {
         this.mailService = mailService;
         this.cuentaService = cuentaService;
+        this.credentialService = credentialService;
     }
 
     /**
@@ -53,7 +57,7 @@ public class SyncSchedulerService {
         int puerto = cuenta.getPuerto() != null ? cuenta.getPuerto() : 993;
         String tipoConexion = cuenta.getTipoConexion() != null ? cuenta.getTipoConexion() : "IMAP";
         var resultados = mailService.sincronizarTodo(servidor,
-                cuenta.getEmail(), cuenta.getPasswordCifrada(), cuenta.getEmail(),
+                cuenta.getEmail(), credentialService.descifrar(cuenta.getPasswordCifrada()), cuenta.getEmail(),
                 300, tipoConexion);
         log.info("Sincronizadas {} carpetas para {} ({})", resultados.size(),
                 cuenta.getEmail(), tipoConexion);
@@ -65,7 +69,7 @@ public class SyncSchedulerService {
             servidor = "outlook.office365.com";
         }
         var resultados = mailService.sincronizarTodo(servidor,
-                cuenta.getEmail(), cuenta.getOauthAccessToken(), cuenta.getEmail());
+                cuenta.getEmail(), credentialService.descifrar(cuenta.getOauthAccessToken()), cuenta.getEmail());
         log.info("Sincronizadas {} carpetas OAuth para {}", resultados.size(), cuenta.getEmail());
     }
 }

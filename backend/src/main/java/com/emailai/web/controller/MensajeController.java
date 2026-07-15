@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.emailai.domain.entities.Mensaje;
+import com.emailai.security.CredentialService;
 import com.emailai.service.CuentaService;
 import com.emailai.service.MailService;
 import com.emailai.service.MensajeService;
@@ -19,12 +20,15 @@ public class MensajeController {
     private final MensajeService mensajeService;
     private final MailService mailService;
     private final CuentaService cuentaService;
+    private final CredentialService credentialService;
 
     public MensajeController(MensajeService mensajeService, MailService mailService,
-                             CuentaService cuentaService) {
+                             CuentaService cuentaService,
+                             CredentialService credentialService) {
         this.mensajeService = mensajeService;
         this.mailService = mailService;
         this.cuentaService = cuentaService;
+        this.credentialService = credentialService;
     }
 
     @GetMapping
@@ -106,9 +110,9 @@ public class MensajeController {
         try {
             var cuenta = cuentaService.buscarPorEmail(cuentaHash);
             if (cuenta.isPresent()) {
-                String pass = cuenta.get().getPasswordCifrada();
+                String pass = credentialService.descifrar(cuenta.get().getPasswordCifrada());
                 if (pass != null && !pass.isBlank()) return pass;
-                String token = cuenta.get().getOauthAccessToken();
+                String token = credentialService.descifrar(cuenta.get().getOauthAccessToken());
                 if (token != null && !token.isBlank()) return token;
             }
         } catch (Exception ignored) {}
