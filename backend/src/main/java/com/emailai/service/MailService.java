@@ -277,10 +277,16 @@ public class MailService {
      */
     public List<SyncResult> sincronizarTodo(String imapHost, String user, String password,
                                              String cuentaHash) throws MessagingException, IOException {
+        return sincronizarTodo(imapHost, user, password, cuentaHash, 300);
+    }
+
+    public List<SyncResult> sincronizarTodo(String imapHost, String user, String password,
+                                             String cuentaHash, int maxSync)
+            throws MessagingException, IOException {
         List<String> carpetas = listarCarpetas(imapHost, user, password);
         List<SyncResult> resultados = new ArrayList<>();
         for (String carpeta : carpetas) {
-            resultados.add(sincronizarCarpeta(imapHost, user, password, cuentaHash, carpeta));
+            resultados.add(sincronizarCarpeta(imapHost, user, password, cuentaHash, carpeta, maxSync));
         }
         // Reentrenar modelo tras sincronizar
         reentrenarModelo(cuentaHash);

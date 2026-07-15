@@ -1,0 +1,34 @@
+spring:
+  profiles:
+    active: test
+
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+# Deshabilitar tareas programadas en tests
+emailai:
+  sync:
+    interval: 999999999
+  security:
+    jwt:
+      secret: test-secret-key-for-unit-tests-2026
+      expiration-hours: 24
+  ai:
+    base-url: http://localhost:9999
+    model: test-model

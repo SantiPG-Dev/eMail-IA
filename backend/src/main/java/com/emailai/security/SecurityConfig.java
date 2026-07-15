@@ -47,6 +47,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/health").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/debug/**").permitAll()
                 .requestMatchers("/", "/index.html", "/assets/**", "/src/**", "/*.png", "/*.svg", "/*.ico").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
@@ -80,7 +81,7 @@ public class SecurityConfig {
                     chain.doFilter(request, response);
                     return;
                 }
-                if (path.startsWith("/api/auth/") || path.equals("/api/auth")) {
+                if (path.startsWith("/api/auth/") || path.startsWith("/api/debug/") || path.equals("/api/auth")) {
                     chain.doFilter(request, response);
                     return;
                 }

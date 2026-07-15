@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { mensajeApi, cuentaApi, utilApi } from '../api/client';
-import axios from 'axios';
+import api, { mensajeApi, cuentaApi } from '../api/client';
+import { useSync } from '../context/SyncContext';
 import ComposePage from './ComposePage';
 
 interface Mensaje {
@@ -11,17 +11,16 @@ interface Mensaje {
 
 export default function CorreoPage() {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  const { triggerSync, refreshMessages, syncing, progress, statusText, refreshKey } = useSync();
   const [selected, setSelected] = useState<Mensaje | null>(null);
   const [search, setSearch] = useState('');
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState('');
   const [hasAccounts, setHasAccounts] = useState(false);
   const [cuentaHash, setCuentaHash] = useState('local');
-  const [progress, setProgress] = useState(0);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<'nuevo' | 'responder' | 'reenviar'>('nuevo');
   const [composeTo, setComposeTo] = useState('');
 
+  // Carga inicial y recarga cuando SyncContext refresca (refreshKey cambia)
   useEffect(() => {
     cuentaApi.list().then(r => {
       setHasAccounts(r.data.length > 0);
@@ -32,6 +31,17 @@ export default function CorreoPage() {
       }
     }).catch(() => {});
   }, []);
+
+  // Recargar mensajes cuando SyncContext completa un sync
+  useEffect(() => {
+    if (refreshKey > 0) {
+      cuentaApi.list().then(r => {
+        if (r.data.length > 0) {
+          mensajeApi.list(r.data[0].email).then(res => setMensajes(res.data.mensajes || [])).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  }, [refreshKey]);
 
   const cargarMensajes = async () => {
     try {
@@ -46,44 +56,8 @@ export default function CorreoPage() {
   };
 
   const sincronizar = async () => {
-    setSyncing(true);
-    setSyncMsg('Preparando...');
-    setProgress(0);
-    try {
-      const cuentas = await cuentaApi.list();
-      if (cuentas.data.length === 0) {
-        setSyncMsg('No hay cuentas. Ve a Configuración → Cuentas.');
-        setSyncing(false);
-        return;
-      }
-      const c = cuentas.data[0];
-      const BATCH = 50;
-      const TOTAL = 300;
-
-      // Sincronizar en lotes de 50 para mostrar progreso
-      for (let loaded = 0; loaded < TOTAL; loaded += BATCH) {
-        const pct = Math.round((loaded / TOTAL) * 100);
-        setProgress(pct);
-        setSyncMsg(`Descargando ${loaded + BATCH}/${TOTAL}...`);
-        try {
-          await cuentaApi.sync(c.id);
-        } catch (e) {
-          // Si falla un lote, continuar con el siguiente
-        }
-        // Pequeña pausa para que se vea el progreso
-        await new Promise(r => setTimeout(r, 300));
-      }
-
-      setProgress(100);
-      setSyncMsg('Sincronizado ✓');
-      await cargarMensajes();
-    } catch (err: any) {
-      setSyncMsg('Error de conexión. Verifica credenciales.');
-      setProgress(0);
-    } finally {
-      setSyncing(false);
-      setTimeout(() => { setSyncMsg(''); setProgress(0); }, 4000);
-    }
+    await triggerSync();
+    await cargarMensajes();
   };
 
   const handleSearch = async () => {
@@ -91,7 +65,7 @@ export default function CorreoPage() {
     try {
       const res = await mensajeApi.search(cuentaHash, search);
       setMensajes(res.data.mensajes || []);
-    } catch { setSyncMsg('Error en la búsqueda'); }
+    } catch { /* error silencioso */ }
   };
 
   const eliminarMensaje = async () => {
@@ -100,9 +74,7 @@ export default function CorreoPage() {
       await mensajeApi.delete(selected.id);
       setMensajes(prev => prev.filter(m => m.id !== selected.id));
       setSelected(null);
-      setSyncMsg('Mensaje eliminado');
-      setTimeout(() => setSyncMsg(''), 3000);
-    } catch { setSyncMsg('Error al eliminar'); }
+    } catch { /* error silencioso */ }
   };
 
   const marcarSpam = async () => {
@@ -111,7 +83,7 @@ export default function CorreoPage() {
       const res = await mensajeApi.classify(selected.id);
       setSelected(res.data);
       await cargarMensajes();
-    } catch { setSyncMsg('Error al clasificar'); }
+    } catch { /* error silencioso */ }
   };
 
   const abrirCompose = (mode: 'nuevo' | 'responder' | 'reenviar') => {
@@ -177,18 +149,10 @@ export default function CorreoPage() {
           </button>
         </div>
 
-        {syncMsg && (
-          <div className="space-y-1">
-            <p className="text-xs" style={{ color: syncMsg.includes('Error') ? '#ef4444' : 'var(--color-accent)' }}>
-              {syncMsg}
-            </p>
-            {syncing && progress > 0 && (
-              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg-elevated)' }}>
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${progress}%`, backgroundColor: 'var(--color-accent)' }} />
-              </div>
-            )}
-          </div>
+        {statusText !== 'Inactivo' && (
+          <p className="text-xs" style={{ color: statusText.includes('Error') ? '#ef4444' : 'var(--color-accent)' }}>
+            {statusText}
+          </p>
         )}
 
         <div className="flex-1 overflow-y-auto space-y-1">

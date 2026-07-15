@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { SyncProvider } from './context/SyncContext';
 import { cuentaApi } from './api/client';
 import LoginPage from './pages/LoginPage';
 import Layout from './components/Layout';
@@ -49,9 +50,11 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/" element={
               <ProtectedRoute>
-                <FirstRunSetup>
-                  <Layout />
-                </FirstRunSetup>
+                <SyncProvider>
+                  <FirstRunSetup>
+                    <Layout />
+                  </FirstRunSetup>
+                </SyncProvider>
               </ProtectedRoute>
             }>
               <Route index element={<div className="flex items-center justify-center h-full text-sm"

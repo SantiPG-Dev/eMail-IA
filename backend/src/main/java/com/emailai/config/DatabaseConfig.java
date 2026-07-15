@@ -7,6 +7,7 @@ import javax.sql.DataSource;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 /**
  * Configura el DataSource de H2 con cifrado AES.
@@ -23,6 +24,7 @@ import org.springframework.context.annotation.Configuration;
  * Spring Data JPA. Los datos siguen siendo locales y cifrados.
  */
 @Configuration
+@Profile("!test")
 public class DatabaseConfig {
 
     private static final String DB_PARAMS = ";CIPHER=AES;DATABASE_TO_LOWER=TRUE";

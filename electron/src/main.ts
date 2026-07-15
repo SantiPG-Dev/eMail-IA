@@ -103,27 +103,34 @@ function startBackend(): Promise<void> {
 }
 
 function pollHealth(resolve: () => void, reject: (err: Error) => void, attempt: number) {
-  if (attempt > 30) { // ~30 segundos máximo
-    reject(new Error('Timeout esperando al backend'));
-    return;
-  }
+  let done = false;
+
+  const retry = () => {
+    if (done) return;
+    if (attempt >= 30) {
+      done = true;
+      reject(new Error('Timeout esperando al backend'));
+      return;
+    }
+    setTimeout(() => pollHealth(resolve, reject, attempt + 1), 1000);
+  };
 
   const req = http.get(HEALTH_URL, (res) => {
+    if (done) return;
     if (res.statusCode === 200) {
+      done = true;
       console.log('[Electron] Backend listo');
       resolve();
     } else {
-      setTimeout(() => pollHealth(resolve, reject, attempt + 1), 1000);
+      retry();
     }
+    res.resume();
   });
 
-  req.on('error', () => {
-    setTimeout(() => pollHealth(resolve, reject, attempt + 1), 1000);
-  });
-
+  req.on('error', retry);
   req.setTimeout(3000, () => {
     req.destroy();
-    setTimeout(() => pollHealth(resolve, reject, attempt + 1), 1000);
+    retry();
   });
 }
 
