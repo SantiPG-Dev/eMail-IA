@@ -74,7 +74,9 @@ public class CuentaController {
         if (c.getOauthProvider() != null) {
             password = c.getOauthAccessToken();
         }
-        return mailService.sincronizarTodo(servidor, user, password, c.getEmail(), limite);
+        String tipoConexion = c.getTipoConexion() != null ? c.getTipoConexion() : "IMAP";
+        return mailService.sincronizarTodo(servidor, user, password, c.getEmail(),
+                limite, tipoConexion);
     }
 
     /**
@@ -94,7 +96,8 @@ public class CuentaController {
                 password = c.getOauthAccessToken();
             }
 
-            var carpetas = mailService.listarCarpetas(servidor, user, password);
+            String tipoConexion = c.getTipoConexion() != null ? c.getTipoConexion() : "IMAP";
+            var carpetas = mailService.listarCarpetas(servidor, user, password, tipoConexion);
             return carpetas.stream()
                     .map(nombre -> Map.<String, Object>of(
                         "nombre", nombre,

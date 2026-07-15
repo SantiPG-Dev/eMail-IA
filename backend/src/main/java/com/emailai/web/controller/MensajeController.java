@@ -125,26 +125,37 @@ public class MensajeController {
                 ? "outlook.office365.com" : "imap.gmail.com";
     }
 
-    /** Elimina del servidor IMAP (mueve a papelera). */
+    private String getTipoConexion(String cuentaHash) {
+        try {
+            var cuenta = cuentaService.buscarPorEmail(cuentaHash);
+            if (cuenta.isPresent() && cuenta.get().getTipoConexion() != null)
+                return cuenta.get().getTipoConexion();
+        } catch (Exception ignored) {}
+        return "IMAP";
+    }
+
+    /** Elimina del servidor (IMAP mueve a papelera, POP3 no aplica). */
     @DeleteMapping("/{id}/servidor")
     public String eliminarDelServidor(@PathVariable Long id) {
         Mensaje m = mensajeService.buscarPorId(id);
         String pass = getPasswordFromCuenta(m.getCuentaHash());
         String host = getImapHost(m.getCuentaHash());
+        String tipo = getTipoConexion(m.getCuentaHash());
         mailService.eliminarDelServidor(host, m.getCuentaHash(), pass,
-                m.getCarpetaImap(), m.getUid());
+                m.getCarpetaImap(), m.getUid(), tipo);
         mensajeService.eliminar(id);
         return "Eliminado";
     }
 
-    /** Mueve a otra carpeta (spam, papelera, etc.). */
+    /** Mueve a otra carpeta (POP3 no soportado). */
     @PostMapping("/{id}/mover")
     public String mover(@PathVariable Long id, @RequestParam String destino) {
         Mensaje m = mensajeService.buscarPorId(id);
         String pass = getPasswordFromCuenta(m.getCuentaHash());
         String host = getImapHost(m.getCuentaHash());
+        String tipo = getTipoConexion(m.getCuentaHash());
         mailService.moverACarpeta(host, m.getCuentaHash(), pass,
-                m.getCarpetaImap(), destino, m.getUid());
+                m.getCarpetaImap(), destino, m.getUid(), tipo);
         return "Movido a " + destino;
     }
 

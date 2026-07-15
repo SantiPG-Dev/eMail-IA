@@ -50,10 +50,13 @@ public class SyncSchedulerService {
     private void syncPassword(Cuenta cuenta) throws Exception {
         String servidor = cuenta.getServidor() != null ? cuenta.getServidor()
                 : (cuenta.getEmail().contains("gmail") ? "imap.gmail.com" : "imap.outlook.com");
-        // Credenciales descifradas serían manejadas en Fase 4 (SecureStorage)
+        int puerto = cuenta.getPuerto() != null ? cuenta.getPuerto() : 993;
+        String tipoConexion = cuenta.getTipoConexion() != null ? cuenta.getTipoConexion() : "IMAP";
         var resultados = mailService.sincronizarTodo(servidor,
-                cuenta.getEmail(), cuenta.getPasswordCifrada(), cuenta.getEmail());
-        log.info("Sincronizadas {} carpetas para {}", resultados.size(), cuenta.getEmail());
+                cuenta.getEmail(), cuenta.getPasswordCifrada(), cuenta.getEmail(),
+                300, tipoConexion);
+        log.info("Sincronizadas {} carpetas para {} ({})", resultados.size(),
+                cuenta.getEmail(), tipoConexion);
     }
 
     private void syncOAuth(Cuenta cuenta) throws Exception {
