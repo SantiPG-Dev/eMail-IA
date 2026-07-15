@@ -148,8 +148,11 @@ export default function LoginPage() {
 
           {/* Columna derecha: logo + contraseña */}
           <div className="w-[520px] flex flex-col items-center gap-5">
-            <img src="/logo.png" alt="eMail-IA"
-              className="w-[480px] h-[220px] object-contain rounded-xl" />
+            <div className="w-[480px] h-[220px] rounded-xl flex items-center justify-center"
+              style={{ backgroundColor: 'var(--color-bg-card)' }}>
+              <img src="/logo.png" alt="eMail-IA"
+                className="max-w-full max-h-full object-contain" />
+            </div>
 
             <div className="flex flex-col items-center max-w-[360px] w-full gap-2">
               <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
