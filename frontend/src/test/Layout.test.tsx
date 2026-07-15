@@ -1,20 +1,27 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { AuthProvider } from '../context/AuthContext';
 import { ThemeProvider } from '../context/ThemeContext';
+import { SyncProvider } from '../context/SyncContext';
 import { ReactNode } from 'react';
 
-// Mock API client
+// Mock API client — SyncContext necesita cuentaApi.list() y mensajeApi.list()
 vi.mock('../api/client', () => ({
   default: {
-    post: vi.fn().mockResolvedValue({}),
-    get: vi.fn().mockResolvedValue({}),
+    post: vi.fn().mockResolvedValue({ data: {} }),
+    get: vi.fn().mockResolvedValue({ data: {} }),
     interceptors: {
       request: { use: vi.fn() },
       response: { use: vi.fn() },
     },
+  },
+  cuentaApi: {
+    list: vi.fn().mockResolvedValue({ data: [] }),
+  },
+  mensajeApi: {
+    list: vi.fn().mockResolvedValue({ data: { mensajes: [] } }),
   },
 }));
 
@@ -22,7 +29,9 @@ const wrapper = ({ children }: { children: ReactNode }) => (
   <MemoryRouter initialEntries={['/']}>
     <ThemeProvider>
       <AuthProvider>
-        {children}
+        <SyncProvider>
+          {children}
+        </SyncProvider>
       </AuthProvider>
     </ThemeProvider>
   </MemoryRouter>
@@ -31,7 +40,10 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 describe('Layout', () => {
   it('renderiza la marca', () => {
     render(<Layout />, { wrapper });
-    expect(screen.getByText('eMail·IA')).toBeInTheDocument();
+    // La marca es un logo img con alt="eMail-IA"
+    const logo = screen.getByAltText('eMail-IA');
+    expect(logo).toBeInTheDocument();
+    expect(logo.tagName).toBe('IMG');
   });
 
   it('renderiza los items de navegacion', () => {

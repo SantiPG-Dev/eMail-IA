@@ -1,10 +1,6 @@
 package com.emailai.web.controller;
 
 import java.util.Map;
-
-import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 import java.util.Properties;
 
 import org.springframework.web.bind.annotation.*;
@@ -31,17 +27,29 @@ public class DebugController {
 
     @GetMapping("/mensajes")
     public Map<String, Object> contarMensajes() {
-        long total = mensajeRepo.count();
-        return Map.of(
-            "totalEnBD", total,
-            "mensajes", total > 0 ? mensajeRepo.findAll().stream().limit(3).map(m ->
-                Map.of("id", m.getId(), "asunto", m.getAsunto(), "remitente", m.getRemitente(), "cuentaHash", m.getCuentaHash(), "categoria", m.getCategoria())
-            ).toList() : java.util.List.of()
-        );
+        try {
+            long total = mensajeRepo.count();
+            var muestra = total > 0 ? mensajeRepo.findAll().stream().limit(3).map(m -> {
+                try {
+                    return Map.of(
+                        "id", String.valueOf(m.getId()),
+                        "asunto", m.getAsunto() != null ? m.getAsunto() : "(sin asunto)",
+                        "remitente", m.getRemitente() != null ? m.getRemitente() : "(sin remitente)",
+                        "cuentaHash", m.getCuentaHash() != null ? m.getCuentaHash() : "(sin cuenta)",
+                        "categoria", m.getCategoria() != null ? m.getCategoria() : "DESCONOCIDO"
+                    );
+                } catch (Exception ex) {
+                    return Map.of("id", String.valueOf(m.getId()), "error", ex.getMessage());
+                }
+            }).toList() : java.util.List.of();
+            return Map.of("totalEnBD", total, "ok", true, "mensajes", muestra);
+        } catch (Exception e) {
+            return Map.of("ok", false, "error", e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
     }
 
     @GetMapping("/test-imap")
-    public Map<String, Object> testIMAP() {
+    public Object testIMAP() {
         try {
             var cuentas = cuentaService.listarTodas();
             if (cuentas.isEmpty()) {
@@ -63,13 +71,26 @@ public class DebugController {
             Store store = session.getStore("imaps");
             store.connect(host, 993, user, pass);
 
-            Folder inbox = store.getFolder("INBOX");
-            inbox.open(Folder.READ_ONLY);
-            int total = inbox.getMessageCount();
-            inbox.close(false);
+            // Listar carpetas y sus mensajes
+            var carpetas = new java.util.ArrayList<Map<String, Object>>();
+            Folder defaultFolder = store.getDefaultFolder();
+            for (Folder f : defaultFolder.list("*")) {
+                try {
+                    f.open(Folder.READ_ONLY);
+                    carpetas.add(Map.of(
+                        "nombre", f.getFullName(),
+                        "mensajes", f.getMessageCount(),
+                        "noLeidos", f.getUnreadMessageCount()
+                    ));
+                    f.close(false);
+                } catch (Exception ignored) {}
+            }
             store.close();
 
-            return Map.of("ok", true, "servidor", host, "usuario", user, "totalMensajes", total);
+            return Map.of(
+                "ok", true, "servidor", host,
+                "usuario", user, "carpetas", carpetas
+            );
         } catch (Exception e) {
             return Map.of("ok", false, "error", e.getClass().getSimpleName() + ": " + e.getMessage());
         }
