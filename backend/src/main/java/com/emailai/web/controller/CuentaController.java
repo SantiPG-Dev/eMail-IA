@@ -1,6 +1,7 @@
 package com.emailai.web.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -69,6 +70,31 @@ public class CuentaController {
             password = c.getOauthAccessToken();
         }
         return mailService.sincronizarTodo(servidor, user, password, c.getEmail(), limite);
+    }
+
+    /**
+     * Lista las carpetas IMAP disponibles para una cuenta.
+     */
+    @GetMapping("/{id}/carpetas")
+    public List<Map<String, Object>> listarCarpetas(@PathVariable Integer id) throws Exception {
+        Cuenta c = cuentaService.buscarPorId(id);
+        String servidor = c.getServidor() != null ? c.getServidor()
+                : (c.getEmail() != null && c.getEmail().contains("outlook")
+                    ? "outlook.office365.com" : "imap.gmail.com");
+        String user = c.getEmail();
+        String password = c.getPasswordCifrada();
+        if (c.getOauthProvider() != null && c.getOauthAccessToken() != null) {
+            password = c.getOauthAccessToken();
+        }
+
+        var carpetas = mailService.listarCarpetas(servidor, user, password);
+        return carpetas.stream()
+                .map(nombre -> Map.<String, Object>of(
+                    "nombre", nombre,
+                    "mensajes", 0,      // se rellena al sync
+                    "noLeidos", 0       // se rellena al sync
+                ))
+                .toList();
     }
 
     private CuentaResponse toResponse(Cuenta c) {

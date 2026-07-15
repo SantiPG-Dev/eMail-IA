@@ -77,6 +77,7 @@ export const cuentaApi = {
   create: (data: any) => api.post('/api/cuentas', data),
   delete: (id: number) => api.delete(`/api/cuentas/${id}`),
   sync: (id: number) => api.post(`/api/cuentas/${id}/sync`),
+  carpetas: (id: number) => api.get(`/api/cuentas/${id}/carpetas`),
 };
 
 export const iaApi = {
