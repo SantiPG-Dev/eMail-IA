@@ -68,19 +68,34 @@ public class CuentaController {
     }
 
     @PostMapping("/{id}/sync")
-    public List<?> sincronizar(@PathVariable Integer id,
-                                @RequestParam(defaultValue = "300") int limite) throws Exception {
-        Cuenta c = cuentaService.buscarPorId(id);
-        String servidor = c.getServidor() != null ? c.getServidor()
-                : "imap.gmail.com";
-        String user = c.getEmail();
-        String password = c.getPasswordCifrada();
-        if (c.getOauthProvider() != null) {
-            password = c.getOauthAccessToken();
+    public ResponseEntity<?> sincronizar(@PathVariable Integer id,
+                                @RequestParam(defaultValue = "300") int limite) {
+        try {
+            Cuenta c = cuentaService.buscarPorId(id);
+            String servidor = c.getServidor() != null ? c.getServidor()
+                    : "imap.gmail.com";
+            String user = c.getEmail();
+            String password = credentialService.descifrar(c.getPasswordCifrada());
+            if (c.getOauthProvider() != null) {
+                password = credentialService.descifrar(c.getOauthAccessToken());
+            }
+            String tipoConexion = c.getTipoConexion() != null ? c.getTipoConexion() : "IMAP";
+            var resultado = mailService.sincronizarTodo(servidor, user, password, c.getEmail(),
+                    limite, tipoConexion);
+            return ResponseEntity.ok(resultado);
+        } catch (com.emailai.common.NotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Cuenta no encontrada", "ok", false));
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (msg.toUpperCase().contains("AUTHENTICATIONFAILED") || msg.contains("authentication failed")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Credenciales IMAP incorrectas. Verifica tu contraseña.", "ok", false));
+            }
+            log.warn("Error en sync: {}", msg);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error de conexión: " + msg, "ok", false));
         }
-        String tipoConexion = c.getTipoConexion() != null ? c.getTipoConexion() : "IMAP";
-        return mailService.sincronizarTodo(servidor, user, password, c.getEmail(),
-                limite, tipoConexion);
     }
 
     /**
