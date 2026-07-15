@@ -155,9 +155,20 @@ export default function LoginPage() {
             </div>
 
             <div className="flex flex-col items-center max-w-[360px] w-full gap-2">
-              <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
-                Contraseña de la aplicación
-              </h3>
+              {needsSetup ? (
+                <>
+                  <h3 className="text-sm font-bold" style={{ color: 'var(--color-accent)' }}>
+                    🆕 Primer acceso
+                  </h3>
+                  <p className="text-xs text-center" style={{ color: 'var(--color-text-secondary)' }}>
+                    Crea una contraseña maestra para proteger tus datos
+                  </p>
+                </>
+              ) : (
+                <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
+                  🔐 Introduce la contraseña
+                </h3>
+              )}
 
               <input
                 type="password"
