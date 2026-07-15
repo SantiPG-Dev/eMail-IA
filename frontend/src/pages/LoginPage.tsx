@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, THEMES } from '../context/ThemeContext';
-import { authApi } from '../api/client';
+import { authApi, cuentaApi } from '../api/client';
+import AccountSetupModal from '../components/AccountSetupModal';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -13,13 +14,30 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [cuentas, setCuentas] = useState<any[]>([]);
+  const [showSetupModal, setShowSetupModal] = useState(false);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    if (isAuthenticated) navigate('/', { replace: true });
-    // Verificar si ya hay contraseña configurada
-    authApi.status().then(res => {
-      if (!res.data.configurada) setNeedsSetup(true);
-    }).catch(() => setNeedsSetup(true));
+    if (isAuthenticated) {
+      navigate('/', { replace: true });
+      return;
+    }
+    // Cargar cuentas existentes y verificar si necesita setup
+    Promise.all([
+      cuentaApi.list().catch(() => ({ data: [] })),
+      authApi.status().catch(() => ({ data: { configurada: false } }))
+    ]).then(([cuentasRes, statusRes]) => {
+      const lista = cuentasRes.data || [];
+      setCuentas(lista);
+      const configurada = statusRes.data?.configurada === true;
+      setNeedsSetup(!configurada);
+
+      // Si no hay cuentas configuradas y es primera vez, mostrar modal
+      if (lista.length === 0 && !configurada) {
+        setShowSetupModal(true);
+      }
+    }).finally(() => setChecking(false));
   }, [isAuthenticated, navigate]);
 
   const handleSubmit = async () => {
@@ -45,20 +63,89 @@ export default function LoginPage() {
     }
   };
 
+  const handleAccountSaved = () => {
+    setShowSetupModal(false);
+    // Recargar cuentas
+    cuentaApi.list().then(r => setCuentas(r.data || [])).catch(() => {});
+  };
+
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Cargando...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="flex gap-10 max-w-[900px] w-full">
-          {/* Columna izquierda: información / cuentas guardadas */}
-          <div className="w-[280px] shrink-0">
-            <h2 className="text-sm font-bold mb-2.5" style={{ color: 'var(--color-text)' }}>
-              {needsSetup ? 'Configuración inicial' : 'Iniciar sesión'}
-            </h2>
-            <p className="text-xs mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-              {needsSetup
-                ? 'Esta es la primera ejecución. Crea una contraseña maestra para proteger tus datos.'
-                : 'Introduce tu contraseña maestra para acceder a la aplicación.'}
-            </p>
+          {/* Columna izquierda: tarjetas de cuentas */}
+          <div className="w-[320px] shrink-0">
+            {cuentas.length > 0 ? (
+              <div className="space-y-3">
+                <h2 className="text-sm font-bold mb-3" style={{ color: 'var(--color-text)' }}>
+                  Tus cuentas
+                </h2>
+                {cuentas.map((c: any) => (
+                  <div key={c.id}
+                    className="rounded-xl p-4 border transition-colors"
+                    style={{
+                      backgroundColor: 'var(--color-bg-card)',
+                      borderColor: 'var(--color-border)',
+                    }}>
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-xl">📧</span>
+                      <div>
+                        <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
+                          {c.nombre}
+                        </p>
+                        <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                          {c.email}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                        style={{
+                          backgroundColor: c.tipoConexion === 'POP3' ? '#fbbf24' : '#22d3ee',
+                          color: '#0F172A',
+                        }}>
+                        {c.tipoConexion || 'IMAP'}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text-secondary)' }}>
+                        {c.servidor || 'sin servidor'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {/* Botón añadir otra cuenta */}
+                <button onClick={() => setShowSetupModal(true)}
+                  className="w-full py-2 text-xs rounded-lg border-2 border-dashed transition-colors"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text-secondary)',
+                  }}>
+                  + Añadir otra cuenta
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <h2 className="text-sm font-bold mb-2" style={{ color: 'var(--color-text)' }}>
+                  Bienvenido a eMail-IA
+                </h2>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  Configura tu primera cuenta de correo para empezar
+                </p>
+                <button onClick={() => setShowSetupModal(true)}
+                  className="mt-4 px-4 py-2 text-sm font-bold rounded-pill"
+                  style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>
+                  Configurar cuenta
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Separador flexible */}
@@ -81,7 +168,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                placeholder="Introduce la contraseña maestra"
+                placeholder={needsSetup ? 'Crea una contraseña maestra' : 'Introduce la contraseña maestra'}
                 className="w-full px-3 py-2 rounded-lg border text-sm outline-none transition-colors"
                 style={{
                   backgroundColor: 'var(--color-bg)',
@@ -104,7 +191,7 @@ export default function LoginPage() {
               </button>
 
               {status && (
-                <p className="text-xs" style={{ color: 'var(--color-accent)' }}>
+                <p className="text-xs" style={{ color: status.includes('Error') ? '#ef4444' : 'var(--color-accent)' }}>
                   {status}
                 </p>
               )}
@@ -145,6 +232,9 @@ export default function LoginPage() {
           ))}
         </select>
       </div>
+
+      {/* Modal de setup de cuenta (solo si no hay cuentas) */}
+      <AccountSetupModal open={showSetupModal} onClose={handleAccountSaved} />
     </div>
   );
 }

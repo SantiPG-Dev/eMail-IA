@@ -1,12 +1,9 @@
-import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SyncProvider } from './context/SyncContext';
-import { cuentaApi } from './api/client';
 import LoginPage from './pages/LoginPage';
 import Layout from './components/Layout';
-import AccountSetupModal from './components/AccountSetupModal';
 import CorreoPage from './pages/CorreoPage';
 import CalendarioPage from './pages/CalendarioPage';
 import ContactosPage from './pages/ContactosPage';
@@ -21,26 +18,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** Muestra el setup inicial si no hay cuentas configuradas */
-function FirstRunSetup({ children }: { children: React.ReactNode }) {
-  const [showSetup, setShowSetup] = useState(false);
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    cuentaApi.list()
-      .then(r => { if (r.data.length === 0) setShowSetup(true); })
-      .catch(() => setShowSetup(true))
-      .finally(() => setChecking(false));
-  }, []);
-
-  return (
-    <>
-      {children}
-      {!checking && <AccountSetupModal open={showSetup} onClose={() => setShowSetup(false)} />}
-    </>
-  );
-}
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -51,9 +28,7 @@ export default function App() {
             <Route path="/" element={
               <ProtectedRoute>
                 <SyncProvider>
-                  <FirstRunSetup>
-                    <Layout />
-                  </FirstRunSetup>
+                  <Layout />
                 </SyncProvider>
               </ProtectedRoute>
             }>
@@ -68,7 +43,7 @@ export default function App() {
               <Route path="chat-ia" element={<ChatIAPage />} />
               <Route path="config" element={<ConfigPage />} />
             </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </AuthProvider>
       </ThemeProvider>
