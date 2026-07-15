@@ -1,51 +1,31 @@
 package com.emailai.config;
 
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.Resource;
-import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import org.springframework.web.servlet.resource.PathResourceResolver;
 
 /**
- * Configura el servidor para servir el frontend React SPA.
+ * SPA fallback para React Router.
  *
- * <p>Sirve archivos estáticos desde {@code frontend/dist/} y redirige
- * cualquier ruta que no sea un archivo real ni una API a {@code index.html}
+ * <p>Registra view controllers para las rutas del frontend SPA.
+ * La raíz (/) ya es manejada por WelcomePageHandlerMapping.
+ * Las rutas SPA (login, correo, etc.) redirigen a index.html
  * para que React Router maneje la navegación cliente.
+ *
+ * <p>Los controllers REST (/api/, /health) no se ven afectados
+ * porque tienen prioridad (orden 0) sobre estos view controllers.
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
     @Override
-    public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.setOrder(-1)  // Prioridad alta para que se ejecute antes que otros handlers
-                .addResourceHandler("/**")
-                .addResourceLocations("file:../frontend/dist/", "classpath:/static/")
-                .resourceChain(true)
-                .addResolver(new PathResourceResolver() {
-                    @Override
-                    protected Resource getResource(String resourcePath, Resource location)
-                            throws java.io.IOException {
-                        // 1. No interceptar rutas de API
-                        if (resourcePath.startsWith("api/")) {
-                            return null;
-                        }
-
-                        // 2. Intentar servir el recurso solicitado (JS, CSS, imágenes, etc.)
-                        Resource requested = location.createRelative(resourcePath);
-                        if (requested.exists() && requested.isReadable()) {
-                            return requested;
-                        }
-
-                        // 3. SPA fallback: servir index.html para todo lo demás
-                        //    (rutas como /login, /correo, /config, etc.)
-                        Resource index = location.createRelative("index.html");
-                        if (index.exists() && index.isReadable()) {
-                            return index;
-                        }
-
-                        return null;
-                    }
-                });
+    public void addViewControllers(ViewControllerRegistry registry) {
+        registry.addViewController("/login").setViewName("forward:/index.html");
+        registry.addViewController("/correo").setViewName("forward:/index.html");
+        registry.addViewController("/calendario").setViewName("forward:/index.html");
+        registry.addViewController("/contactos").setViewName("forward:/index.html");
+        registry.addViewController("/tareas").setViewName("forward:/index.html");
+        registry.addViewController("/config").setViewName("forward:/index.html");
+        registry.addViewController("/chat-ia").setViewName("forward:/index.html");
     }
 }
