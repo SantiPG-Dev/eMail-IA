@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, THEMES } from '../context/ThemeContext';
@@ -16,29 +16,31 @@ export default function LoginPage() {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [cuentas, setCuentas] = useState<any[]>([]);
   const [showSetupModal, setShowSetupModal] = useState(false);
-  const [checking, setChecking] = useState(true);
+  const loadedRef = useRef(false);
 
+  // Solo ejecutar una vez al montar
   useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+
     if (isAuthenticated) {
       navigate('/', { replace: true });
       return;
     }
-    // Cargar cuentas existentes y verificar si necesita setup
+
     Promise.all([
       cuentaApi.list().catch(() => ({ data: [] })),
       authApi.status().catch(() => ({ data: { configurada: false } }))
-    ]).then(([cuentasRes, statusRes]) => {
+    ]).then(([cuentasRes, statusRes]: [any, any]) => {
       const lista = cuentasRes.data || [];
       setCuentas(lista);
       const configurada = statusRes.data?.configurada === true;
       setNeedsSetup(!configurada);
-
-      // Si no hay cuentas configuradas y es primera vez, mostrar modal
       if (lista.length === 0 && !configurada) {
         setShowSetupModal(true);
       }
-    }).finally(() => setChecking(false));
-  }, [isAuthenticated, navigate]);
+    });
+  }, []); // Sin dependencias para que solo se ejecute UNA vez
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -64,7 +66,6 @@ export default function LoginPage() {
   };
 
   const handleAccountSaved = async () => {
-    // Recargar cuentas ANTES de cerrar el modal
     try {
       const res = await cuentaApi.list();
       setCuentas(res.data || []);
@@ -72,16 +73,8 @@ export default function LoginPage() {
     setShowSetupModal(false);
   };
 
-  if (checking) {
-    return (
-      <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
-        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Cargando...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
+    <div className="flex min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="flex gap-10 max-w-[900px] w-full">
           {/* Columna izquierda: tarjetas de cuentas */}
@@ -124,7 +117,6 @@ export default function LoginPage() {
                     </div>
                   </div>
                 ))}
-                {/* Botón añadir otra cuenta */}
                 <button onClick={() => setShowSetupModal(true)}
                   className="w-full py-2 text-xs rounded-lg border-2 border-dashed transition-colors"
                   style={{
@@ -156,11 +148,9 @@ export default function LoginPage() {
 
           {/* Columna derecha: logo + contraseña */}
           <div className="w-[520px] flex flex-col items-center gap-5">
-            {/* Logo */}
             <img src="/logo.png" alt="eMail-IA"
               className="w-[480px] h-[220px] object-contain rounded-xl" />
 
-            {/* Bloque contraseña */}
             <div className="flex flex-col items-center max-w-[360px] w-full gap-2">
               <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
                 Contraseña de la aplicación
@@ -204,39 +194,25 @@ export default function LoginPage() {
       </div>
 
       {/* Selector de tema */}
-      <div className="flex items-center justify-center gap-3 py-2.5">
+      <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-3 py-2.5">
         <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>☾</span>
-        <button
-          onClick={toggleMode}
+        <button onClick={toggleMode}
           className="w-10 h-5 rounded-full relative transition-colors"
-          style={{
-            backgroundColor: mode === 'dark' ? '#475569' : '#64748B',
-          }}
-        >
-          <span
-            className="absolute w-4 h-4 rounded-full bg-white top-0.5 transition-transform"
-            style={{ left: mode === 'dark' ? '3px' : '22px' }}
-          />
+          style={{ backgroundColor: mode === 'dark' ? '#475569' : '#64748B' }}>
+          <span className="absolute w-4 h-4 rounded-full bg-white top-0.5 transition-transform"
+            style={{ left: mode === 'dark' ? '3px' : '22px' }} />
         </button>
         <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>☼</span>
-        {/* Selector de palette */}
-        <select
-          value={theme}
-          onChange={e => setTheme(e.target.value as any)}
+        <select value={theme} onChange={e => setTheme(e.target.value as any)}
           className="ml-4 text-xs px-2 py-1 rounded border"
           style={{
-            backgroundColor: 'var(--color-bg-card)',
-            color: 'var(--color-text)',
+            backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)',
             borderColor: 'var(--color-border)',
-          }}
-        >
-          {THEMES.map(t => (
-            <option key={t} value={t}>{t}</option>
-          ))}
+          }}>
+          {THEMES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
 
-      {/* Modal de setup de cuenta (solo si no hay cuentas) */}
       <AccountSetupModal open={showSetupModal} onClose={handleAccountSaved} />
     </div>
   );
