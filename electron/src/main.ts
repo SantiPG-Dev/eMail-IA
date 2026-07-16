@@ -185,36 +185,8 @@ function showSplash() {
     webPreferences: { nodeIntegration: false, contextIsolation: true },
   });
 
-  // HTML inline con animación de pulso
-  const iconPath = path.join(__dirname, '..', 'assets', 'icon-512.png').replace(/\\/g, '/');
-  splash.loadURL(`data:text/html;charset=utf-8,
-    <!DOCTYPE html>
-    <html style="background:transparent;">
-    <head>
-      <style>
-        @keyframes pulse {
-          0% { transform: scale(0.8); opacity: 0; }
-          50% { transform: scale(1.05); opacity: 1; }
-          100% { transform: scale(1); opacity: 1; }
-        }
-        body {
-          margin: 0; display: flex; align-items: center; justify-content: center;
-          height: 100vh; background: rgba(15, 23, 42, 0.85);
-          font-family: 'Segoe UI', sans-serif;
-        }
-        .container { text-align: center; animation: pulse 0.8s ease-out; }
-        img { width: 128px; height: 128px; border-radius: 24px; }
-        p { color: #94A3B8; font-size: 13px; margin-top: 16px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <img src="file://${iconPath}" alt="eMail-IA" />
-        <p>Iniciando eMail-IA…</p>
-      </div>
-    </body>
-    </html>
-  `);
+  // Cargar splash HTML desde archivo
+  splash.loadURL('file://' + path.resolve(__dirname, '..', 'splash.html'));
 
   return splash;
 }
