@@ -86,6 +86,14 @@ public class MensajeService {
     }
 
     /**
+     * Obtiene todos los UIDs (Message-ID) locales para una cuenta+carpeta.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Set<String> listarUidsPorCarpeta(String cuentaHash, String carpetaImap) {
+        return repo.findUidsByCuentaHashAndCarpetaImap(cuentaHash, carpetaImap);
+    }
+
+    /**
      * Elimina mensajes antiguos de una carpeta, dejando solo los N más recientes.
      */
     public void limpiarAntiguos(String cuentaHash, String carpetaImap) {
