@@ -187,39 +187,42 @@ export default function CorreoPage() {
         style={{ backgroundColor: 'var(--color-bg)' }}>
         {selected ? (
           <>
-            {/* Botones de acción (sin SPAM/Legit ni Papelera) */}
-            <div className="flex gap-1.5 flex-wrap">
-              <button onClick={() => abrirCompose('responder')}
-                className="px-3 py-1 text-xs font-bold rounded-pill"
-                style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Responder</button>
-              <button onClick={() => abrirCompose('responder')}
-                className="px-3 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Resp. todos</button>
-              <button onClick={() => abrirCompose('reenviar')}
-                className="px-3 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Reenviar</button>
-              <div className="flex-1" />
-            </div>
-
-            {/* Asunto + remitente */}
-            <h3 className="text-base font-bold" style={{ color: 'var(--color-accent-selected)' }}>
-              {selected.asunto}</h3>
-            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              <span>{selected.remitente}</span>
-              <span>·</span>
-              <span>{selected.fechaRecepcion?.slice(0, 10)}</span>
-              {selected.categoria && selected.categoria !== 'DESCONOCIDO' && (
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
-                  style={{
-                    backgroundColor: selected.categoria === 'SPAM' || selected.categoria === 'PHISHING'
-                      ? '#dc2626' : selected.categoria === 'LEGITIMO' ? '#16a34a' : '#ca8a04',
-                    color: '#fff',
-                    border: selected.categoria === 'SPAM' || selected.categoria === 'PHISHING'
-                      ? '1px solid #ef4444' : selected.categoria === 'LEGITIMO' ? '1px solid #22c55e' : '1px solid #fbbf24',
-                  }}>
-                  {selected.categoria}
-                </span>
-              )}
+            {/* Fila: izq = asunto+remitente, dcha = botones */}
+            <div className="flex items-start gap-4">
+              {/* Izquierda: asunto + remitente + fecha */}
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold truncate" style={{ color: 'var(--color-accent-selected)' }}>
+                  {selected.asunto}</h3>
+                <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
+                  <span className="truncate">{selected.remitente}</span>
+                  <span>·</span>
+                  <span className="shrink-0">{selected.fechaRecepcion?.slice(0, 10)}</span>
+                  {selected.categoria && selected.categoria !== 'DESCONOCIDO' && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0"
+                      style={{
+                        backgroundColor: selected.categoria === 'SPAM' || selected.categoria === 'PHISHING'
+                          ? '#dc2626' : selected.categoria === 'LEGITIMO' ? '#16a34a' : '#ca8a04',
+                        color: '#fff',
+                        border: selected.categoria === 'SPAM' || selected.categoria === 'PHISHING'
+                          ? '1px solid #ef4444' : selected.categoria === 'LEGITIMO' ? '1px solid #22c55e' : '1px solid #fbbf24',
+                      }}>
+                      {selected.categoria}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {/* Derecha: botones de acción alineados a la derecha */}
+              <div className="flex gap-1.5 shrink-0">
+                <button onClick={() => abrirCompose('responder')}
+                  className="px-3 py-1 text-xs font-bold rounded-pill"
+                  style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Responder</button>
+                <button onClick={() => abrirCompose('responder')}
+                  className="px-3 py-1 text-xs rounded-pill"
+                  style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Resp. todos</button>
+                <button onClick={() => abrirCompose('reenviar')}
+                  className="px-3 py-1 text-xs rounded-pill"
+                  style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Reenviar</button>
+              </div>
             </div>
 
             {/* Cuerpo */}
