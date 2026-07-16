@@ -1,7 +1,7 @@
-import { app, BrowserWindow, shell, dialog, Tray, Menu, Notification, nativeImage } from 'electron';
+import { app, BrowserWindow, shell, dialog, Tray, Menu, Notification, nativeImage, session } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, execSync, ChildProcess } from 'child_process';
 import * as http from 'http';
 
 // ── Config ──────────────────────────────────────────────────────
@@ -41,6 +41,26 @@ function findJar(): string | null {
   if (fs.existsSync(prodJar)) return prodJar;
 
   return null; // Se usará mvn spring-boot:run
+}
+
+// ── Limpiar procesos anteriores ───────────────────────────────
+function matarProcesosAnteriores() {
+  try {
+    const dbPath = path.resolve(__dirname, '..', '..', 'backend', 'DB', 'emailai.mv.db');
+    // Matar procesos que tienen el archivo de BD abierto
+    execSync(`fuser -k ${dbPath} 2>/dev/null; true`, { stdio: 'ignore' });
+    // Matar procesos java/maven del backend
+    execSync(
+      "pkill -9 -f 'spring-boot:run' 2>/dev/null; " +
+      "pkill -9 -f 'EmailAiApplication' 2>/dev/null; " +
+      "pkill -9 -f 'emailai-backend' 2>/dev/null; " +
+      "true",
+      { stdio: 'ignore' }
+    );
+    console.log('[Electron] Procesos anteriores eliminados');
+  } catch {
+    // Si no hay procesos, ignorar
+  }
 }
 
 // ── Spawn backend ────────────────────────────────────────────────
@@ -149,6 +169,9 @@ function stopBackend() {
 
 // ── Ventana principal ────────────────────────────────────────────
 function createWindow() {
+  // Limpiar caché del navegador para evitar mostrar página anterior
+  session.defaultSession.clearCache().catch(() => {});
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -156,11 +179,32 @@ function createWindow() {
     minHeight: 600,
     title: 'eMail-IA',
     icon: path.join(__dirname, '..', 'assets', 'icon-512.png'),
+    show: false,  // No mostrar hasta que esté lista
+    backgroundColor: '#0F172A',  // Evitar flash blanco
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
     },
+  });
+
+  // Deshabilitar caché HTTP
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
+    { urls: ['*://*/*'] },
+    (details: any, callback: any) => {
+      callback({
+        requestHeaders: {
+          ...details.requestHeaders,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      });
+    }
+  );
+
+  // Mostrar ventana solo cuando la página esté lista
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show();
   });
 
   mainWindow.loadURL(APP_URL);
@@ -205,6 +249,7 @@ function createWindow() {
 app.whenReady().then(async () => {
   try {
     // Construir frontend si no existe (lo sirve el backend desde frontend/dist/)
+    matarProcesosAnteriores();
     await ensureFrontendBuilt();
     await startBackend();
     // Detectar si Vite dev server esta corriendo (desarrollo)
