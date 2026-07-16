@@ -237,13 +237,10 @@ export default function LoginPage() {
         {/* COLUMNA CENTRAL — logo + formulario */}
         <div className="flex flex-col items-center gap-6 w-full max-w-sm">
 
-          {/* Logo más grande */}
-          <div
-            className="w-72 h-36 rounded-2xl flex items-center justify-center
-              bg-[var(--color-bg-card)] border border-[var(--color-border)] shadow-lg"
-          >
+          {/* Logo grande sin fondo */}
+          <div className="flex items-center justify-center">
             <img src="/logo.png" alt="eMail-IA"
-              className="max-w-[92%] max-h-[88%] object-contain" />
+              className="w-96 object-contain" />
           </div>
 
           {/* Texto de estado */}
