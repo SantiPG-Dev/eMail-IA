@@ -177,8 +177,14 @@ export default function Layout() {
         </p>
 
         {/* === ZONA SCROLLABLE: Nav items + submenú Correo === */}
-        <div className="flex flex-col gap-0.5 px-2.5 overflow-hidden min-h-0">
-          {NAV_ITEMS.map(item => (
+        <div className="flex flex-col gap-0.5 px-2.5 overflow-y-auto shrink min-h-0">
+          {(() => {
+            const activoIdx = NAV_ITEMS.findIndex(item =>
+              item.key === 'correo' ? correoActivo : location.pathname.startsWith(item.to));
+            const orden = activoIdx > 0
+              ? [NAV_ITEMS[activoIdx], ...NAV_ITEMS.slice(0, activoIdx), ...NAV_ITEMS.slice(activoIdx + 1)]
+              : NAV_ITEMS;
+            return orden.map(item => (
             <div key={item.to}>
               <NavLink
                 to={item.to}
@@ -352,46 +358,47 @@ export default function Layout() {
                 </div>
               )}
             </div>
-          ))}
+          ));
+          })()}
         </div>
 
-        {/* === ESPACIADOR FLEXIBLE (equivalente a <Region VBox.vgrow="ALWAYS"/> en JavaFX) === */}
+        {/* === ESPACIADOR === */}
         <div className="flex-1 min-h-[8px]" />
 
-        {/* === SEPARADOR + ITEMS INFERIORES (fijos al fondo) === */}
+        {/* === SEPARADOR + BOTTOM ITEMS (fijos al fondo) === */}
         <div className="px-2.5 pb-3.5 flex flex-col gap-1.5 shrink-0">
           <hr style={{ borderColor: 'var(--color-bg-card)' }} />
           
-          {BOTTOM_ITEMS.map(item => (
-            <NavLink
-              key={item.to}
-              to={item.to}
+          {/* Configuración */}
+          <NavLink to={BOTTOM_ITEMS[0].to}
+            className={({ isActive }) =>
+              `flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${
+                isActive ? 'font-bold' : 'hover:opacity-80'
+              }`
+            }
+            style={({ isActive }) => ({
+              backgroundColor: isActive ? 'var(--color-accent-selected)' : 'transparent',
+              color: isActive ? '#0F172A' : 'var(--color-text-muted)',
+            })}>
+            {BOTTOM_ITEMS[0].label}
+          </NavLink>
+
+          {/* Chat IA + Cerrar sesión en línea */}
+          <div className="flex items-center gap-1">
+            <NavLink to={BOTTOM_ITEMS[1].to}
               className={({ isActive }) =>
-                `flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${
+                `flex items-center px-3 py-2 text-sm rounded-lg transition-colors flex-1 ${
                   isActive ? 'font-bold' : 'hover:opacity-80'
                 }`
               }
               style={({ isActive }) => ({
                 backgroundColor: isActive ? 'var(--color-accent-selected)' : 'transparent',
                 color: isActive ? '#0F172A' : 'var(--color-text-muted)',
-              })}
-            >
-              {item.label}
+              })}>
+              {BOTTOM_ITEMS[1].label}
             </NavLink>
-          ))}
-
-          {/* Theme toggle + Logout */}
-          <div className="flex items-center gap-1.5 px-1 pt-2 pb-3">
-            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>☾</span>
-            <button onClick={toggleMode}
-              className="w-8 h-4 rounded-full relative transition-colors flex items-center"
-              style={{ backgroundColor: mode === 'dark' ? '#475569' : '#94A3B8' }}>
-              <span className="w-3 h-3 rounded-full bg-white transition-all duration-200 mx-0.5"
-                style={{ marginLeft: mode === 'dark' ? '0.125rem' : 'auto' }} />
-            </button>
-            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>☼</span>
             <button onClick={handleLogout}
-              className="text-[10px] px-2 py-1 rounded transition-colors ml-auto"
+              className="text-[10px] px-2 py-1.5 rounded-lg transition-colors shrink-0"
               style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>
               Cerrar sesión
             </button>
