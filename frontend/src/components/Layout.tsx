@@ -176,81 +176,138 @@ export default function Layout() {
           Menú
         </p>
 
-        {/* === ZONA SCROLLABLE: Nav items + submenú Correo === */}
-        <div className="flex flex-col gap-0.5 px-2.5 overflow-y-auto shrink min-h-0">
+        {/* === ZONA: Item activo + submenú Correo (arriba) === */}
+        <div className="flex flex-col gap-0.5 px-2.5 shrink-0">
           {(() => {
-            const activoIdx = NAV_ITEMS.findIndex(item =>
+            const activo = NAV_ITEMS.find(item =>
               item.key === 'correo' ? correoActivo : location.pathname.startsWith(item.to));
-            const orden = activoIdx > 0
-              ? [NAV_ITEMS[activoIdx], ...NAV_ITEMS.slice(0, activoIdx), ...NAV_ITEMS.slice(activoIdx + 1)]
-              : NAV_ITEMS;
-            return orden.map(item => (
-            <div key={item.to}>
-              <NavLink
-                to={item.to}
-                end={item.key === 'correo'}
-                className={({ isActive }) =>
-                  `flex items-center px-3 py-2.5 text-sm rounded-lg transition-colors ${
-                    isActive ? 'font-bold' : 'hover:opacity-80'
-                  }`
-                }
-                style={({ isActive }) => ({
-                  backgroundColor: isActive ? 'var(--color-accent-selected)' : 'transparent',
-                  color: isActive ? '#0F172A' : 'var(--color-text-muted)',
-                })}
-              >
-                <span className="truncate">{item.label}</span>
-                {item.key === 'correo' && badge(totalNoLeidos)}
-              </NavLink>
-              
-              {/* Submenú de carpetas IMAP (solo visible cuando Correo está activo) */}
-              {item.key === 'correo' && correoActivo && (
-                <div className="ml-3 mt-0.5 mb-1 flex flex-col gap-0.5"
-                  style={{ borderColor: 'var(--color-border)' }}>
-                  
-                  {cargandoCarpetas ? (
-                    <span className="text-[10px] px-3 py-1 italic"
-                      style={{ color: 'var(--color-text-secondary)' }}>
-                      Cargando carpetas…
-                    </span>
-                  ) : cuentasCarpetas.length > 0 ? (
-                    <div className="overflow-y-auto max-h-[40vh] pr-1">
-                      {/* ── CUENTA PRINCIPAL: Bandeja de entrada ── */}
-                      {(() => {
-                        const ppal = cuentasCarpetas[0];
-                        const inboxes = ppal.carpetas.filter(c =>
-                          c.nombre === 'INBOX' || c.nombre.toUpperCase().includes('INBOX'));
-                        const deSalida = ppal.carpetas.filter(c =>
-                          c.nombre.toUpperCase().includes('OUTBOX') || c.nombre === 'Sent'
-                          || c.nombre === 'Sent Messages' || c.nombre === 'Sent Items'
-                          || c.nombre === '[Gmail]/Enviados');
-                        const salidaNombres = new Set(deSalida.map(c => c.nombre));
-                        const otras = ppal.carpetas.filter(c =>
-                          !c.nombre.toUpperCase().includes('INBOX')
-                          && !salidaNombres.has(c.nombre));
-                        return <>
-                          <button
-                            onClick={() => setInboxExpandido(!inboxExpandido)}
-                            className="flex items-center gap-1 px-3 py-1.5 text-[11px] rounded-lg text-left transition-colors hover:opacity-80 font-semibold"
-                            style={{ color: 'var(--color-text)' }}
-                          >
-                            <span className="text-[10px] w-3 shrink-0">{inboxExpandido ? '▼' : '▶'}</span>
-                            <span>📥 Bandeja de entrada</span>
-                            {badge(inboxNoLeidos)}
-                          </button>
+            if (!activo) return null;
+            return (
+              <div key={activo.to}>
+                <NavLink
+                  to={activo.to}
+                  end={activo.key === 'correo'}
+                  className={({ isActive }) =>
+                    `flex items-center px-3 py-2.5 text-sm rounded-lg transition-colors ${
+                      isActive ? 'font-bold' : 'hover:opacity-80'
+                    }`
+                  }
+                  style={({ isActive }) => ({
+                    backgroundColor: isActive ? 'var(--color-accent-selected)' : 'transparent',
+                    color: isActive ? '#0F172A' : 'var(--color-text-muted)',
+                  })}
+                >
+                  <span className="truncate">{activo.label}</span>
+                  {activo.key === 'correo' && badge(totalNoLeidos)}
+                </NavLink>
 
-                          {inboxExpandido && (
-                            <div className="flex flex-col gap-0.5 ml-2"
-                              style={{ borderLeft: '2px solid var(--color-border)' }}>
-                              {inboxes.map(c => (
-                                <button key={c.nombre}
-                                  onClick={() => irACorreoCarpeta(c.nombre)}
-                                  className="flex items-center gap-1 pl-5 pr-3 py-1 text-[11px] rounded-r-lg text-left transition-colors"
+                {/* Submenú de carpetas IMAP (solo visible cuando Correo está activo) */}
+                {activo.key === 'correo' && correoActivo && (
+                  <div className="ml-3 mt-0.5 mb-1 flex flex-col gap-0.5"
+                    style={{ borderColor: 'var(--color-border)' }}>
+                    {cargandoCarpetas ? (
+                      <span className="text-[10px] px-3 py-1 italic"
+                        style={{ color: 'var(--color-text-secondary)' }}>
+                        Cargando carpetas…
+                      </span>
+                    ) : cuentasCarpetas.length > 0 ? (
+                      <div className="overflow-y-auto max-h-[40vh] pr-1">
+                        {(() => {
+                          const ppal = cuentasCarpetas[0];
+                          const inboxes = ppal.carpetas.filter(c =>
+                            c.nombre === 'INBOX' || c.nombre.toUpperCase().includes('INBOX'));
+                          const deSalida = ppal.carpetas.filter(c =>
+                            c.nombre.toUpperCase().includes('OUTBOX') || c.nombre === 'Sent'
+                            || c.nombre === 'Sent Messages' || c.nombre === 'Sent Items'
+                            || c.nombre === '[Gmail]/Enviados');
+                          const salidaNombres = new Set(deSalida.map(c => c.nombre));
+                          const otras = ppal.carpetas.filter(c =>
+                            !c.nombre.toUpperCase().includes('INBOX')
+                            && !salidaNombres.has(c.nombre));
+                          return <>
+                            <button onClick={() => setInboxExpandido(!inboxExpandido)}
+                              className="flex items-center gap-1 px-3 py-1.5 text-[11px] rounded-lg text-left transition-colors hover:opacity-80 font-semibold"
+                              style={{ color: 'var(--color-text)' }}>
+                              <span className="text-[10px] w-3 shrink-0">{inboxExpandido ? '▼' : '▶'}</span>
+                              <span>📥 Bandeja de entrada</span>
+                              {badge(inboxNoLeidos)}
+                            </button>
+                            {inboxExpandido && (
+                              <div className="flex flex-col gap-0.5 ml-2"
+                                style={{ borderLeft: '2px solid var(--color-border)' }}>
+                                {inboxes.map(c => (
+                                  <button key={c.nombre} onClick={() => irACorreoCarpeta(c.nombre)}
+                                    className="flex items-center gap-1 pl-5 pr-3 py-1 text-[11px] rounded-r-lg text-left transition-colors"
+                                    style={{
+                                      backgroundColor: carpetaSeleccionada === c.nombre ? 'var(--color-accent-selected)' : 'transparent',
+                                      color: carpetaSeleccionada === c.nombre ? '#0F172A' : 'var(--color-text-muted)',
+                                    }}>
+                                    <span className="truncate flex-1">{nombreCarpetaLegible(c.nombre)}</span>
+                                    {c.noLeidos > 0 && (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                        style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>{c.noLeidos}</span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {deSalida.length > 0 && (
+                              <div className="flex flex-col gap-0.5">
+                                <button onClick={() => setSalidaExpandido(!salidaExpandido)}
+                                  className="flex items-center gap-1 px-3 py-1.5 text-[11px] rounded-lg text-left transition-colors hover:opacity-80 font-semibold"
+                                  style={{ color: 'var(--color-text)' }}>
+                                  <span className="text-[10px] w-3 shrink-0">{salidaExpandido ? '▼' : '▶'}</span>
+                                  <span>📤 Bandeja de salida</span>
+                                  {badge(salidaNoLeidos)}
+                                </button>
+                                {salidaExpandido && (
+                                  <div className="flex flex-col gap-0.5 ml-2"
+                                    style={{ borderLeft: '2px solid var(--color-border)' }}>
+                                    {deSalida.map(c => (
+                                      <button key={c.nombre} onClick={() => irACorreoCarpeta(c.nombre)}
+                                        className="flex items-center gap-1 pl-5 pr-3 py-1 text-[11px] rounded-r-lg text-left transition-colors"
+                                        style={{
+                                          backgroundColor: carpetaSeleccionada === c.nombre ? 'var(--color-accent-selected)' : 'transparent',
+                                          color: carpetaSeleccionada === c.nombre ? '#0F172A' : 'var(--color-text-muted)',
+                                        }}>
+                                        <span className="truncate flex-1">{nombreCarpetaLegible(c.nombre)}</span>
+                                        {c.noLeidos > 0 && (
+                                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                            style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>{c.noLeidos}</span>
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {otras.map(c => (
+                              <button key={c.nombre} onClick={() => irACorreoCarpeta(c.nombre)}
+                                className="flex items-center gap-1 px-3 py-1.5 text-[11px] rounded-lg text-left transition-colors"
+                                style={{
+                                  backgroundColor: carpetaSeleccionada === c.nombre ? 'var(--color-accent-selected)' : 'transparent',
+                                  color: carpetaSeleccionada === c.nombre ? '#0F172A' : 'var(--color-text-muted)',
+                                }}>
+                                <span className="truncate flex-1">{nombreCarpetaLegible(c.nombre)}</span>
+                                {c.noLeidos > 0 && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                    style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>{c.noLeidos}</span>
+                                )}
+                              </button>
+                            ))}
+                          </>;
+                        })()}
+                        {cuentasCarpetas.slice(1).map(cc => (
+                          <div key={cc.id} className="mt-1">
+                            <span className="flex items-center gap-1 px-3 py-1 text-[10px] font-semibold"
+                              style={{ color: 'var(--color-text-secondary)' }}>{cc.email}</span>
+                            <div className="flex flex-col gap-0.5">
+                              {cc.carpetas.map(c => (
+                                <button key={c.nombre} onClick={() => irACorreoCarpeta(c.nombre)}
+                                  className="flex items-center gap-1 pl-6 pr-3 py-1 text-[10px] rounded-r-lg text-left transition-colors"
                                   style={{
-                                    backgroundColor: carpetaSeleccionada === c.nombre
-                                      ? 'var(--color-accent-selected)' : 'transparent',
-                                    color: carpetaSeleccionada === c.nombre
-                                      ? '#0F172A' : 'var(--color-text-muted)',
+                                    backgroundColor: carpetaSeleccionada === c.nombre ? 'var(--color-accent-selected)' : 'transparent',
+                                    color: carpetaSeleccionada === c.nombre ? '#0F172A' : 'var(--color-text-muted)',
                                   }}>
                                   <span className="truncate flex-1">{nombreCarpetaLegible(c.nombre)}</span>
                                   {c.noLeidos > 0 && (
@@ -260,110 +317,37 @@ export default function Layout() {
                                 </button>
                               ))}
                             </div>
-                          )}
-
-                          {/* ── Bandeja de salida ── */}
-                          {deSalida.length > 0 && (
-                            <div className="flex flex-col gap-0.5">
-                              <button
-                                onClick={() => setSalidaExpandido(!salidaExpandido)}
-                                className="flex items-center gap-1 px-3 py-1.5 text-[11px] rounded-lg text-left transition-colors hover:opacity-80 font-semibold"
-                                style={{ color: 'var(--color-text)' }}
-                              >
-                                <span className="text-[10px] w-3 shrink-0">{salidaExpandido ? '▼' : '▶'}</span>
-                                <span>📤 Bandeja de salida</span>
-                                {badge(salidaNoLeidos)}
-                              </button>
-                              {salidaExpandido && (
-                                <div className="flex flex-col gap-0.5 ml-2"
-                                  style={{ borderLeft: '2px solid var(--color-border)' }}>
-                                  {deSalida.map(c => (
-                                    <button key={c.nombre}
-                                      onClick={() => irACorreoCarpeta(c.nombre)}
-                                      className="flex items-center gap-1 pl-5 pr-3 py-1 text-[11px] rounded-r-lg text-left transition-colors"
-                                      style={{
-                                        backgroundColor: carpetaSeleccionada === c.nombre
-                                          ? 'var(--color-accent-selected)' : 'transparent',
-                                        color: carpetaSeleccionada === c.nombre
-                                          ? '#0F172A' : 'var(--color-text-muted)',
-                                      }}>
-                                      <span className="truncate flex-1">{nombreCarpetaLegible(c.nombre)}</span>
-                                      {c.noLeidos > 0 && (
-                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                          style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>{c.noLeidos}</span>
-                                      )}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Otras carpetas de la cuenta principal */}
-                          {otras.map(c => (
-                            <button key={c.nombre}
-                              onClick={() => irACorreoCarpeta(c.nombre)}
-                              className="flex items-center gap-1 px-3 py-1.5 text-[11px] rounded-lg text-left transition-colors"
-                              style={{
-                                backgroundColor: carpetaSeleccionada === c.nombre
-                                  ? 'var(--color-accent-selected)' : 'transparent',
-                                color: carpetaSeleccionada === c.nombre
-                                  ? '#0F172A' : 'var(--color-text-muted)',
-                              }}>
-                              <span className="truncate flex-1">{nombreCarpetaLegible(c.nombre)}</span>
-                              {c.noLeidos > 0 && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                  style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>{c.noLeidos}</span>
-                              )}
-                            </button>
-                          ))}
-                        </>;
-                      })()}
-
-                      {/* ── RECOLECTORES (todas las cuentas en lista plana) ── */}
-                      {cuentasCarpetas.slice(1).map(cc => (
-                        <div key={cc.id} className="mt-1">
-                          <span className="flex items-center gap-1 px-3 py-1 text-[10px] font-semibold"
-                            style={{ color: 'var(--color-text-secondary)' }}>
-                            {cc.email}
-                          </span>
-                          <div className="flex flex-col gap-0.5">
-                            {cc.carpetas.map(c => (
-                              <button key={c.nombre}
-                                onClick={() => irACorreoCarpeta(c.nombre)}
-                                className="flex items-center gap-1 pl-6 pr-3 py-1 text-[10px] rounded-r-lg text-left transition-colors"
-                                style={{
-                                  backgroundColor: carpetaSeleccionada === c.nombre
-                                    ? 'var(--color-accent-selected)' : 'transparent',
-                                  color: carpetaSeleccionada === c.nombre
-                                    ? '#0F172A' : 'var(--color-text-muted)',
-                                }}>
-                                <span className="truncate flex-1">{nombreCarpetaLegible(c.nombre)}</span>
-                                {c.noLeidos > 0 && (
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                    style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>{c.noLeidos}</span>
-                                )}
-                              </button>
-                            ))}
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-[10px] px-3 py-1 italic"
-                      style={{ color: 'var(--color-text-secondary)' }}>
-                      Sin carpetas
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          ));
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] px-3 py-1 italic"
+                        style={{ color: 'var(--color-text-secondary)' }}>
+                        Sin carpetas
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
           })()}
         </div>
 
-        {/* === ESPACIADOR === */}
+        {/* === ESPACIADOR FLEX (empuja items inactivos + bottom al fondo) === */}
         <div className="flex-1 min-h-[8px]" />
+
+        {/* === ITEMS INACTIVOS (abajo, justo encima del separador) === */}
+        <div className="flex flex-col gap-0.5 px-2.5 shrink-0">
+          {NAV_ITEMS.filter(item =>
+            item.key === 'correo' ? !correoActivo : !location.pathname.startsWith(item.to)
+          ).map(item => (
+            <NavLink key={item.to} to={item.to}
+              className="flex items-center px-3 py-2.5 text-sm rounded-lg transition-colors hover:opacity-80"
+              style={{ color: 'var(--color-text-muted)' }}>
+              <span className="truncate">{item.label}</span>
+            </NavLink>
+          ))}
+        </div>
 
         {/* === SEPARADOR + BOTTOM ITEMS (fijos al fondo) === */}
         <div className="px-2.5 pb-3.5 flex flex-col gap-1.5 shrink-0">
