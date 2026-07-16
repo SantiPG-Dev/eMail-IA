@@ -187,7 +187,7 @@ export default function CorreoPage() {
         style={{ backgroundColor: 'var(--color-bg)' }}>
         {selected ? (
           <>
-            {/* Botones de acción */}
+            {/* Botones de acción (sin SPAM/Legit ni Papelera) */}
             <div className="flex gap-1.5 flex-wrap">
               <button onClick={() => abrirCompose('responder')}
                 className="px-3 py-1 text-xs font-bold rounded-pill"
@@ -199,29 +199,6 @@ export default function CorreoPage() {
                 className="px-3 py-1 text-xs rounded-pill"
                 style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Reenviar</button>
               <div className="flex-1" />
-              <button onClick={eliminarMensaje}
-                className="px-2 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: '#64748B', color: 'white' }}>🗑 Papelera</button>
-              <button onClick={async () => {
-                if (!selected) return;
-                try {
-                  const res = await mensajeApi.classify(selected.id, 'SPAM');
-                  setSelected(res.data);
-                  await cargarMensajes(carpetaImap);
-                } catch {}
-              }}
-                className="px-2 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: '#ef4444', color: 'white' }}>🚫 SPAM</button>
-              <button onClick={async () => {
-                if (!selected) return;
-                try {
-                  const res = await mensajeApi.classify(selected.id, 'LEGITIMO');
-                  setSelected(res.data);
-                  await cargarMensajes(carpetaImap);
-                } catch {}
-              }}
-                className="px-2 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: '#22c55e', color: 'white' }}>✅ Legít</button>
             </div>
 
             {/* Asunto + remitente */}
@@ -256,15 +233,42 @@ export default function CorreoPage() {
               )}
             </div>
 
-            {/* IA suggestions */}
-            <div className="rounded-lg p-2" style={{ backgroundColor: 'var(--color-bg-card)' }}>
-              <p className="text-[10px] mb-1" style={{ color: 'var(--color-text-secondary)' }}>Respuestas IA</p>
-              <div className="flex gap-1.5">
-                {['Responder', 'Agradecer', '+Info'].map(s => (
-                  <button key={s}
-                    className="text-[10px] px-2.5 py-1 rounded-pill font-bold"
-                    style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>{s}</button>
-                ))}
+            {/* IA suggestions + SPAM/Legít (derecha) */}
+            <div className="rounded-lg p-2 flex items-start gap-2"
+              style={{ backgroundColor: 'var(--color-bg-card)' }}>
+              {/* Botones IA a la izquierda */}
+              <div className="flex-1">
+                <p className="text-[10px] mb-1" style={{ color: 'var(--color-text-secondary)' }}>Respuestas IA</p>
+                <div className="flex gap-1.5">
+                  {['Responder', 'Agradecer', '+Info'].map(s => (
+                    <button key={s}
+                      className="text-[10px] px-2.5 py-1 rounded-pill font-bold"
+                      style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>{s}</button>
+                  ))}
+                </div>
+              </div>
+              {/* SPAM/Legít a la derecha, apilados verticalmente */}
+              <div className="flex flex-col gap-1 shrink-0">
+                <button onClick={async () => {
+                  if (!selected) return;
+                  try {
+                    const res = await mensajeApi.classify(selected.id, 'SPAM');
+                    setSelected(res.data);
+                    await cargarMensajes(carpetaImap);
+                  } catch {}
+                }}
+                  className="px-3 py-1.5 text-[10px] font-bold rounded-pill"
+                  style={{ backgroundColor: '#ef4444', color: 'white' }}>🚫 SPAM</button>
+                <button onClick={async () => {
+                  if (!selected) return;
+                  try {
+                    const res = await mensajeApi.classify(selected.id, 'LEGITIMO');
+                    setSelected(res.data);
+                    await cargarMensajes(carpetaImap);
+                  } catch {}
+                }}
+                  className="px-3 py-1.5 text-[10px] font-bold rounded-pill"
+                  style={{ backgroundColor: '#22c55e', color: 'white' }}>✅ Legít</button>
               </div>
             </div>
           </>
