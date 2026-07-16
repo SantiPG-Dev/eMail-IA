@@ -21,6 +21,9 @@ public class SyncSchedulerService {
 
     private static final Logger log = LoggerFactory.getLogger(SyncSchedulerService.class);
 
+    private volatile String ultimaSync = "-";
+    private volatile String estado = "inactivo";
+
     private final MailService mailService;
     private final CuentaService cuentaService;
     private final CredentialService credentialService;
@@ -32,11 +35,17 @@ public class SyncSchedulerService {
         this.credentialService = credentialService;
     }
 
+    /** Devuelve el estado actual del scheduler. */
+    public String getEstado() {
+        return estado + " · última: " + ultimaSync;
+    }
+
     /**
      * Sincroniza todas las cuentas cada 5 minutos.
      */
     @Scheduled(fixedRateString = "${emailai.sync.interval:300000}")
     public void sincronizarTodasLasCuentas() {
+        estado = "sincronizando";
         List<Cuenta> cuentas = cuentaService.listarTodas();
         for (Cuenta cuenta : cuentas) {
             try {
@@ -49,6 +58,8 @@ public class SyncSchedulerService {
                 log.error("Error sincronizando cuenta {}: {}", cuenta.getEmail(), e.getMessage());
             }
         }
+        ultimaSync = java.time.LocalTime.now().toString().substring(0, 5);
+        estado = "inactivo";
     }
 
     private void syncPassword(Cuenta cuenta) throws Exception {
