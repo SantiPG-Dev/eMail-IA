@@ -14,11 +14,11 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Interceptor: redirigir a login si 401
+// Interceptor: redirigir a login si 401 (solo si no estamos ya en login)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !window.location.pathname.startsWith('/login')) {
       localStorage.removeItem('emailai_token');
       window.location.href = '/login';
     }

@@ -45,6 +45,17 @@ body {
   font-family: 'Segoe UI', Roboto, sans-serif;
 }
 
+/* Gradiente decorativo del login (en CSS para evitar repaints inline) */
+.login-gradient {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, #3B82F6 0%, transparent 70%),
+    radial-gradient(ellipse 60% 50% at 50% 70%, #22C55E 0%, transparent 70%);
+  opacity: 0.03;
+  /* Aceleración GPU: propio compositor layer */
+  will-change: opacity;
+  transform: translateZ(0);
+}
+
 /* Scrollbar (oscura) */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
