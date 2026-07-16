@@ -1,10 +1,14 @@
-import { app, BrowserWindow, shell, dialog, Tray, Menu, Notification, nativeImage } from 'electron';
+import { app, BrowserWindow, shell, dialog, Tray, Menu, Notification, nativeImage, session } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, execSync, ChildProcess } from 'child_process';
 import * as http from 'http';
 
 // ── Config ──────────────────────────────────────────────────────
+
+// Suprimir 'Hit debug scenario' de Chromium (inofensivo, solo ruido)
+process.env.ELECTRON_ENABLE_STACK_DUMPING = 'false';
+
 const BACKEND_PORT = 8420;
 const HEALTH_URL = `http://localhost:${BACKEND_PORT}/health`;
 const DEV_FRONTEND = 'http://localhost:5173';
@@ -41,6 +45,26 @@ function findJar(): string | null {
   if (fs.existsSync(prodJar)) return prodJar;
 
   return null; // Se usará mvn spring-boot:run
+}
+
+// ── Limpiar procesos anteriores ───────────────────────────────
+function matarProcesosAnteriores() {
+  try {
+    const dbPath = path.resolve(__dirname, '..', '..', 'backend', 'DB', 'emailai.mv.db');
+    // Matar procesos que tienen el archivo de BD abierto
+    execSync(`fuser -k ${dbPath} 2>/dev/null; true`, { stdio: 'ignore' });
+    // Matar procesos java/maven del backend
+    execSync(
+      "pkill -9 -f 'spring-boot:run' 2>/dev/null; " +
+      "pkill -9 -f 'EmailAiApplication' 2>/dev/null; " +
+      "pkill -9 -f 'emailai-backend' 2>/dev/null; " +
+      "true",
+      { stdio: 'ignore' }
+    );
+    console.log('[Electron] Procesos anteriores eliminados');
+  } catch {
+    // Si no hay procesos, ignorar
+  }
 }
 
 // ── Spawn backend ────────────────────────────────────────────────
@@ -147,8 +171,37 @@ function stopBackend() {
   }
 }
 
+// ── Splash screen ───────────────────────────────────────────────
+function showSplash() {
+  const splash = new BrowserWindow({
+    width: 300,
+    height: 300,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    center: true,
+    alwaysOnTop: true,
+    icon: path.join(__dirname, '..', 'assets', 'icon-512.png'),
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  });
+
+  // Cargar splash HTML desde archivo
+  splash.loadURL('file://' + path.resolve(__dirname, '..', 'splash.html'));
+
+  return splash;
+}
+
 // ── Ventana principal ────────────────────────────────────────────
-function createWindow() {
+async function createWindow() {
+  // Limpiar TODO: caché, storage, cookies, service workers
+  await session.defaultSession.clearCache().catch(() => {});
+  await session.defaultSession.clearStorageData({
+    storages: ['localstorage', 'serviceworkers', 'cachestorage']
+  }).catch(() => {});
+
+  // Mostrar splash mientras carga
+  const splash = showSplash();
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -156,6 +209,8 @@ function createWindow() {
     minHeight: 600,
     title: 'eMail-IA',
     icon: path.join(__dirname, '..', 'assets', 'icon-512.png'),
+    show: false,
+    backgroundColor: '#0F172A',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -163,7 +218,34 @@ function createWindow() {
     },
   });
 
+  // Deshabilitar caché HTTP
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
+    { urls: ['*://*/*'] },
+    (details: any, callback: any) => {
+      callback({
+        requestHeaders: {
+          ...details.requestHeaders,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      });
+    }
+  );
+
   mainWindow.loadURL(APP_URL);
+
+  // Esperar a que React termine y luego hacer transición
+  mainWindow.webContents.on('did-finish-load', () => {
+    setTimeout(async () => {
+      // Animación: splash se escala, main aparece
+      if (splash && !splash.isDestroyed()) {
+        splash.close();
+      }
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+        mainWindow.show();
+      }
+    }, 800);
+  });
 
   // Abrir enlaces externos en el navegador del sistema (OAuth)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -205,6 +287,7 @@ function createWindow() {
 app.whenReady().then(async () => {
   try {
     // Construir frontend si no existe (lo sirve el backend desde frontend/dist/)
+    matarProcesosAnteriores();
     await ensureFrontendBuilt();
     await startBackend();
     // Detectar si Vite dev server esta corriendo (desarrollo)

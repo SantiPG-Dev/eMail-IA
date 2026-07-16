@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -120,7 +122,10 @@ public class MailService {
             Folder defaultFolder = store.getDefaultFolder();
             return Arrays.stream(defaultFolder.list("*"))
                     .map(Folder::getFullName)
-                    .filter(n -> !n.contains("[Gmail]") || n.contains("INBOX"))
+                    .filter(n -> !n.startsWith("[Gmail]") || n.equals("INBOX")
+                            || n.equals("[Gmail]/Spam") || n.equals("[Gmail]/Trash")
+                            || n.equals("[Gmail]/All Mail") || n.equals("[Gmail]/Starred")
+                            || n.equals("[Gmail]/Important"))
                     .sorted(Comparator.comparing(n -> !n.equals("INBOX")))
                     .toList();
         } finally {
@@ -128,25 +133,33 @@ public class MailService {
         }
     }
 
-    // ── Sincronizar bandeja ─────────────────────────────────────
+    // ── Sincronizar bandeja (inteligente) ───────────────────────
 
     /**
-     * Sincroniza una carpeta para una cuenta.
+     * Sincroniza una carpeta: compara UIDs con lo local y solo descarga novedades.
+     *
+     * <p>Flujo:
+     * <ol>
+     *   <li>Conecta IMAP, obtiene total de mensajes y no leídos</li>
+     *   <li>Recupera los últimos 50 mensajes del servidor (solo cabeceras)</li>
+     *   <li>Compara Message-IDs con los que ya tenemos en local</li>
+     *   <li>Descarga el cuerpo SOLO de los mensajes nuevos (máx 50)</li>
+     * </ol>
      */
     public SyncResult sincronizarCarpeta(String host, String user, String password,
                                            String cuentaHash, String carpeta)
             throws MessagingException, IOException {
-        return sincronizarCarpeta(host, user, password, cuentaHash, carpeta, 300, "IMAP");
+        return sincronizarCarpeta(host, user, password, cuentaHash, carpeta, 50, "IMAP");
     }
 
     public SyncResult sincronizarCarpeta(String host, String user, String password,
-                                           String cuentaHash, String carpeta, int maxSync)
+                                           String cuentaHash, String carpeta, int maxDescargar)
             throws MessagingException, IOException {
-        return sincronizarCarpeta(host, user, password, cuentaHash, carpeta, maxSync, "IMAP");
+        return sincronizarCarpeta(host, user, password, cuentaHash, carpeta, maxDescargar, "IMAP");
     }
 
     public SyncResult sincronizarCarpeta(String host, String user, String password,
-                                           String cuentaHash, String carpeta, int maxSync,
+                                           String cuentaHash, String carpeta, int maxDescargar,
                                            String tipoConexion)
             throws MessagingException, IOException {
         int port = "POP3".equalsIgnoreCase(tipoConexion) ? 995 : 993;
@@ -155,38 +168,97 @@ public class MailService {
         try {
             Folder folder;
             if ("POP3".equalsIgnoreCase(tipoConexion)) {
-                // POP3 solo tiene INBOX como carpeta raíz
                 folder = store.getDefaultFolder();
             } else {
                 folder = store.getFolder(carpeta);
             }
             folder.open(Folder.READ_ONLY);
 
-            int total = folder.getMessageCount();
-            int start = Math.max(1, total - maxSync);
-            Message[] msgs = folder.getMessages(start, total);
+            int totalEnServidor = folder.getMessageCount();
+            int noLeidosEnServidor = folder.getUnreadMessageCount();
 
-            FetchProfile fp = new FetchProfile();
-            fp.add(FetchProfile.Item.ENVELOPE);
-            fp.add(FetchProfile.Item.CONTENT_INFO);
-            fp.add(FetchProfile.Item.FLAGS);
-            folder.fetch(msgs, fp);
+            if (totalEnServidor == 0) {
+                folder.close(false);
+                return new SyncResult(carpeta, 0, 0, 0);
+            }
 
-            int nuevos = 0;
-            for (Message msg : msgs) {
-                Mensaje m = convertirMensaje(msg, cuentaHash, carpeta);
-                if (m != null) {
-                    // Clasificar automaticamente con Weka (si hay modelo entrenado)
-                    clasificarMensaje(m);
-                    mensajeService.guardarOActualizar(m);
-                    nuevos++;
+            // Obtener los últimos maxDescargar mensajes del servidor
+            int start = Math.max(1, totalEnServidor - maxDescargar + 1);
+            Message[] serverMsgs = folder.getMessages(start, totalEnServidor);
+
+            // Paso 1: fetch solo cabeceras (ENVELOPE) para obtener Message-IDs
+            FetchProfile fpCabeceras = new FetchProfile();
+            fpCabeceras.add(FetchProfile.Item.ENVELOPE);
+            fpCabeceras.add(FetchProfile.Item.FLAGS);
+            folder.fetch(serverMsgs, fpCabeceras);
+
+            // Obtener Message-IDs que ya tenemos en local
+            Set<String> localUids = mensajeService.listarUidsPorCarpeta(cuentaHash, carpeta);
+
+            // Identificar cuáles son nuevos
+            List<Message> mensajesNuevos = new ArrayList<>();
+            for (Message msg : serverMsgs) {
+                String msgId = obtenerMessageId(msg);
+                if (msgId != null && !localUids.contains(msgId)) {
+                    mensajesNuevos.add(msg);
                 }
             }
 
+            if (log.isDebugEnabled()) {
+                log.debug("📬 {}·{}: {}/{} en servidor, {} nuevos de los últimos {}",
+                        cuentaHash, carpeta, totalEnServidor, noLeidosEnServidor,
+                        mensajesNuevos.size(), serverMsgs.length);
+            }
+
+            // Paso 2: fetch contenido completo solo de los nuevos
+            if (!mensajesNuevos.isEmpty()) {
+                Message[] nuevosArray = mensajesNuevos.toArray(new Message[0]);
+                FetchProfile fpCompleto = new FetchProfile();
+                fpCompleto.add(FetchProfile.Item.ENVELOPE);
+                fpCompleto.add(FetchProfile.Item.CONTENT_INFO);
+                fpCompleto.add(FetchProfile.Item.FLAGS);
+                folder.fetch(nuevosArray, fpCompleto);
+
+                int descargados = 0;
+                for (Message msg : nuevosArray) {
+                    Mensaje m = convertirMensaje(msg, cuentaHash, carpeta);
+                    if (m != null) {
+                        clasificarMensaje(m);
+                        mensajeService.guardarOActualizar(m);
+                        descargados++;
+                    }
+                }
+
+                folder.close(false);
+                return new SyncResult(carpeta, totalEnServidor, noLeidosEnServidor, descargados);
+            }
+
             folder.close(false);
-            return new SyncResult(carpeta, nuevos, total);
+            return new SyncResult(carpeta, totalEnServidor, noLeidosEnServidor, 0);
         } finally {
             store.close();
+        }
+    }
+
+    /**
+     * Extrae el Message-ID de un mensaje Jakarta Mail.
+     * Si no tiene, genera uno basado en nanoTime + hash del asunto.
+     */
+    private String obtenerMessageId(Message msg) {
+        try {
+            String[] mid = msg.getHeader("Message-ID");
+            if (mid != null && mid.length > 0 && mid[0] != null && !mid[0].isBlank()) {
+                return mid[0].trim();
+            }
+        } catch (MessagingException e) {
+            log.warn("No se pudo leer Message-ID: {}", e.getMessage());
+        }
+        // Fallback: generar un ID único
+        try {
+            String subj = msg.getSubject();
+            return "gen-" + System.nanoTime() + "-" + (subj != null ? subj.hashCode() : 0);
+        } catch (MessagingException e) {
+            return "gen-" + System.nanoTime();
         }
     }
 
@@ -340,26 +412,26 @@ public class MailService {
     public List<SyncResult> sincronizarTodo(String host, String user, String password,
                                              String cuentaHash)
             throws MessagingException, IOException {
-        return sincronizarTodo(host, user, password, cuentaHash, 300, "IMAP");
+        return sincronizarTodo(host, user, password, cuentaHash, 50, "IMAP");
     }
 
     public List<SyncResult> sincronizarTodo(String host, String user, String password,
-                                             String cuentaHash, int maxSync)
+                                             String cuentaHash, int maxDescargar)
             throws MessagingException, IOException {
-        return sincronizarTodo(host, user, password, cuentaHash, maxSync, "IMAP");
+        return sincronizarTodo(host, user, password, cuentaHash, maxDescargar, "IMAP");
     }
 
     public List<SyncResult> sincronizarTodo(String host, String user, String password,
-                                             String cuentaHash, int maxSync,
+                                             String cuentaHash, int maxDescargar,
                                              String tipoConexion)
             throws MessagingException, IOException {
         List<String> carpetas = listarCarpetas(host, user, password, tipoConexion);
         List<SyncResult> resultados = new ArrayList<>();
         for (String carpeta : carpetas) {
             resultados.add(sincronizarCarpeta(host, user, password, cuentaHash,
-                    carpeta, maxSync, tipoConexion));
+                    carpeta, maxDescargar, tipoConexion));
         }
-        reentrenarModelo(cuentaHash);
+        // Solo reentrenar si hay clasificaciones nuevas (forzarCategoria), no tras cada sync
         for (String carpeta : carpetas) {
             mensajeService.limpiarAntiguos(cuentaHash, carpeta);
         }
@@ -493,7 +565,13 @@ public class MailService {
         }
     }
 
-    // ── Resultado ───────────────────────────────────────────────
-
-    public record SyncResult(String carpeta, int nuevos, int total) {}
+    /**
+     * Resultado de la sincronización de una carpeta.
+     *
+     * @param carpeta     Nombre de la carpeta sincronizada
+     * @param totalServer Mensajes totales en el servidor
+     * @param noLeidos    Mensajes no leídos en el servidor
+     * @param descargados Cuántos mensajes nuevos se descargaron
+     */
+    public record SyncResult(String carpeta, int totalServer, int noLeidos, int descargados) {}
 }

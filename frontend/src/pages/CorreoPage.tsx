@@ -127,11 +127,21 @@ export default function CorreoPage() {
       <div className="w-[340px] min-w-[260px] flex flex-col gap-2 p-2.5"
         style={{ backgroundColor: 'var(--color-bg)' }}>
         {/* Botones superiores: Redactar + Borrar */}
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 items-center">
           <button onClick={() => abrirCompose('nuevo')}
             className="px-3 py-1.5 text-xs font-bold rounded-pill"
             style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Redactar</button>
-          <div className="flex-1" />
+          <div className="flex-1 flex justify-center">
+            <button onClick={sincronizar} disabled={syncing}
+              className="shrink-0 text-xs px-2 py-1.5 rounded-pill font-bold transition-colors disabled:opacity-40"
+              style={{
+                backgroundColor: syncing ? 'var(--color-bg-elevated)' : 'var(--color-accent)',
+                color: syncing ? 'var(--color-text-muted)' : '#0F172A',
+              }}
+              title={syncing ? 'Sincronizando...' : 'Enviar/Recibir'}>
+              {syncing ? '⟳' : '↕'}
+            </button>
+          </div>
           <button onClick={eliminarMensaje} disabled={!selected}
             className="px-3 py-1.5 text-xs font-bold rounded-pill disabled:opacity-30"
             style={{ backgroundColor: '#ef4444', color: 'white' }}>Borrar</button>
@@ -147,11 +157,6 @@ export default function CorreoPage() {
           <button onClick={handleSearch}
             className="px-2 py-1.5 text-xs font-bold rounded-pill"
             style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>🔍</button>
-          <button onClick={sincronizar} disabled={syncing}
-            className="px-2 py-1.5 text-xs font-bold rounded-pill disabled:opacity-50"
-            style={{ backgroundColor: syncing ? '#94A3B8' : '#22D3EE', color: '#0F172A' }}>
-            {syncing ? '⏳' : '⬇'}
-          </button>
         </div>
 
         {statusText !== 'Inactivo' && (
@@ -187,62 +192,42 @@ export default function CorreoPage() {
         style={{ backgroundColor: 'var(--color-bg)' }}>
         {selected ? (
           <>
-            {/* Botones de acción */}
-            <div className="flex gap-1.5 flex-wrap">
-              <button onClick={() => abrirCompose('responder')}
-                className="px-3 py-1 text-xs font-bold rounded-pill"
-                style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Responder</button>
-              <button onClick={() => abrirCompose('responder')}
-                className="px-3 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Resp. todos</button>
-              <button onClick={() => abrirCompose('reenviar')}
-                className="px-3 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Reenviar</button>
-              <div className="flex-1" />
-              <button onClick={eliminarMensaje}
-                className="px-2 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: '#64748B', color: 'white' }}>🗑 Papelera</button>
-              <button onClick={async () => {
-                if (!selected) return;
-                try {
-                  const res = await mensajeApi.classify(selected.id, 'SPAM');
-                  setSelected(res.data);
-                  await cargarMensajes(carpetaImap);
-                } catch {}
-              }}
-                className="px-2 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: '#ef4444', color: 'white' }}>🚫 SPAM</button>
-              <button onClick={async () => {
-                if (!selected) return;
-                try {
-                  const res = await mensajeApi.classify(selected.id, 'LEGITIMO');
-                  setSelected(res.data);
-                  await cargarMensajes(carpetaImap);
-                } catch {}
-              }}
-                className="px-2 py-1 text-xs rounded-pill"
-                style={{ backgroundColor: '#22c55e', color: 'white' }}>✅ Legít</button>
-            </div>
-
-            {/* Asunto + remitente */}
-            <h3 className="text-base font-bold" style={{ color: 'var(--color-accent-selected)' }}>
-              {selected.asunto}</h3>
-            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              <span>{selected.remitente}</span>
-              <span>·</span>
-              <span>{selected.fechaRecepcion?.slice(0, 10)}</span>
-              {selected.categoria && selected.categoria !== 'DESCONOCIDO' && (
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
-                  style={{
-                    backgroundColor: selected.categoria === 'SPAM' || selected.categoria === 'PHISHING'
-                      ? '#dc2626' : selected.categoria === 'LEGITIMO' ? '#16a34a' : '#ca8a04',
-                    color: '#fff',
-                    border: selected.categoria === 'SPAM' || selected.categoria === 'PHISHING'
-                      ? '1px solid #ef4444' : selected.categoria === 'LEGITIMO' ? '1px solid #22c55e' : '1px solid #fbbf24',
-                  }}>
-                  {selected.categoria}
-                </span>
-              )}
+            {/* Fila: izq = asunto+remitente, dcha = botones */}
+            <div className="flex items-start gap-4">
+              {/* Izquierda: asunto + remitente + fecha */}
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold truncate" style={{ color: 'var(--color-accent-selected)' }}>
+                  {selected.asunto}</h3>
+                <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
+                  <span className="truncate">{selected.remitente}</span>
+                  <span>·</span>
+                  <span className="shrink-0">{selected.fechaRecepcion?.slice(0, 10)}</span>
+                  {selected.categoria && selected.categoria !== 'DESCONOCIDO' && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0"
+                      style={{
+                        backgroundColor: selected.categoria === 'SPAM' || selected.categoria === 'PHISHING'
+                          ? '#dc2626' : selected.categoria === 'LEGITIMO' ? '#16a34a' : '#ca8a04',
+                        color: '#fff',
+                        border: selected.categoria === 'SPAM' || selected.categoria === 'PHISHING'
+                          ? '1px solid #ef4444' : selected.categoria === 'LEGITIMO' ? '1px solid #22c55e' : '1px solid #fbbf24',
+                      }}>
+                      {selected.categoria}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {/* Derecha: botones de acción alineados a la derecha */}
+              <div className="flex gap-1.5 shrink-0">
+                <button onClick={() => abrirCompose('responder')}
+                  className="px-3 py-1 text-xs font-bold rounded-pill"
+                  style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Responder</button>
+                <button onClick={() => abrirCompose('responder')}
+                  className="px-3 py-1 text-xs rounded-pill"
+                  style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Resp. todos</button>
+                <button onClick={() => abrirCompose('reenviar')}
+                  className="px-3 py-1 text-xs rounded-pill"
+                  style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Reenviar</button>
+              </div>
             </div>
 
             {/* Cuerpo */}
@@ -256,15 +241,42 @@ export default function CorreoPage() {
               )}
             </div>
 
-            {/* IA suggestions */}
-            <div className="rounded-lg p-2" style={{ backgroundColor: 'var(--color-bg-card)' }}>
-              <p className="text-[10px] mb-1" style={{ color: 'var(--color-text-secondary)' }}>Respuestas IA</p>
-              <div className="flex gap-1.5">
-                {['Responder', 'Agradecer', '+Info'].map(s => (
-                  <button key={s}
-                    className="text-[10px] px-2.5 py-1 rounded-pill font-bold"
-                    style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>{s}</button>
-                ))}
+            {/* IA suggestions + SPAM/Legít (derecha) */}
+            <div className="rounded-lg p-2 flex items-start gap-2"
+              style={{ backgroundColor: 'var(--color-bg-card)' }}>
+              {/* Botones IA a la izquierda */}
+              <div className="flex-1">
+                <p className="text-[10px] mb-1" style={{ color: 'var(--color-text-secondary)' }}>Respuestas IA</p>
+                <div className="flex gap-1.5">
+                  {['Responder', 'Agradecer', '+Info'].map(s => (
+                    <button key={s}
+                      className="text-[10px] px-2.5 py-1 rounded-pill font-bold"
+                      style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>{s}</button>
+                  ))}
+                </div>
+              </div>
+              {/* SPAM/Legít a la derecha, apilados verticalmente */}
+              <div className="flex flex-col gap-1 shrink-0">
+                <button onClick={async () => {
+                  if (!selected) return;
+                  try {
+                    const res = await mensajeApi.classify(selected.id, 'SPAM');
+                    setSelected(res.data);
+                    await cargarMensajes(carpetaImap);
+                  } catch {}
+                }}
+                  className="px-3 py-1.5 text-[10px] font-bold rounded-pill"
+                  style={{ backgroundColor: '#ef4444', color: 'white' }}>🚫 SPAM</button>
+                <button onClick={async () => {
+                  if (!selected) return;
+                  try {
+                    const res = await mensajeApi.classify(selected.id, 'LEGITIMO');
+                    setSelected(res.data);
+                    await cargarMensajes(carpetaImap);
+                  } catch {}
+                }}
+                  className="px-3 py-1.5 text-[10px] font-bold rounded-pill"
+                  style={{ backgroundColor: '#22c55e', color: 'white' }}>✅ Legít</button>
               </div>
             </div>
           </>

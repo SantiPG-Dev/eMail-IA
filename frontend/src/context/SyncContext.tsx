@@ -19,15 +19,15 @@ interface SyncContextType extends SyncState {
 
 const SyncContext = createContext<SyncContextType | null>(null);
 
-const MAX = 300;
-const STEP = 25;
+const MAX = 50;
+const STEP = 50;
 const CUENTA_KEY = 'emailai_sync_limite';
 
 export function SyncProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SyncState>({
     syncing: false,
     progress: 0,
-    statusText: 'Inactivo',
+    statusText: 'Esperando...',
     lastSync: '',
     totalMessages: 0,
     accountEmail: 'Sin cuenta',
@@ -49,12 +49,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const triggerSync = useCallback(async () => {
-    if (syncingRef.current) {
-      setState(s => ({ ...s, statusText: 'Ya sincronizando...' }));
-      return;
-    }
+    if (syncingRef.current) return;
     syncingRef.current = true;
-    setState(s => ({ ...s, syncing: true, progress: 10, statusText: 'Sincronizando...' }));
+    setState(s => ({ ...s, syncing: true }));
 
     try {
       const cuentas = await cuentaApi.list();
@@ -64,21 +61,20 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         return;
       }
       const c = cuentas.data[0];
-      setState(s => ({ ...s, progress: 30, statusText: `Descargando correos (${c.email})...`, accountEmail: c.email }));
+      setState(s => ({ ...s, accountEmail: c.email }));
 
-      await api.post(`/api/cuentas/${c.id}/sync?limite=300`);
-      localStorage.setItem(CUENTA_KEY, '300');
+      const syncRes = await api.post(`/api/cuentas/${c.id}/sync?limite=50`);
+      const resultados = syncRes.data || [];
+      const totalDescargados = resultados.reduce((sum: number, r: any) => sum + (r.descargados || 0), 0);
+      const totalServer = resultados.reduce((sum: number, r: any) => sum + (r.totalServer || 0), 0);
+      const noLeidos = resultados.reduce((sum: number, r: any) => sum + (r.noLeidos || 0), 0);
 
-      setState(s => ({ ...s, progress: 70, statusText: 'Actualizando bandeja...' }));
-      const total = await refreshMessages();
-
+      await refreshMessages();
       setState(s => ({
-        ...s, syncing: false, progress: 100,
-        statusText: `${total} mensajes · ${new Date().toLocaleTimeString()}`,
+        ...s, syncing: false,
+        statusText: `📨 +${totalDescargados} · 📬 ${totalServer} (${noLeidos} sin leer)`,
         lastSync: new Date().toISOString(),
-        currentLimite: 300,
       }));
-      setTimeout(() => setState(s => ({ ...s, progress: 0 })), 3000);
     } catch {
       setState(s => ({ ...s, syncing: false, statusText: 'Error de conexión' }));
     } finally {
@@ -86,7 +82,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
   }, [refreshMessages]);
 
-  // Auto-sync progresivo cada 60s
+  // Auto-sync silencioso cada 60s
   useEffect(() => {
     const syncStep = async () => {
       if (syncingRef.current) return;
@@ -96,46 +92,34 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         if (cuentas.data.length === 0) return;
         const c = cuentas.data[0];
 
-        let limite = parseInt(localStorage.getItem(CUENTA_KEY) || '0');
-        if (limite <= 0) limite = STEP;
-        else if (limite < MAX) limite = Math.min(limite + STEP, MAX);
-
-        localStorage.setItem(CUENTA_KEY, String(limite));
-
-        setState(s => ({
-          ...s, syncing: true, progress: Math.round((limite / MAX) * 50),
-          statusText: `Sincronizando ${limite}/${MAX}...`,
-          accountEmail: c.email, currentLimite: limite,
-        }));
+        setState(s => ({ ...s, syncing: true, accountEmail: c.email }));
 
         try {
-          await api.post(`/api/cuentas/${c.id}/sync?limite=${limite}`);
+          const syncRes = await api.post(`/api/cuentas/${c.id}/sync?limite=${MAX}`);
+          const resultados = syncRes.data || [];
+          const totalDescargados = resultados.reduce((sum: number, r: any) => sum + (r.descargados || 0), 0);
+          const totalServer = resultados.reduce((sum: number, r: any) => sum + (r.totalServer || 0), 0);
+          const noLeidos = resultados.reduce((sum: number, r: any) => sum + (r.noLeidos || 0), 0);
+
+          await refreshMessages();
+
+          const ahora = new Date().toLocaleTimeString();
+          setState(s => ({
+            ...s, syncing: false, progress: 0,
+            statusText: totalDescargados > 0
+              ? `📨 +${totalDescargados} · 📬 ${totalServer} (${noLeidos} sin leer)`
+              : `📬 ${totalServer} (${noLeidos} sin leer) · ${ahora}`,
+            lastSync: new Date().toISOString(),
+          }));
         } catch (e: any) {
-          const errMsg = e?.response?.data?.message || e?.message || 'Error de conexión IMAP';
+          const errMsg = e?.response?.data?.message || e?.message || 'Error IMAP';
           setState(s => ({
             ...s, syncing: false, progress: 0,
             statusText: `⚠️ ${errMsg}`,
           }));
-          setTimeout(() => setState(s => ({ ...s, statusText: 'Error IMAP. Revisa credenciales.' })), 5000);
-          return;
-        }
-
-        const actualMsg = (await refreshMessages()) || 0;
-        const pct = limite >= MAX ? 100 : Math.round((limite / MAX) * 100);
-        setState(s => ({
-          ...s, syncing: false, progress: pct,
-          statusText: actualMsg > 0
-            ? (limite >= MAX
-              ? `${actualMsg} mensajes · ${new Date().toLocaleTimeString()}`
-              : `${limite}/${MAX} · ${actualMsg} descargados`)
-            : `Sin mensajes (${limite}/${MAX})`,
-          lastSync: new Date().toISOString(),
-        }));
-        if (limite >= MAX || actualMsg === 0) {
-          setTimeout(() => setState(s => ({ ...s, progress: 0 })), 3000);
         }
       } catch {
-        // Error inesperado fuera del bloque IMAP
+        // Error inesperado
       }
     };
 
@@ -145,10 +129,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       if (cuentas.data.length > 0) {
         setState(s => ({ ...s, accountEmail: cuentas.data[0].email }));
         await refreshMessages();
-        const limite = parseInt(localStorage.getItem(CUENTA_KEY) || '0');
-        setState(s => ({ ...s, currentLimite: limite || STEP }));
       }
-      syncStep(); // Primer sync al cargar
+      // Estado inicial según haya cuentas o no
+      if (cuentas.data.length > 0) {
+        setState(s => ({ ...s, statusText: `${s.totalMessages} mensajes` }));
+      }
+      syncStep();
     };
     init();
 

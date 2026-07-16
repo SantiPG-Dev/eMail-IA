@@ -45,3 +45,4 @@ logging:
   level:
     org.hibernate.SQL: warn
     com.emailai: info
+    com.github.fommil: error        # Silenciar warnings de ARPACK (Weka)

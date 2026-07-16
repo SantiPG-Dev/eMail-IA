@@ -53,6 +53,8 @@ public class SecurityConfig {
                 .requestMatchers("/health").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/debug/**").permitAll()
+                .requestMatchers("/api/status").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/cuentas").permitAll()   // Ver cuentas sin auth (login)
                 .requestMatchers(HttpMethod.POST, "/api/cuentas").permitAll()  // Crear cuenta sin auth (primer uso)
                 .requestMatchers("/", "/index.html", "/assets/**", "/src/**", "/*.png", "/*.svg", "/*.ico").permitAll()
                 .requestMatchers("/api/**").authenticated()
@@ -88,7 +90,7 @@ public class SecurityConfig {
                     return;
                 }
                 if (path.startsWith("/api/auth/") || path.startsWith("/api/debug/") || path.equals("/api/auth")
-                        || (path.equals("/api/cuentas") && "POST".equalsIgnoreCase(req.getMethod()))) {
+                        || path.equals("/api/status") || path.equals("/api/cuentas")) {
                     chain.doFilter(request, response);
                     return;
                 }

@@ -11,9 +11,29 @@ import TareasPage from './pages/TareasPage';
 import ChatIAPage from './pages/ChatIAPage';
 import ConfigPage from './pages/ConfigPage';
 
+/** Pantalla de carga mientras se valida la autenticación */
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center"
+      style={{ backgroundColor: 'var(--color-bg)' }}>
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-[var(--color-bg-card)] border border-[var(--color-border)] shadow-lg">
+          <span className="text-2xl">📧</span>
+        </div>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          Iniciando eMail-IA...
+        </p>
+        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
+          style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+      </div>
+    </div>
+  );
+}
+
 /** Protege rutas: redirige a /login si no autenticado */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
