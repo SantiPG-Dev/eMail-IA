@@ -5,6 +5,10 @@ import { spawn, execSync, ChildProcess } from 'child_process';
 import * as http from 'http';
 
 // ── Config ──────────────────────────────────────────────────────
+
+// Suprimir 'Hit debug scenario' de Chromium (inofensivo, solo ruido)
+process.env.ELECTRON_ENABLE_STACK_DUMPING = 'false';
+
 const BACKEND_PORT = 8420;
 const HEALTH_URL = `http://localhost:${BACKEND_PORT}/health`;
 const DEV_FRONTEND = 'http://localhost:5173';

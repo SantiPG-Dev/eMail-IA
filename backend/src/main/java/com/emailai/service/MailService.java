@@ -431,7 +431,7 @@ public class MailService {
             resultados.add(sincronizarCarpeta(host, user, password, cuentaHash,
                     carpeta, maxDescargar, tipoConexion));
         }
-        reentrenarModelo(cuentaHash);
+        // Solo reentrenar si hay clasificaciones nuevas (forzarCategoria), no tras cada sync
         for (String carpeta : carpetas) {
             mensajeService.limpiarAntiguos(cuentaHash, carpeta);
         }
