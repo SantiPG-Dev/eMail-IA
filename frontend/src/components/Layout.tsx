@@ -55,8 +55,8 @@ function nombreCarpetaLegible(nombre: string): string {
 
 const NAV_ITEMS = [
   { to: '/correo', label: '📬 Correo', key: 'correo' },
-  { to: '/contactos', label: '👤 Contactos', key: 'contactos' },
   { to: '/calendario', label: '📅 Calendario', key: 'calendario' },
+  { to: '/contactos', label: '👤 Contactos', key: 'contactos' },
   { to: '/tareas', label: '✅ Tareas', key: 'tareas' },
 ];
 
@@ -176,8 +176,8 @@ export default function Layout() {
           Menú
         </p>
 
-        {/* === ZONA SCROLLABLE COMPLETA === */}
-        <div className="flex-1 flex flex-col gap-0.5 px-2.5 overflow-y-auto min-h-0">
+        {/* === ZONA SCROLLABLE: Nav items + submenú Correo === */}
+        <div className="flex flex-col gap-0.5 px-2.5 overflow-y-auto shrink min-h-0">
           {NAV_ITEMS.map(item => (
             <div key={item.to}>
               <NavLink
@@ -353,12 +353,19 @@ export default function Layout() {
               )}
             </div>
           ))}
+        </div>
 
-          {/* Separador + items inferiores */}
-          <hr className="my-2" style={{ borderColor: 'var(--color-bg-card)' }} />
+        {/* === ESPACIADOR FLEXIBLE (equivalente a <Region VBox.vgrow="ALWAYS"/> en JavaFX) === */}
+        <div className="flex-1 min-h-[8px]" />
+
+        {/* === SEPARADOR + ITEMS INFERIORES (fijos al fondo) === */}
+        <div className="px-2.5 pb-3.5 flex flex-col gap-1.5 shrink-0">
+          <hr style={{ borderColor: 'var(--color-bg-card)' }} />
           
           {BOTTOM_ITEMS.map(item => (
-            <NavLink key={item.to} to={item.to}
+            <NavLink
+              key={item.to}
+              to={item.to}
               className={({ isActive }) =>
                 `flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${
                   isActive ? 'font-bold' : 'hover:opacity-80'
@@ -367,21 +374,26 @@ export default function Layout() {
               style={({ isActive }) => ({
                 backgroundColor: isActive ? 'var(--color-accent-selected)' : 'transparent',
                 color: isActive ? '#0F172A' : 'var(--color-text-muted)',
-              })}>
+              })}
+            >
               {item.label}
             </NavLink>
           ))}
 
           {/* Theme toggle + Logout */}
-          <div className="flex items-center gap-2 px-1 pt-2 pb-3">
-            <button onClick={toggleMode}
+          <div className="flex items-center gap-2 px-1 pt-2">
+            <button
+              onClick={toggleMode}
               className="text-xs px-2 py-1 rounded transition-colors"
-              style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>
+              style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
+            >
               {mode === 'dark' ? '☼ Claro' : '☾ Oscuro'}
             </button>
-            <button onClick={handleLogout}
+            <button
+              onClick={handleLogout}
               className="text-xs px-2 py-1 rounded transition-colors ml-auto"
-              style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>
+              style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
+            >
               Cerrar sesión
             </button>
           </div>
