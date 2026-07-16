@@ -127,11 +127,21 @@ export default function CorreoPage() {
       <div className="w-[340px] min-w-[260px] flex flex-col gap-2 p-2.5"
         style={{ backgroundColor: 'var(--color-bg)' }}>
         {/* Botones superiores: Redactar + Borrar */}
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 items-center">
           <button onClick={() => abrirCompose('nuevo')}
             className="px-3 py-1.5 text-xs font-bold rounded-pill"
             style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Redactar</button>
-          <div className="flex-1" />
+          <div className="flex-1 flex justify-center">
+            <button onClick={sincronizar} disabled={syncing}
+              className="shrink-0 text-xs px-2 py-1.5 rounded-pill font-bold transition-colors disabled:opacity-40"
+              style={{
+                backgroundColor: syncing ? 'var(--color-bg-elevated)' : 'var(--color-accent)',
+                color: syncing ? 'var(--color-text-muted)' : '#0F172A',
+              }}
+              title={syncing ? 'Sincronizando...' : 'Enviar/Recibir'}>
+              {syncing ? '⟳' : '↕'}
+            </button>
+          </div>
           <button onClick={eliminarMensaje} disabled={!selected}
             className="px-3 py-1.5 text-xs font-bold rounded-pill disabled:opacity-30"
             style={{ backgroundColor: '#ef4444', color: 'white' }}>Borrar</button>
@@ -147,11 +157,6 @@ export default function CorreoPage() {
           <button onClick={handleSearch}
             className="px-2 py-1.5 text-xs font-bold rounded-pill"
             style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>🔍</button>
-          <button onClick={sincronizar} disabled={syncing}
-            className="px-2 py-1.5 text-xs font-bold rounded-pill disabled:opacity-50"
-            style={{ backgroundColor: syncing ? '#94A3B8' : '#22D3EE', color: '#0F172A' }}>
-            {syncing ? '⏳' : '⬇'}
-          </button>
         </div>
 
         {statusText !== 'Inactivo' && (
