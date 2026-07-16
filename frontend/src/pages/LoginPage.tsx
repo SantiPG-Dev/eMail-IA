@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useTheme, THEMES } from '../context/ThemeContext';
+import { useTheme } from '../context/ThemeContext';
 import { authApi, cuentaApi } from '../api/client';
 import AccountSetupModal from '../components/AccountSetupModal';
 
@@ -335,7 +335,7 @@ export default function LoginPage() {
             </p>
           )}
 
-          {/* Selector de tema */}
+          {/* Modo oscuro/claro */}
           <div className="flex items-center gap-2 py-2">
             <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>☾</span>
             <button onClick={toggleMode}
@@ -345,16 +345,6 @@ export default function LoginPage() {
                 style={{ marginLeft: mode === 'dark' ? '0.125rem' : 'auto' }} />
             </button>
             <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>☼</span>
-
-            <div className="w-px h-3 mx-1.5" style={{ backgroundColor: 'var(--color-border)' }} />
-
-            <select value={theme} onChange={e => setTheme(e.target.value as any)}
-              className="text-[10px] px-1.5 py-1 rounded border outline-none cursor-pointer
-                bg-[var(--color-bg-card)] text-[var(--color-text)] border-[var(--color-border)]">
-              {THEMES.map(t => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
           </div>
         </div>
 
