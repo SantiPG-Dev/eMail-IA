@@ -381,19 +381,18 @@ export default function Layout() {
           ))}
 
           {/* Theme toggle + Logout */}
-          <div className="flex items-center gap-2 px-1 pt-2">
-            <button
-              onClick={toggleMode}
-              className="text-xs px-2 py-1 rounded transition-colors"
-              style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
-            >
-              {mode === 'dark' ? '☼ Claro' : '☾ Oscuro'}
+          <div className="flex items-center gap-1.5 px-1 pt-2 pb-3">
+            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>☾</span>
+            <button onClick={toggleMode}
+              className="w-8 h-4 rounded-full relative transition-colors flex items-center"
+              style={{ backgroundColor: mode === 'dark' ? '#475569' : '#94A3B8' }}>
+              <span className="w-3 h-3 rounded-full bg-white transition-all duration-200 mx-0.5"
+                style={{ marginLeft: mode === 'dark' ? '0.125rem' : 'auto' }} />
             </button>
-            <button
-              onClick={handleLogout}
-              className="text-xs px-2 py-1 rounded transition-colors ml-auto"
-              style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
-            >
+            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>☼</span>
+            <button onClick={handleLogout}
+              className="text-[10px] px-2 py-1 rounded transition-colors ml-auto"
+              style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>
               Cerrar sesión
             </button>
           </div>

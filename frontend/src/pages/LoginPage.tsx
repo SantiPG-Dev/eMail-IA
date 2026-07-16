@@ -335,21 +335,21 @@ export default function LoginPage() {
             </p>
           )}
 
-          {/* Selector de tema (dentro de la columna central, abajo del todo) */}
-          <div className="mt-8 flex items-center justify-center gap-3 py-2">
-            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>☾</span>
+          {/* Selector de tema */}
+          <div className="flex items-center gap-2 py-2">
+            <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>☾</span>
             <button onClick={toggleMode}
-              className="w-9 h-4.5 rounded-full relative transition-colors"
+              className="w-9 h-5 rounded-full relative transition-colors flex items-center"
               style={{ backgroundColor: mode === 'dark' ? '#475569' : '#94A3B8' }}>
-              <span className="absolute w-3.5 h-3.5 rounded-full bg-white top-0.5 transition-all duration-200"
-                style={{ left: mode === 'dark' ? '3px' : 'calc(100% - 15px)' }} />
+              <span className="w-3.5 h-3.5 rounded-full bg-white transition-all duration-200 mx-0.5"
+                style={{ marginLeft: mode === 'dark' ? '0.125rem' : 'auto' }} />
             </button>
-            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>☼</span>
+            <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>☼</span>
 
-            <div className="w-px h-4 mx-2" style={{ backgroundColor: 'var(--color-border)' }} />
+            <div className="w-px h-3 mx-1.5" style={{ backgroundColor: 'var(--color-border)' }} />
 
             <select value={theme} onChange={e => setTheme(e.target.value as any)}
-              className="text-[11px] px-2 py-1 rounded-lg border outline-none cursor-pointer
+              className="text-[10px] px-1.5 py-1 rounded border outline-none cursor-pointer
                 bg-[var(--color-bg-card)] text-[var(--color-text)] border-[var(--color-border)]">
               {THEMES.map(t => (
                 <option key={t} value={t}>{t}</option>
