@@ -333,24 +333,24 @@ export default function Layout() {
           })()}
         </div>
 
-        {/* === ESPACIADOR FLEX (empuja items inactivos + bottom al fondo) === */}
+        {/* === ESPACIADOR FLEX === */}
         <div className="flex-1 min-h-[8px]" />
 
-        {/* === ITEMS INACTIVOS (abajo, justo encima del separador) === */}
-        <div className="flex flex-col gap-0.5 px-2.5 shrink-0">
-          {NAV_ITEMS.filter(item =>
-            item.key === 'correo' ? !correoActivo : !location.pathname.startsWith(item.to)
-          ).map(item => (
-            <NavLink key={item.to} to={item.to}
-              className="flex items-center px-3 py-2.5 text-sm rounded-lg transition-colors hover:opacity-80"
-              style={{ color: 'var(--color-text-muted)' }}>
-              <span className="truncate">{item.label}</span>
-            </NavLink>
-          ))}
-        </div>
-
-        {/* === SEPARADOR + BOTTOM ITEMS (fijos al fondo) === */}
+        {/* === BLOQUE INFERIOR: inactivos + separador + bottom items === */}
         <div className="px-2.5 pb-3.5 flex flex-col gap-1.5 shrink-0">
+          {/* ITEMS INACTIVOS (justo encima del separador) */}
+          <div className="flex flex-col gap-0.5">
+            {NAV_ITEMS.filter(item =>
+              item.key === 'correo' ? !correoActivo : !location.pathname.startsWith(item.to)
+            ).map(item => (
+              <NavLink key={item.to} to={item.to}
+                className="flex items-center px-3 py-2.5 text-sm rounded-lg transition-colors hover:opacity-80"
+                style={{ color: 'var(--color-text-muted)' }}>
+                <span className="truncate">{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
+
           <hr style={{ borderColor: 'var(--color-bg-card)' }} />
           
           {/* Configuración */}
