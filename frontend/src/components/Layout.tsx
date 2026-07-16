@@ -177,7 +177,7 @@ export default function Layout() {
         </p>
 
         {/* === ZONA SCROLLABLE: Nav items + submenú Correo === */}
-        <div className="flex flex-col gap-0.5 px-2.5 overflow-y-auto shrink min-h-0">
+        <div className="flex flex-col gap-0.5 px-2.5 overflow-hidden min-h-0">
           {NAV_ITEMS.map(item => (
             <div key={item.to}>
               <NavLink
@@ -208,7 +208,7 @@ export default function Layout() {
                       Cargando carpetas…
                     </span>
                   ) : cuentasCarpetas.length > 0 ? (
-                    <>
+                    <div className="overflow-y-auto max-h-[40vh] pr-1">
                       {/* ── CUENTA PRINCIPAL: Bandeja de entrada ── */}
                       {(() => {
                         const ppal = cuentasCarpetas[0];
@@ -342,7 +342,7 @@ export default function Layout() {
                           </div>
                         </div>
                       ))}
-                    </>
+                    </div>
                   ) : (
                     <span className="text-[10px] px-3 py-1 italic"
                       style={{ color: 'var(--color-text-secondary)' }}>
