@@ -171,13 +171,64 @@ function stopBackend() {
   }
 }
 
+// ── Splash screen ───────────────────────────────────────────────
+function showSplash() {
+  const splash = new BrowserWindow({
+    width: 300,
+    height: 300,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    center: true,
+    alwaysOnTop: true,
+    icon: path.join(__dirname, '..', 'assets', 'icon-512.png'),
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  });
+
+  // HTML inline con animación de pulso
+  const iconPath = path.join(__dirname, '..', 'assets', 'icon-512.png').replace(/\\/g, '/');
+  splash.loadURL(`data:text/html;charset=utf-8,
+    <!DOCTYPE html>
+    <html style="background:transparent;">
+    <head>
+      <style>
+        @keyframes pulse {
+          0% { transform: scale(0.8); opacity: 0; }
+          50% { transform: scale(1.05); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        body {
+          margin: 0; display: flex; align-items: center; justify-content: center;
+          height: 100vh; background: rgba(15, 23, 42, 0.85);
+          font-family: 'Segoe UI', sans-serif;
+        }
+        .container { text-align: center; animation: pulse 0.8s ease-out; }
+        img { width: 128px; height: 128px; border-radius: 24px; }
+        p { color: #94A3B8; font-size: 13px; margin-top: 16px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <img src="file://${iconPath}" alt="eMail-IA" />
+        <p>Iniciando eMail-IA…</p>
+      </div>
+    </body>
+    </html>
+  `);
+
+  return splash;
+}
+
 // ── Ventana principal ────────────────────────────────────────────
-function createWindow() {
+async function createWindow() {
   // Limpiar TODO: caché, storage, cookies, service workers
-  session.defaultSession.clearCache().catch(() => {});
-  session.defaultSession.clearStorageData({
+  await session.defaultSession.clearCache().catch(() => {});
+  await session.defaultSession.clearStorageData({
     storages: ['localstorage', 'serviceworkers', 'cachestorage']
   }).catch(() => {});
+
+  // Mostrar splash mientras carga
+  const splash = showSplash();
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -186,8 +237,8 @@ function createWindow() {
     minHeight: 600,
     title: 'eMail-IA',
     icon: path.join(__dirname, '..', 'assets', 'icon-512.png'),
-    show: false,  // No mostrar hasta que esté lista
-    backgroundColor: '#0F172A',  // Evitar flash blanco
+    show: false,
+    backgroundColor: '#0F172A',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -211,14 +262,17 @@ function createWindow() {
 
   mainWindow.loadURL(APP_URL);
 
-  // Mostrar ventana sólo cuando React haya terminado de renderizar
+  // Esperar a que React termine y luego hacer transición
   mainWindow.webContents.on('did-finish-load', () => {
-    // Pequeño delay extra para que React hidrate completamente
-    setTimeout(() => {
+    setTimeout(async () => {
+      // Animación: splash se escala, main aparece
+      if (splash && !splash.isDestroyed()) {
+        splash.close();
+      }
       if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
         mainWindow.show();
       }
-    }, 500);
+    }, 800);
   });
 
   // Abrir enlaces externos en el navegador del sistema (OAuth)
