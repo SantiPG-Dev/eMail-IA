@@ -173,8 +173,11 @@ function stopBackend() {
 
 // ── Ventana principal ────────────────────────────────────────────
 function createWindow() {
-  // Limpiar caché del navegador para evitar mostrar página anterior
+  // Limpiar TODO: caché, storage, cookies, service workers
   session.defaultSession.clearCache().catch(() => {});
+  session.defaultSession.clearStorageData({
+    storages: ['localstorage', 'serviceworkers', 'cachestorage']
+  }).catch(() => {});
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -206,12 +209,17 @@ function createWindow() {
     }
   );
 
-  // Mostrar ventana solo cuando la página esté lista
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
-  });
-
   mainWindow.loadURL(APP_URL);
+
+  // Mostrar ventana sólo cuando React haya terminado de renderizar
+  mainWindow.webContents.on('did-finish-load', () => {
+    // Pequeño delay extra para que React hidrate completamente
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+        mainWindow.show();
+      }
+    }, 500);
+  });
 
   // Abrir enlaces externos en el navegador del sistema (OAuth)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
