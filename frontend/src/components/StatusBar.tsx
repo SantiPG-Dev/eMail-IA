@@ -11,7 +11,7 @@ type BackendState = {
 };
 
 export default function StatusBar() {
-  const { syncing, statusText, totalMessages, accountEmail } = useSync();
+  const { syncing, statusText, totalMessages, accountEmail, triggerSync } = useSync();
   const [backend, setBackend] = useState<BackendState>({
     online: false, uptime: '-', memoria: '-', sync: '-', ultimoError: '',
   });
@@ -100,6 +100,17 @@ export default function StatusBar() {
           ? `⏱ ${backend.uptime} · ${backend.memoria}`
           : `⚠️ ${backendErr}`}
       </span>
+
+      {/* Botón enviar/recibir */}
+      <button onClick={triggerSync} disabled={syncing}
+        className="shrink-0 text-[11px] px-1.5 py-0.5 rounded transition-colors font-medium"
+        style={{
+          backgroundColor: syncing ? 'var(--color-bg-elevated)' : 'var(--color-bg-card)',
+          color: syncing ? 'var(--color-text-muted)' : 'var(--color-accent)',
+        }}
+        title={syncing ? 'Sincronizando...' : 'Enviar/Recibir'}>
+        {syncing ? '⟳' : '📨'}
+      </button>
 
       {/* Separador antes de mensajes totales */}
       <span className="opacity-30">|</span>
