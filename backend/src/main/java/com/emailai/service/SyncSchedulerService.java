@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import com.emailai.domain.entities.Cuenta;
 import com.emailai.security.CredentialService;
+import com.emailai.security.SecureSessionManager;
 
 // Sincronización automática cada 5 minutos (configurable vía emailai.sync.interval).
 // Soporta cuentas con contraseña y OAuth2.
@@ -25,12 +26,15 @@ public class SyncSchedulerService {
     private final MailService mailService;
     private final CuentaService cuentaService;
     private final CredentialService credentialService;
+    private final SecureSessionManager sessionManager;
 
     public SyncSchedulerService(MailService mailService, CuentaService cuentaService,
-                                CredentialService credentialService) {
+                                CredentialService credentialService,
+                                SecureSessionManager sessionManager) {
         this.mailService = mailService;
         this.cuentaService = cuentaService;
         this.credentialService = credentialService;
+        this.sessionManager = sessionManager;
     }
 
     /** Devuelve el estado actual del scheduler. */
@@ -43,6 +47,11 @@ public class SyncSchedulerService {
      */
     @Scheduled(fixedRateString = "${emailai.sync.interval:300000}")
     public void sincronizarTodasLasCuentas() {
+        // No sincronizar si no hay sesión activa (contraseñas cifradas no se pueden descifrar)
+        if (!sessionManager.isActive()) {
+            log.debug("Sync omitido: sin sesión activa");
+            return;
+        }
         estado = "sincronizando";
         List<Cuenta> cuentas = cuentaService.listarTodas();
         for (Cuenta cuenta : cuentas) {

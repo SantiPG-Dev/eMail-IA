@@ -93,9 +93,10 @@ public class CuentaController {
                     .body(Map.of("error", "Cuenta no encontrada", "ok", false));
         } catch (Exception e) {
             String msg = e.getMessage() != null ? e.getMessage() : "";
+            log.warn("Error en sync (detalle): {}", msg, e);  // LOG COMPLETO con stacktrace
             if (msg.toUpperCase().contains("AUTHENTICATIONFAILED") || msg.contains("authentication failed")) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("error", "Credenciales IMAP incorrectas. Verifica tu contraseña.", "ok", false));
+                        .body(Map.of("error", "El servidor de correo rechazó las credenciales. Si tienes 2FA activado, genera una contraseña específica para apps desde la web de GMX.", "ok", false));
             }
             log.warn("Error en sync: {}", msg);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
