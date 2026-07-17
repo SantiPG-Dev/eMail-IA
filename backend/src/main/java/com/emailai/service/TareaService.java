@@ -9,9 +9,7 @@ import com.emailai.common.NotFoundException;
 import com.emailai.domain.entities.Tarea;
 import com.emailai.repository.TareaRepository;
 
-/**
- * Servicio CRUD de tareas con ordenación por fecha de vencimiento.
- */
+// CRUD de tareas, ordenadas por fecha de vencimiento.
 @Service
 @Transactional
 public class TareaService {

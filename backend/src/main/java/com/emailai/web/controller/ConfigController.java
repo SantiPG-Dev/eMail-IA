@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.emailai.config.AppConfigStore;
 
+// Get/set de propiedades de configuración (almacenadas en config/preferences.properties)
 @RestController
 @RequestMapping("/api/config")
 public class ConfigController {

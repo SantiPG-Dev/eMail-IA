@@ -1,8 +1,6 @@
 package com.emailai.oauth;
 
-/**
- * Configuración de OAuth2 para Microsoft (Outlook/Hotmail).
- */
+// Configuración OAuth2 de Microsoft (Outlook/Hotmail).
 public class MicrosoftOAuthProvider {
 
     public static final String AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";

@@ -10,9 +10,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-/**
- * Servicio de integración con Todoist para sincronización de tareas.
- */
+// Integración opcional con Todoist API REST v2 para sincronizar tareas.
 @Service
 public class TodoistService {
 

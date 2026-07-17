@@ -4,9 +4,9 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.*;
 
-/**
- * Ejemplo de entrenamiento para el clasificador Weka (spam/phishing).
- */
+// Cada fila es un ejemplo etiquetado para Weka.
+// Features contiene los atributos extraídos serializados.
+// Cuanto más entrena el usuario (marcando spam/legítimo), más preciso es el filtro.
 @Entity
 @Table(name = "entrenamiento")
 public class Entrenamiento {

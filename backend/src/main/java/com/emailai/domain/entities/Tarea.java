@@ -2,9 +2,8 @@ package com.emailai.domain.entities;
 
 import jakarta.persistence.*;
 
-/**
- * Tarea con fechas de vencimiento y sincronización opcional con Todoist.
- */
+// Tarea local con opción de sincronización vía Todoist.
+// Fecha en ISO yyyy-MM-dd, estado: pendiente|en_progreso|completada.
 @Entity
 @Table(name = "tareas")
 public class Tarea {

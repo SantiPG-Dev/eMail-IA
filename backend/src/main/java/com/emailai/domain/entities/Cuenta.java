@@ -2,10 +2,9 @@ package com.emailai.domain.entities;
 
 import jakarta.persistence.*;
 
-/**
- * Cuenta de correo (IMAP/SMTP + OAuth2).
- * El email y las credenciales se almacenan cifrados con SecureStorage.
- */
+// Cuenta de correo configurada por el usuario.
+// Soporta IMAP/POP3 con contraseña, y OAuth2 con Google/Microsoft.
+// Los campos sensibles viajan cifrados con SecureStorage.
 @Entity
 @Table(name = "cuentas")
 public class Cuenta {

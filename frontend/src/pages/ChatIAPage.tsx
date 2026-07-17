@@ -6,6 +6,7 @@ interface ChatMsg {
   text: string;
 }
 
+// Chat conversacional con IA vía LM Studio. Burbujas: user en teal, IA en gris oscuro.
 export default function ChatIAPage() {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');

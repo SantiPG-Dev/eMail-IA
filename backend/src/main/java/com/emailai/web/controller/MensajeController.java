@@ -13,6 +13,7 @@ import com.emailai.service.MensajeService;
 import com.emailai.web.dto.MensajeListResponse;
 import com.emailai.web.dto.MensajeResponse;
 
+// CRUD de mensajes + sincronización, clasificación, resumen IA.
 @RestController
 @RequestMapping("/api/mensajes")
 public class MensajeController {

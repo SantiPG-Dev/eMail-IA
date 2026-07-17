@@ -10,6 +10,8 @@ interface Mensaje {
   fechaRecepcion: string; destinatarios?: string;
 }
 
+// Página principal de correo: lista de mensajes (split 30/70) con detalle,
+// iframe HTML, panel IA (resumen/sugerir), y acciones (clasificar, borrar, mover).
 export default function CorreoPage() {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const { triggerSync, refreshMessages, syncing, progress, statusText, refreshKey } = useSync();

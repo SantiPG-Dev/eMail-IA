@@ -17,14 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-/**
- * Servicio que orquesta el flujo OAuth2 completo:
- * 1. Generar URL de autorización + iniciar servidor callback
- * 2. Abrir navegador del sistema
- * 3. Capturar el código de autorización via callback localhost
- * 4. Intercambiarlo por tokens (access + refresh)
- * 5. Devolver el resultado
- */
+// Orquesta el flujo OAuth2 completo: URL de auth → callback local → tokens.
 @Service
 public class OAuthService {
 

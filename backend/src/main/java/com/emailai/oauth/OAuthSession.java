@@ -1,8 +1,6 @@
 package com.emailai.oauth;
 
-/**
- * Sesión OAuth2 que captura el resultado de un flujo de autorización.
- */
+// Resultado de un flujo OAuth2: tokens, state y proveedor.
 public class OAuthSession {
     private final String state;
     private final String codeVerifier;

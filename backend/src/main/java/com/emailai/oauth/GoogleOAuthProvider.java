@@ -1,8 +1,6 @@
 package com.emailai.oauth;
 
-/**
- * Configuración de OAuth2 para Google.
- */
+// Configuración OAuth2 de Google (Gmail).
 public class GoogleOAuthProvider {
 
     public static final String AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";

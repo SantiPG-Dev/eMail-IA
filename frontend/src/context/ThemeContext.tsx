@@ -22,7 +22,9 @@ const THEMES: Theme[] = ['emailIA', 'amber-slate', 'arctic-blue', 'deep-navy-lim
 export { THEMES };
 export type { Theme, Mode };
 
-// Colores base del emailIA (usados como fallback)
+// 16 temas con acentos específicos. El tema por defecto es 'emailIA' (cyan/slate).
+// Cada tema tiene variante dark y light. Los colores base se heredan de BASE_DARK/BASE_LIGHT
+// y los acentos se sobreescriben según el tema seleccionado.
 const BASE_DARK: Record<string, string> = {
   '--color-bg': '#0F172A', '--color-bg-sidebar': '#0B1220', '--color-bg-card': '#1E293B',
   '--color-bg-elevated': '#334155', '--color-text': '#F1F5F9', '--color-text-secondary': '#94A3B8',

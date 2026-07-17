@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { eventoApi } from '../api/client';
 
+// Diálogo para crear/editar eventos del calendario.
 interface EventoDialogProps {
   open: boolean;
   fecha?: string;

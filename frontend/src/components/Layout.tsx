@@ -17,7 +17,7 @@ interface CuentaConCarpetas {
   carpetas: CarpetaImap[];
 }
 
-// Máscara para nombres de carpetas IMAP
+// Traduce nombres técnicos de carpetas IMAP a nombres legibles
 const MASCARA_CARPETAS: Record<string, string> = {
   'INBOX': '📥 INBOX principal',
   'Sent': '📤 Enviados',

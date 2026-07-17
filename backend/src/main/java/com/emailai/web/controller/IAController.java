@@ -10,6 +10,7 @@ import com.emailai.service.MensajeService;
 import com.emailai.web.dto.IAChatRequest;
 import com.emailai.web.dto.IAChatResponse;
 
+// Chat con IA, resumen de correos y sugerencias de respuesta.
 @RestController
 @RequestMapping("/api/ia")
 public class IAController {

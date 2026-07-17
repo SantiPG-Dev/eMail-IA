@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import com.emailai.oauth.OAuthService;
 import com.emailai.service.CuentaService;
 
+// Inicio de flujo OAuth2 (redirige a Google/Microsoft) y callback.
 @RestController
 @RequestMapping("/api/oauth")
 public class OAuthController {

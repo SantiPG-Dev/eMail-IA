@@ -9,14 +9,7 @@ import com.emailai.common.NotFoundException;
 import com.emailai.domain.entities.Contacto;
 import com.emailai.repository.ContactoRepository;
 
-/**
- * Servicio CRUD de contactos.
- *
- * <p>Los campos sensibles (apellido, email, teléfono, notas) se almacenan
- * cifrados en la BD (columnas *_cifrado). El cifrado/descifrado se realiza
- * en la capa de seguridad (Fase 4) vía SecureStorage; este servicio opera
- * sobre los valores ya cifrados que llegan del controller.
- */
+// CRUD de contactos. Los campos sensibles llegan ya cifrados desde el controller.
 @Service
 @Transactional
 public class ContactoService {

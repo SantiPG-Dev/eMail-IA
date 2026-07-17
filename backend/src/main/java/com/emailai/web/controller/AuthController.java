@@ -13,18 +13,9 @@ import com.emailai.security.SecureStorage;
 import com.emailai.web.dto.LoginRequest;
 import com.emailai.web.dto.LoginResponse;
 
-/**
- * Controlador de autenticación con contraseña maestra.
- *
- * <p>Flujo:
- * <ol>
- *   <li><b>Primera ejecución:</b> {@code POST /api/auth/setup} — crea el hash PBKDF2
- *       de la contraseña maestra y lo guarda en AppConfigStore.</li>
- *   <li><b>Ejecuciones siguientes:</b> {@code POST /api/auth/login} — verifica la
- *       contraseña contra el hash, si es correcta devuelve un JWT de sesión
- *       y deriva la clave para SecureSessionManager.</li>
- * </ol>
- */
+// Autenticación con contraseña maestra.
+// POST /api/auth/setup → primera ejecución, crea hash PBKDF2.
+// POST /api/auth/login → verifica contra hash, devuelve JWT.
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {

@@ -6,6 +6,7 @@ interface Tarea {
   fechaVencimiento: string; estado: string; prioridad: string;
 }
 
+// Gestión de tareas con filtros por periodo (hoy/semana/mes) y sincronización Todoist.
 const FILTROS = [
   { key: 'all', label: 'Todas', bg: 'var(--color-bg-card)' },
   { key: 'hoy', label: 'Hoy', bg: '#c62828' },

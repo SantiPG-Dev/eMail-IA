@@ -5,13 +5,8 @@ import { useTheme } from '../context/ThemeContext';
 import { authApi, cuentaApi } from '../api/client';
 import AccountSetupModal from '../components/AccountSetupModal';
 
-/* ===========================================================
-   eMail-IA — LoginPage rediseñada
-   Layout tres columnas:
-     Izquierda │ Centro (logo + pass + botón abajo) │ Derecha
-   Con cuentas → columnas laterales con tarjetas de perfil
-   Sin cuentas → solo columna central centrada
-   =========================================================== */
+// Login con multi-cuenta. Muestra las cuentas configuradas en columnas laterales.
+// Si es primer acceso, pide crear contraseña maestra. Si ya hay, pide la contraseña.
 
 interface Cuenta {
   id: number;

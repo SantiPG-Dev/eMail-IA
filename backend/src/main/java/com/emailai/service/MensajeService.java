@@ -11,12 +11,7 @@ import com.emailai.common.NotFoundException;
 import com.emailai.domain.entities.Mensaje;
 import com.emailai.repository.MensajeRepository;
 
-/**
- * Servicio de mensajes de correo sincronizados por IMAP.
- *
- * <p>Implementa upsert (MERGE) por UID+cuenta+carpeta, listado paginado,
- * búsqueda en bandeja y limpieza de mensajes antiguos.
- */
+// CRUD de mensajes: upsert por UID+cuenta+carpeta, paginación, búsqueda y limpieza.
 @Service
 @Transactional
 public class MensajeService {

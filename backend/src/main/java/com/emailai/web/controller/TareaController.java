@@ -13,6 +13,7 @@ import com.emailai.service.TareaService;
 import com.emailai.web.dto.TareaRequest;
 import com.emailai.web.dto.TareaResponse;
 
+// CRUD de tareas, con sincronización opcional a Todoist.
 @RestController
 @RequestMapping("/api/tareas")
 public class TareaController {

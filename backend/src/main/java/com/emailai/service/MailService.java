@@ -29,14 +29,9 @@ import com.emailai.ai.AiService;
 import com.emailai.domain.entities.Entrenamiento;
 import com.emailai.domain.entities.Mensaje;
 
-/**
- * Servicio de correo IMAP/POP3 + SMTP: conexión, sincronización, envío y
- * clasificación con IA (Weka) e IA generativa (LM Studio).
- *
- * <p>Soporta IMAP (carpetas múltiples) y POP3 (solo INBOX).
- * Cada método de sincronización abre y cierra su propia conexión para
- * evitar sesiones stale y simplificar el lifecycle.
- */
+// Servicio central de correo: conexión IMAP/POP3, sincronización inteligente,
+// clasificación Weka, envío SMTP y resumen con IA.
+// Cada método abre y cierra su propia conexión para evitar sesiones stale.
 @Service
 public class MailService {
 
@@ -58,7 +53,8 @@ public class MailService {
         this.entrenamientoService = entrenamientoService;
     }
 
-    // ── Conexión ────────────────────────────────────────────────
+    // ── Conexión IMAP/POP3 ──────────────────────────────────────
+    // Soporta SSL según puerto y STARTTLS. POP3 configurado para no borrar.
 
     private Store conectarCorreo(String host, int port, String user, String password,
                                   String protocol) throws MessagingException {
@@ -102,10 +98,9 @@ public class MailService {
     }
 
     // ── Carpetas ────────────────────────────────────────────────
+    // Filtra carpetas Gmail para no mostrar etiquetas internas.
+    // POP3 solo devuelve INBOX.
 
-    /**
-     * Lista las carpetas disponibles. Para POP3, solo devuelve INBOX.
-     */
     public List<String> listarCarpetas(String host, String user, String password)
             throws MessagingException {
         return listarCarpetas(host, user, password, "IMAP");
@@ -133,19 +128,10 @@ public class MailService {
         }
     }
 
-    // ── Sincronizar bandeja (inteligente) ───────────────────────
+    // ── Sincronización inteligente ──────────────────────────────
+    // Compara Message-IDs locales con servidor, solo descarga nuevos.
+    // Primero cabeceras (ENVELOPE), luego cuerpo solo si es nuevo.
 
-    /**
-     * Sincroniza una carpeta: compara UIDs con lo local y solo descarga novedades.
-     *
-     * <p>Flujo:
-     * <ol>
-     *   <li>Conecta IMAP, obtiene total de mensajes y no leídos</li>
-     *   <li>Recupera los últimos 50 mensajes del servidor (solo cabeceras)</li>
-     *   <li>Compara Message-IDs con los que ya tenemos en local</li>
-     *   <li>Descarga el cuerpo SOLO de los mensajes nuevos (máx 50)</li>
-     * </ol>
-     */
     public SyncResult sincronizarCarpeta(String host, String user, String password,
                                            String cuentaHash, String carpeta)
             throws MessagingException, IOException {
@@ -240,10 +226,7 @@ public class MailService {
         }
     }
 
-    /**
-     * Extrae el Message-ID de un mensaje Jakarta Mail.
-     * Si no tiene, genera uno basado en nanoTime + hash del asunto.
-     */
+    // Si no tiene Message-ID (raro), genera uno único
     private String obtenerMessageId(Message msg) {
         try {
             String[] mid = msg.getHeader("Message-ID");
@@ -315,7 +298,9 @@ public class MailService {
         }
     }
 
-    // ── Clasificar con Weka ─────────────────────────────────────
+    // ── Clasificación con Weka ───────────────────────────────────
+    // Lista blanca primero; si no está, aplica Naive Bayes.
+    // forzarCategoria() guarda el ejemplo y reentrena.
 
     public Mensaje clasificarMensaje(Mensaje mensaje) {
         if (mensaje.getCategoria() != null && !"DESCONOCIDO".equals(mensaje.getCategoria())) {
@@ -392,7 +377,7 @@ public class MailService {
         }
     }
 
-    // ── Resumen IA ──────────────────────────────────────────────
+    // ── Resumen IA (LM Studio) ───────────────────────────────────
 
     public String generarResumen(Mensaje mensaje) {
         String contenido = mensaje.getCuerpo() != null ? mensaje.getCuerpo() : mensaje.getHtml();
@@ -405,10 +390,8 @@ public class MailService {
     }
 
     // ── Sincronización completa ─────────────────────────────────
+    // Itera todas las carpetas y sincroniza cada una.
 
-    /**
-     * Sincroniza todas las carpetas de una cuenta.
-     */
     public List<SyncResult> sincronizarTodo(String host, String user, String password,
                                              String cuentaHash)
             throws MessagingException, IOException {
@@ -439,11 +422,8 @@ public class MailService {
     }
 
     // ── Acciones en servidor ────────────────────────────────────
+    // POP3 no soporta borrado ni mover entre carpetas.
 
-    /**
-     * Elimina un mensaje del servidor.
-     * POP3 no lo soporta (solo borrado local).
-     */
     public boolean eliminarDelServidor(String host, String user, String password,
                                         String carpetaOrigen, String uid) {
         return eliminarDelServidor(host, user, password, carpetaOrigen, uid, "IMAP");
@@ -524,7 +504,8 @@ public class MailService {
         return false;
     }
 
-    // ── Envio SMTP ──────────────────────────────────────────────
+    // ── Envío SMTP ──────────────────────────────────────────────
+    // Autenticación con STARTTLS, timeout 10s.
 
     public boolean enviarCorreo(String smtpHost, int smtpPort, String user, String password,
                                  String to, String cc, String subject, String body) {
@@ -565,13 +546,6 @@ public class MailService {
         }
     }
 
-    /**
-     * Resultado de la sincronización de una carpeta.
-     *
-     * @param carpeta     Nombre de la carpeta sincronizada
-     * @param totalServer Mensajes totales en el servidor
-     * @param noLeidos    Mensajes no leídos en el servidor
-     * @param descargados Cuántos mensajes nuevos se descargaron
-     */
+    // Resultado de sincronización de una carpeta
     public record SyncResult(String carpeta, int totalServer, int noLeidos, int descargados) {}
 }

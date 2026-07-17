@@ -2,9 +2,8 @@ package com.emailai.domain.entities;
 
 import jakarta.persistence.*;
 
-/**
- * Evento del calendario (local o importado de ICS).
- */
+// Evento del calendario, puede ser local o importado de un fichero ICS.
+// Fecha en ISO yyyy-MM-dd, hora en HH:mm, ambas en texto plano.
 @Entity
 @Table(name = "eventos_calendario")
 public class EventoCalendario {

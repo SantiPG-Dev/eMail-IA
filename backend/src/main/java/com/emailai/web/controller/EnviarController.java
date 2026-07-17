@@ -9,9 +9,7 @@ import com.emailai.security.CredentialService;
 import com.emailai.service.CuentaService;
 import com.emailai.service.MailService;
 
-/**
- * Endpoints para envio de correos via SMTP.
- */
+// Envío de correos vía SMTP.
 @RestController
 @RequestMapping("/api/enviar")
 public class EnviarController {

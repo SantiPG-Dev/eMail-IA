@@ -1,17 +1,17 @@
+# Configuración principal de eMail-IA Backend
+# H2 cifrada vía DatabaseConfig (@Bean), Flyway para migraciones.
+# Frontend sirve desde ../frontend/dist/ (build) o classpath:/static/.
 spring:
   application:
     name: emailai-backend
 
-  # DataSource configurado por DatabaseConfig (@Bean) con H2 cifrada (CIPHER=AES).
-  # No se define spring.datasource aquí para no interferir con el bean personalizado.
-
   jpa:
     hibernate:
-      ddl-auto: validate          # Flyway crea el esquema; Hibernate solo valida
+      ddl-auto: validate  # Flyway crea esquema; Hibernate solo valida
     properties:
       hibernate:
         format_sql: true
-    open-in-view: false           # Evita sesiones lazy abiertas en el controller
+    open-in-view: false  # Sin sesiones lazy en controllers
 
   autoconfigure:
     exclude:
@@ -29,9 +29,9 @@ server:
 
 # Configuración de la app
 emailai:
-  data-dir: DB                    # Directorio de datos locales (H2, cipher.key)
+  data-dir: DB
   ai:
-    base-url: ${EMAILAI_AI_BASE_URL:http://localhost:1234}
+    base-url: ${EMAILAI_AI_BASE_URL:http://localhost:1234}  # LM Studio
     model: ${EMAILAI_AI_MODEL:qwen3.5:9b}
     timeout: 30
   todoist:
@@ -45,4 +45,4 @@ logging:
   level:
     org.hibernate.SQL: warn
     com.emailai: info
-    com.github.fommil: error        # Silenciar warnings de ARPACK (Weka)
+    com.github.fommil: error  # Silenciar ARPACK (Weka)

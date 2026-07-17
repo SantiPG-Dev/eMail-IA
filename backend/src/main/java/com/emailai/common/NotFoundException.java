@@ -1,8 +1,6 @@
 package com.emailai.common;
 
-/**
- * Excepción lanzada cuando no se encuentra un recurso por ID.
- */
+// Recurso no encontrado por ID (HTTP 404).
 public class NotFoundException extends RuntimeException {
     public NotFoundException(String recurso, Object id) {
         super(recurso + " no encontrado: " + id);

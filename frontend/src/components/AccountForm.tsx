@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+// Formulario de cuenta de correo: soporta IMAP, POP3, OAuth Google y Microsoft.
+// Los proveedores preconfigurados auto-rellenan servidor y puerto.
 interface AccountFormData {
   nombre: string;
   email: string;

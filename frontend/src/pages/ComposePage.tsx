@@ -9,6 +9,7 @@ interface Props {
   onClose: () => void;
 }
 
+// Diálogo de redacción de correo. Modos: nuevo, responder, reenviar.
 export default function ComposePage({ mode, to, subject, body, onClose }: Props) {
   const [para, setPara] = useState(to || '');
   const [cc, setCc] = useState('');

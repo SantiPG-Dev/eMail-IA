@@ -4,6 +4,7 @@ import { cuentaApi } from '../api/client';
 import AccountForm from '../components/AccountForm';
 import type { AccountFormData } from '../components/AccountForm';
 
+// Pantalla de configuración con secciones: General, Cuentas, IA y Temas (16 temas).
 type Section = 'general' | 'cuentas' | 'ia' | 'temas';
 const SECTIONS: { key: Section; label: string }[] = [
   { key: 'general', label: 'General' },

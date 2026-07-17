@@ -25,12 +25,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-/**
- * Configuración de Spring Security para eMail-IA (app de escritorio local).
- *
- * <p>Stateless, usa JWT Bearer token. Se permiten sin autenticación:
- * /health, /api/auth/**. Todo lo demás requiere JWT válido.
- */
+// Seguridad stateless con JWT Bearer.
+// Al ser app de escritorio local, CSRF está desactivado.
+// Las rutas /api/auth/** y /health son públicas; el resto de /api/** necesita JWT.
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -46,7 +43,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable())  // Sin CSRF (app local, no navegador multi-usuario)
+            .csrf(csrf -> csrf.disable())  // Sin CSRF porque no es navegador multi-usuario
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
@@ -54,8 +51,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/debug/**").permitAll()
                 .requestMatchers("/api/status").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/cuentas").permitAll()   // Ver cuentas sin auth (login)
-                .requestMatchers(HttpMethod.POST, "/api/cuentas").permitAll()  // Crear cuenta sin auth (primer uso)
+                // Login y creación de cuenta inicial son públicos
+                .requestMatchers(HttpMethod.GET, "/api/cuentas").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/cuentas").permitAll()
                 .requestMatchers("/", "/index.html", "/assets/**", "/src/**", "/*.png", "/*.svg", "/*.ico").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
@@ -72,9 +70,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /**
-     * Filtro que extrae el token JWT del header Authorization y lo valida.
-     */
+    // Filtro inline para validar JWT en cada request a /api/
     private Filter jwtAuthFilter() {
         return new Filter() {
             @Override
@@ -84,7 +80,6 @@ public class SecurityConfig {
                 HttpServletRequest req = (HttpServletRequest) request;
                 String path = req.getRequestURI();
 
-                // Solo proteger rutas /api/ (excepto auth)
                 if (!path.startsWith("/api/")) {
                     chain.doFilter(request, response);
                     return;
@@ -112,7 +107,6 @@ public class SecurityConfig {
                     }
                 }
 
-                // API sin token valido
                 HttpServletResponse resp = (HttpServletResponse) response;
                 resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 resp.setContentType("application/json");
@@ -124,7 +118,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // Solo permitir origenes locales (app de escritorio)
+        // Solo orígenes locales: app de escritorio
         config.addAllowedOriginPattern("http://localhost:*");
         config.addAllowedOriginPattern("http://127.0.0.1:*");
         config.addAllowedOriginPattern("file://*");

@@ -10,6 +10,8 @@ type BackendState = {
   ultimoError: string;
 };
 
+// Barra de estado inferior: muestra estado del backend (polling cada 10s),
+// sincronización y contador de mensajes.
 export default function StatusBar() {
   const { syncing, statusText, totalMessages, accountEmail } = useSync();
   const [backend, setBackend] = useState<BackendState>({

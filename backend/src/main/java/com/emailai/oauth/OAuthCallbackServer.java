@@ -14,12 +14,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
-/**
- * Servidor HTTP mínimo para capturar el callback OAuth2.
- * Usa JDK built-in com.sun.net.httpserver (sin dependencias externas).
- *
- * Portado del legacy JavaFX OAuthCallbackServer.
- */
+// Servidor HTTP mínimo (JDK built-in) para capturar el callback OAuth2.
+// Portado del JavaFX legacy. Se inicia, espera el código, se detiene.
 public class OAuthCallbackServer {
 
     private final HttpServer server;

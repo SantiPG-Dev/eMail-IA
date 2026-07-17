@@ -5,8 +5,10 @@ import { spawn, execSync, ChildProcess } from 'child_process';
 import * as http from 'http';
 
 // ── Config ──────────────────────────────────────────────────────
+// El backend Spring Boot se ejecuta como proceso hijo en el puerto 8420.
+// Electron detecta si Vite dev está corriendo (puerto 5173) y usa esa URL,
+// o si no, sirve el build estático desde el backend embeebido.
 
-// Suprimir 'Hit debug scenario' de Chromium (inofensivo, solo ruido)
 process.env.ELECTRON_ENABLE_STACK_DUMPING = 'false';
 
 const BACKEND_PORT = 8420;

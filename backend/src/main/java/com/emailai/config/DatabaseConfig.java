@@ -9,20 +9,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
-/**
- * Configura el DataSource de H2 con cifrado AES.
- *
- * <p>H2 con {@code CIPHER=AES} requiere una contraseña compuesta:
- * {@code "<filePassword> <userPassword>"}. El userPassword es vacío (usuario "sa"),
- * por lo que la contraseña JDBC resulta en {@code "<filePassword> sa"}.
- *
- * <p>La {@code filePassword} se lee de {@code DB/cipher.key} vía
- * {@link DatabaseKeyStore}, garantizando compatibilidad con el legacy JavaFX.
- *
- * <p><b>Decisión arquitectónica D1:</b> las 4 BDs H2 del legacy (correos, agenda,
- * contactos, ia) se consolidan en una sola ({@code DB/emailai}) para simplificar
- * Spring Data JPA. Los datos siguen siendo locales y cifrados.
- */
+// DataSource H2 con cifrado AES. La contraseña JDBC se compone de la clave de
+// archivo (de cipher.key) + " sa" (userPassword vacío). Esto mantiene compatibilidad
+// con el legacy JavaFX que usaba el mismo sistema.
+// Decisión: las 4 BDs del legacy (correos, agenda, contactos, ia) se consolidan
+// en una sola (DB/emailai) para simplificar Spring Data JPA.
 @Configuration
 @Profile("!test")
 public class DatabaseConfig {
@@ -32,10 +23,9 @@ public class DatabaseConfig {
     @Bean
     public DataSource dataSource() {
         String filePassword = DatabaseKeyStore.getFilePassword();
-        // H2 requiere ruta absoluta o con prefijo ./ (no relativa implícita)
         String dbPath = Path.of("DB", "emailai").toAbsolutePath().toString().replace("\\", "/");
         String url = "jdbc:h2:file:" + dbPath + DB_PARAMS;
-        // H2 CIPHER: la contraseña es "filePassword userPassword" (userPassword vacío → "sa")
+        // H2 CIPHER: "filePassword userPassword" → userPassword vacío es "sa"
         String password = filePassword + " sa";
 
         return DataSourceBuilder.create()

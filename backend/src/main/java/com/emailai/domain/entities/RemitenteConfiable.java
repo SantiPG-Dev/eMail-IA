@@ -2,9 +2,8 @@ package com.emailai.domain.entities;
 
 import jakarta.persistence.*;
 
-/**
- * Remitente de confianza (lista blanca). El filtro spam nunca los marca.
- */
+// Lista blanca: remitentes que el filtro spam nunca va a marcar.
+// Útil para boletines, notificaciones bancarias, etc.
 @Entity
 @Table(name = "remitentes_confiables")
 public class RemitenteConfiable {

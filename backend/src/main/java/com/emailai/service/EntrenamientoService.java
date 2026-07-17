@@ -8,12 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.emailai.domain.entities.Entrenamiento;
 import com.emailai.repository.EntrenamientoRepository;
 
-/**
- * Servicio de datos de entrenamiento para el clasificador Weka.
- *
- * <p>Almacena ejemplos etiquetados (legítimo/spam/phishing) que el filtro
- * usa para reentrenar el modelo Naive Bayes.
- */
+// Almacena ejemplos etiquetados para reentrenar Weka.
 @Service
 @Transactional
 public class EntrenamientoService {

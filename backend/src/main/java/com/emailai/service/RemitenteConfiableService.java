@@ -10,10 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.emailai.domain.entities.RemitenteConfiable;
 import com.emailai.repository.RemitenteConfiableRepository;
 
-/**
- * Servicio de la lista blanca de remitentes confiables.
- * El filtro spam nunca marca como spam los remitentes de esta lista.
- */
+// Lista blanca: remitentes que el filtro spam nunca marca.
 @Service
 @Transactional
 public class RemitenteConfiableService {

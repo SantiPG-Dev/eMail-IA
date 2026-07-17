@@ -12,21 +12,16 @@ import java.security.spec.KeySpec;
 import java.util.Arrays;
 import java.util.Base64;
 
-/**
- * Cifrado AES-256-GCM para almacenamiento de credenciales y datos sensibles.
- *
- * <p>Portado del legacy JavaFX sin cambios: es Java puro (javax.crypto).
- * La clave se deriva de la contraseña maestra con PBKDF2 (600k iteraciones, OWASP 2023).
- *
- * <p>Formato de salida: {@code Base64(salt + iv + datos_cifrados)}.
- * GCM incluye autenticación integrada (protege contra manipulación).
- */
+// Cifrado AES-256-GCM para credenciales y datos sensibles.
+// Clave derivada de la contraseña maestra con PBKDF2 (600k iteraciones, OWASP 2023).
+// Formato: Base64(salt + iv + cifrado). GCM incluye autenticación (protege manipulación).
+// Portado sin cambios del JavaFX legacy.
 public class SecureStorage {
 
     private static final String ALGORITMO = "AES/GCM/NoPadding";
     private static final String ALGORITMO_CLAVE = "AES";
     private static final String ALGORITMO_DERIVACION = "PBKDF2WithHmacSHA256";
-    private static final int ITERACIONES = 600_000; // OWASP 2023 recommendation
+    private static final int ITERACIONES = 600_000; // OWASP 2023
     private static final int LONGITUD_CLAVE = 256;
     private static final int LONGITUD_SALT = 16;
     private static final int LONGITUD_IV = 12;

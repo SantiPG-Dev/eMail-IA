@@ -7,6 +7,8 @@ interface Props {
   onClose: () => void;
 }
 
+// Modal de creación de cuenta (primer uso o añadir cuenta).
+// Incluye detección automática de configuración IMAP/POP3 según proveedor.
 const PROVIDERS_LOOKUP: Record<string, { imap: { host: string; port: number }; pop3: { host: string; port: number } }> = {
   gmail: { imap: { host: 'imap.gmail.com', port: 993 }, pop3: { host: 'pop.gmail.com', port: 995 } },
   outlook: { imap: { host: 'outlook.office365.com', port: 993 }, pop3: { host: 'outlook.office365.com', port: 995 } },
