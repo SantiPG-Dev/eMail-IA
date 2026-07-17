@@ -2,11 +2,8 @@ package com.emailai.service;
 
 import java.io.ObjectInputFilter;
 
-/**
- * Filtro de deserialización para modelos Weka: solo permite clases del
- * ecosistema Weka y del JDK, bloqueando clases arbitrarias que un atacante
- * pueda inyectar en un archivo .model.
- */
+// Filtro de seguridad para deserialización de modelos Weka.
+// Solo permite clases de Weka, JDK y tipos primitivos.
 public class ModelFilter implements ObjectInputFilter {
     @Override
     public Status checkInput(FilterInfo info) {

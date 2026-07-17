@@ -13,6 +13,7 @@ import com.emailai.service.ContactoService;
 import com.emailai.web.dto.ContactoRequest;
 import com.emailai.web.dto.ContactoResponse;
 
+// CRUD de contactos. Datos sensibles cifrados con SecureStorage.
 @RestController
 @RequestMapping("/api/contactos")
 public class ContactoController {

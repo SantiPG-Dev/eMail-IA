@@ -4,13 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-/**
- * Servicio que cifra y descifra credenciales (contraseñas IMAP, tokens OAuth)
- * usando AES-256-GCM con la clave derivada de la contraseña maestra.
- *
- * <p>Al guardar una cuenta: cifra la contraseña antes de persistir.
- * Al usar la cuenta para IMAP/SMTP: descifra la contraseña antes de conectar.
- */
+// Cifra/descifra credenciales con SecureStorage (AES-256-GCM + PBKDF2).
+// Al guardar cuenta → cifra. Al conectar IMAP → descifra.
 @Service
 public class CredentialService {
 

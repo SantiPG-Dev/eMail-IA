@@ -20,10 +20,8 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Servicio para procesar archivos .ics y sincronizar eventos con el calendario local.
- * Portado del legacy JavaFX (IcsService.java).
- */
+// Procesa archivos .ics: importa eventos al calendario local y exporta calendario a .ics.
+// Portado del JavaFX legacy.
 @Service
 public class IcsService {
 

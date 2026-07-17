@@ -11,10 +11,8 @@ import org.springframework.stereotype.Service;
 import com.emailai.domain.entities.Cuenta;
 import com.emailai.security.CredentialService;
 
-/**
- * Servicio de sincronización automática de correo en segundo plano.
- * Revisa periódicamente las cuentas configuradas y sincroniza sus carpetas IMAP.
- */
+// Sincronización automática cada 5 minutos (configurable vía emailai.sync.interval).
+// Soporta cuentas con contraseña y OAuth2.
 @Service
 @EnableScheduling
 public class SyncSchedulerService {

@@ -19,12 +19,12 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(() => ({
     token: localStorage.getItem('emailai_token'),
-    isAuthenticated: false,  // No confiar ciegamente en localStorage
-    loading: true,           // Arranca cargando mientras validamos
+    isAuthenticated: false,
+    loading: true,  // Arranca validando el token guardado
   }));
   const [isConfigured, setIsConfigured] = useState(false);
 
-  // Validar token al arrancar
+  // Al arrancar: valida el token contra el backend o lo borra si es inválido
   useEffect(() => {
     const token = localStorage.getItem('emailai_token');
     if (!token) {
@@ -32,14 +32,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Validar el token llamando a un endpoint protegido
     api.get('/api/cuentas')
       .then(() => {
-        // Token válido
         setState({ token, isAuthenticated: true, loading: false });
       })
       .catch(() => {
-        // Token inválido/expirado → limpiar
         localStorage.removeItem('emailai_token');
         setState({ token: null, isAuthenticated: false, loading: false });
       });

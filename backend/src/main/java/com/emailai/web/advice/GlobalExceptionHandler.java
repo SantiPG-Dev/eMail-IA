@@ -12,10 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.emailai.common.NotFoundException;
 import com.emailai.oauth.OAuth2Exception;
 
-/**
- * Manejador global de excepciones para devolver errores consistentes
- * en formato JSON.
- */
+// Devuelve errores consistentes en JSON para toda la API REST.
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

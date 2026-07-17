@@ -1,9 +1,7 @@
+// Preload seguro: expone solo lo necesario al renderer React.
+// contextIsolation: true, nodeIntegration: false.
 import { contextBridge, ipcRenderer } from 'electron';
 
-/**
- * Preload seguro: expone una API limitada al renderer (React).
- * contextIsolation: true, nodeIntegration: false.
- */
 contextBridge.exposeInMainWorld('electronAPI', {
   // Diálogos nativos
   showOpenDialog: (options: any) => ipcRenderer.invoke('dialog:openFile', options),

@@ -6,17 +6,10 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-/**
- * Gestiona la clave de cifrado de la base de datos H2 ({@code cipher.key}).
- *
- * <p>El archivo {@code DB/cipher.key} contiene 16 bytes aleatorios que se usan
- * como contraseña de archivo para el cifrado AES de H2 ({@code CIPHER=AES}).
- * Si el archivo no existe, se genera una nueva clave y se persiste.
- *
- * <p>Es compatible con el {@code cipher.key} del legacy JavaFX: mismo formato
- * (16 bytes raw), misma ubicación ({@code DB/cipher.key}). Esto permite que
- * usuarios existentes reutilicen su clave al migrar los datos (Fase 10).
- */
+// Gestiona la clave de cifrado de H2 (cipher.key).
+// 16 bytes aleatorios generados con SecureRandom.
+// Compatible con el legacy JavaFX: mismo formato, misma ubicación (DB/cipher.key).
+// Si el archivo no existe, se genera una nueva clave automáticamente.
 public final class DatabaseKeyStore {
 
     private static final Path DB_DIR = Path.of("DB");
@@ -27,10 +20,8 @@ public final class DatabaseKeyStore {
 
     private DatabaseKeyStore() {}
 
-    /**
-     * Devuelve la contraseña de archivo de H2 (Base64 de los 16 bytes de cipher.key).
-     * La crea si no existe. El resultado se cachea tras la primera llamada.
-     */
+    // Devuelve la clave en Base64. Cacheada tras la primera lectura para evitar
+    // acceso a disco en cada petición que necesita DataSource.
     public static synchronized String getFilePassword() {
         if (cachedPassword != null) return cachedPassword;
 
@@ -50,7 +41,7 @@ public final class DatabaseKeyStore {
             }
         }
 
-        // Generar nueva clave y persistirla
+        // Primera ejecución: generar cipher.key nuevo
         byte[] raw = new byte[16];
         RANDOM.nextBytes(raw);
         try {
@@ -62,9 +53,7 @@ public final class DatabaseKeyStore {
         return cachedPassword;
     }
 
-    /**
-     * Ruta absoluta del archivo cipher.key (para backup/restore, Fase 4).
-     */
+    // Para backup/restore manual
     public static Path getKeyFilePath() {
         return KEY_FILE.toAbsolutePath();
     }

@@ -2,9 +2,9 @@ package com.emailai.domain.entities;
 
 import jakarta.persistence.*;
 
-/**
- * Mensaje de correo sincronizado por IMAP, clasificado por la IA.
- */
+// Mensaje de correo sincronizado vía IMAP.
+// La unique constraint evita duplicados: mismo UID + cuenta + carpeta.
+// La clasificación (categoria) la asigna SpamIaService con Weka.
 @Entity
 @Table(name = "mensajes",
        uniqueConstraints = @UniqueConstraint(

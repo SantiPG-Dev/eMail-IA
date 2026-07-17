@@ -10,9 +10,7 @@ import com.emailai.common.NotFoundException;
 import com.emailai.domain.entities.EventoCalendario;
 import com.emailai.repository.EventoCalendarioRepository;
 
-/**
- * Servicio CRUD de eventos de calendario.
- */
+// CRUD de eventos del calendario.
 @Service
 @Transactional
 public class EventoCalendarioService {

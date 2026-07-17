@@ -2,9 +2,8 @@ package com.emailai.domain.entities;
 
 import jakarta.persistence.*;
 
-/**
- * Contacto local. Los campos sensibles se almacenan cifrados con SecureStorage.
- */
+// Contacto local. Los campos van cifrados en BD con SecureStorage,
+// salvo el nombre que queda en claro para búsquedas básicas.
 @Entity
 @Table(name = "contactos")
 public class Contacto {

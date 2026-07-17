@@ -5,6 +5,7 @@ interface Contacto {
   id: number; nombre: string; email: string; telefono: string;
 }
 
+// CRUD de contactos con datos cifrados (email, teléfono) en backend.
 export default function ContactosPage() {
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [selected, setSelected] = useState<Contacto | null>(null);

@@ -1,11 +1,11 @@
 import axios from 'axios';
 
+// Cliente HTTP con interceptors: añade JWT automáticamente y redirige a login si 401.
 const api = axios.create({
   baseURL: '/',
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Interceptor: añadir token JWT a todas las peticiones
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('emailai_token');
   if (token) {
@@ -14,7 +14,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Interceptor: redirigir a login si 401 (solo si no estamos ya en login)
+// Si el backend devuelve 401 y no estamos ya en login, redirige
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -28,7 +28,7 @@ api.interceptors.response.use(
 
 export default api;
 
-/* Módulos de API específicos */
+// Módulos de API específicos por recurso
 export const authApi = {
   status: () => api.get('/api/auth/status'),
   setup: (password: string) => api.post('/api/auth/setup', { masterPassword: password }),

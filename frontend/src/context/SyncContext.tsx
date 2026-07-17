@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
 import api, { cuentaApi, mensajeApi } from '../api/client';
 
+// Estado global de sincronización: polling de backend, trigger manual, y
+// refreshKey que se incrementa tras cada sync para que las vistas recarguen.
 interface SyncState {
   syncing: boolean;
   progress: number;
@@ -9,7 +11,7 @@ interface SyncState {
   totalMessages: number;
   accountEmail: string;
   currentLimite: number;
-  refreshKey: number;  // Se incrementa tras cada sync, para que las vistas sepan recargar
+  refreshKey: number;  // Se incrementa tras cada sync para que las vistas recarguen
 }
 
 interface SyncContextType extends SyncState {

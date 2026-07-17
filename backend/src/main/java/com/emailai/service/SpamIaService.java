@@ -22,13 +22,9 @@ import weka.filters.unsupervised.attribute.StringToWordVector;
 
 import com.emailai.domain.entities.Mensaje;
 
-/**
- * Clasificador spam/phishing basado en Naive Bayes con bolsa de palabras.
- *
- * <p>Usa StringToWordVector para convertir el texto del correo en un vector
- * TF-IDF y NaiveBayes para clasificar como LEGITIMO/SPAM/PHISHING.
- * Modelos por cuenta guardados en disco ({@code modelosDir/modelo_{cuentaHash}.model}).
- */
+// Clasificador Naive Bayes con bolsa de palabras (TF-IDF).
+// Modelos por cuenta guardados en DB/ia/modelo_{cuentaHash}.model
+// Clasifica en: LEGITIMO, SPAM, PHISHING.
 @Service
 public class SpamIaService {
 
@@ -81,9 +77,7 @@ public class SpamIaService {
         return modelosDir.resolve("modelo_" + cuentaHash + ".model");
     }
 
-    /**
-     * Entrena o reentrena el modelo de una cuenta con mensajes etiquetados.
-     */
+    // Entrena o reentrena el modelo Weka de una cuenta
     public void entrenarModelo(String cuentaHash, List<Mensaje> ejemplos) throws Exception {
         if (cuentaHash == null || ejemplos == null || ejemplos.isEmpty()) return;
 
@@ -112,9 +106,8 @@ public class SpamIaService {
         }
     }
 
-    /**
-     * Clasifica un mensaje usando el modelo de su cuenta.
-     */
+    // Clasifica un mensaje con el modelo guardado (si existe)
+    // Si no hay modelo entrenado, devuelve LEGITIMO por defecto
     public ClaseCorreo clasificar(String cuentaHash, Mensaje mensaje) throws Exception {
         Path path = modeloPath(cuentaHash);
         if (!Files.exists(path)) return ClaseCorreo.LEGITIMO;
@@ -140,9 +133,7 @@ public class SpamIaService {
         return ClaseCorreo.valueOf(data.classAttribute().value((int) idx));
     }
 
-    /**
-     * Elimina el modelo de una cuenta.
-     */
+    // Elimina el modelo de una cuenta (ej: al borrar la cuenta)
     public void borrarModelo(String cuentaHash) throws IOException {
         synchronized (modelLock) {
             Path p = modeloPath(cuentaHash);

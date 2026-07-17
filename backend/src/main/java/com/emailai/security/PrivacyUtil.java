@@ -2,10 +2,7 @@ package com.emailai.security;
 
 import java.util.regex.Pattern;
 
-/**
- * Utilidad para enmascarar datos sensibles (emails) en logs.
- * Portado del legacy PrivacyUtil.java.
- */
+// Enmascara emails en logs para no mostrar credenciales completas.
 public class PrivacyUtil {
 
     private static final Pattern EMAIL_PATTERN =

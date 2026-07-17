@@ -16,6 +16,7 @@ import com.emailai.service.MailService;
 import com.emailai.web.dto.CuentaRequest;
 import com.emailai.web.dto.CuentaResponse;
 
+// CRUD de cuentas de correo. Soporta IMAP, POP3 y OAuth2 (Google/Microsoft).
 @RestController
 @RequestMapping("/api/cuentas")
 public class CuentaController {

@@ -14,6 +14,7 @@ import jakarta.mail.Folder;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
 
+// Endpoints de depuración para desarrollo. No desplegar en producción.
 @RestController
 @RequestMapping("/api/debug")
 public class DebugController {

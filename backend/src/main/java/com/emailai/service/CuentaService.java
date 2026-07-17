@@ -10,12 +10,7 @@ import com.emailai.common.NotFoundException;
 import com.emailai.domain.entities.Cuenta;
 import com.emailai.repository.CuentaRepository;
 
-/**
- * Servicio de cuentas de correo (IMAP/SMTP + OAuth2).
- *
- * <p>El email y las credenciales se almacenan cifrados (columnas *_cifrada).
- * El cifrado/descifrado se gestiona en la capa de seguridad (Fase 4).
- */
+// CRUD de cuentas de correo. Credenciales cifradas en BD (SecureStorage).
 @Service
 @Transactional
 public class CuentaService {

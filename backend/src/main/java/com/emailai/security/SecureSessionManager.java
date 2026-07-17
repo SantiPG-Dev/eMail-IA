@@ -4,30 +4,19 @@ import java.util.Arrays;
 
 import org.springframework.stereotype.Component;
 
-/**
- * Gestiona la sesión del usuario tras la autenticación con contraseña maestra.
- *
- * <p>Mantiene en memoria la clave derivada (PBKDF2) que SecureStorage usa
- * para cifrar/descifrar credenciales almacenadas (OAuth tokens, passwords IMAP).
- * La clave se limpia al cerrar sesión.
- */
+// Mantiene en memoria la clave derivada (PBKDF2) que SecureStorage usa
+// para cifrar/descifrar. Al cerrar sesión se sobreescribe con ceros.
 @Component
 public class SecureSessionManager {
 
     private transient String derivedKey;
     private transient boolean active = false;
 
-    /**
-     * Inicia sesión: almacena la clave derivada.
-     */
     public void iniciarSesion(String derivedKey) {
         this.derivedKey = derivedKey;
         this.active = true;
     }
 
-    /**
-     * Devuelve la clave derivada actual.
-     */
     public String getDerivedKey() {
         if (!active || derivedKey == null) {
             throw new IllegalStateException("Sesión no iniciada");
@@ -35,9 +24,7 @@ public class SecureSessionManager {
         return derivedKey;
     }
 
-    /**
-     * Cierra sesión y limpia la clave de memoria.
-     */
+    // Limpieza explícita de memoria al cerrar sesión
     public void cerrarSesion() {
         if (derivedKey != null) {
             char[] chars = derivedKey.toCharArray();

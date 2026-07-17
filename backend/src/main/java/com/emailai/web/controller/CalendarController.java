@@ -12,6 +12,7 @@ import com.emailai.service.EventoCalendarioService;
 import com.emailai.web.dto.EventoRequest;
 import com.emailai.web.dto.EventoResponse;
 
+// CRUD de eventos de calendario (locales + importados de ICS)
 @RestController
 @RequestMapping("/api/calendario")
 public class CalendarController {

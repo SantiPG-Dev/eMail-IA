@@ -12,16 +12,9 @@ import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 
-/**
- * Almacén de configuración local basado en fichero properties.
- *
- * <p>Portado del legacy JavaFX, adaptado a Spring (@Component, singleton gestionado
- * por el contenedor). Escribe en {@code config/preferences.properties} dentro del
- * directorio de la aplicación.
- *
- * <p>Mantiene los métodos de migración desde {@link Preferences} legacy para
- * usuarios que actualizan desde la versión JavaFX.
- */
+// Almacén de configuración local en fichero properties.
+// Portado del JavaFX original, los getOrMigrate* permiten importar
+// ajustes de usuarios que tengan Preferences del Java legacy.
 @Component
 public class AppConfigStore {
 
@@ -44,15 +37,11 @@ public class AppConfigStore {
         }
     }
 
-    /** Devuelve la ruta absoluta del fichero de configuración. */
-    public static Path getConfigFilePath() {
+        public static Path getConfigFilePath() {
         return CONFIG_FILE.toAbsolutePath();
     }
 
-    /**
-     * Limpia la caché en memoria y recarga del archivo.
-     * Útil en tests para resetear el estado entre tests.
-     */
+    // Para tests: resetea y recarga del disco
     public void recargar() {
         props.clear();
         try {

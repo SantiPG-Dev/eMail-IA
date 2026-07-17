@@ -6,6 +6,8 @@ const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                 'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+// Calendario mensual con eventos (locales + importados de ICS).
+// Los días con eventos se marcan con un indicador.
 export default function CalendarioPage() {
   const [today] = useState(() => new Date());
   const [month, setMonth] = useState(today.getMonth());

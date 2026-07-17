@@ -1,5 +1,7 @@
 package com.emailai.security;
 
+// JWT con HMAC-SHA256. Clave de 256 bits generada aleatoriamente (no hardcodeada).
+// Tokens de 24h, incluyen subject (email) y fecha de expiración.
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;

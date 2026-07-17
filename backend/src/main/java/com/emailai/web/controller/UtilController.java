@@ -8,9 +8,7 @@ import com.emailai.service.MailService;
 import com.emailai.service.MensajeService;
 import com.emailai.service.SyncSchedulerService;
 
-/**
- * Endpoints de acciones rápidas y utilidades.
- */
+// Acciones rápidas: sincronizar todo, reentrenar modelo, etc.
 @RestController
 @RequestMapping("/api/util")
 public class UtilController {

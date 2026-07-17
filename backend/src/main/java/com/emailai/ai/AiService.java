@@ -9,16 +9,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-/**
- * Servicio de IA unificado que consulta LM Studio (API OpenAI-compatible)
- * o directamente OpenAI, para resumir correos, sugerir respuestas,
- * clasificar prioridad y mantener conversaciones.
- *
- * <p>Reemplaza los servicios legacy IAService, IAAsistenteService y
- * OllamaService (que usaban LangChain4j) por una implementación más
- * simple basada en {@link RestClient} de Spring, siguiendo el patrón
- * de EazyPlanIA.
- */
+// Servicio de IA unificado: LM Studio (API OpenAI-compatible) o directamente OpenAI.
+// Reemplaza los 3 servicios legacy (IAService, IAAsistenteService, OllamaService)
+// por una implementación simple con RestClient de Spring.
 @Service
 public class AiService {
 

@@ -13,12 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.emailai.service.SyncSchedulerService;
 
-/**
- * Endpoint de salud y estado del backend.
- *
- * <p>Electron usa {@code GET /health} para saber si el backend está listo.
- * El frontend usa {@code GET /api/status} para mostrar info en la StatusBar.
- */
+// Health check para Electron (GET /health) y estado detallado para StatusBar (GET /api/status).
+// Electron espera 200 OK en /health antes de mostrar la ventana.
 @RestController
 public class HealthController {
 

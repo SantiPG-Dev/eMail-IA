@@ -11,7 +11,7 @@ import TareasPage from './pages/TareasPage';
 import ChatIAPage from './pages/ChatIAPage';
 import ConfigPage from './pages/ConfigPage';
 
-/** Pantalla de carga mientras se valida la autenticación */
+// Pantalla de carga mientras se valida el token JWT al arrancar
 function LoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center"
@@ -30,7 +30,7 @@ function LoadingScreen() {
   );
 }
 
-/** Protege rutas: redirige a /login si no autenticado */
+// Protege rutas: si no hay JWT válido, redirige a /login
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return <LoadingScreen />;

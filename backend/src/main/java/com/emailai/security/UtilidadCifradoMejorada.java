@@ -17,7 +17,7 @@ import java.util.Base64;
  *
  * <p>Portado del legacy JavaFX sin cambios: es Java puro (javax.crypto).
  * Proporciona cifrado autenticado para almacenamiento de credenciales y datos sensibles.
- * A diferencia de {@link SecureStorage}, es estático (no requiere instancia).
+ * Versión estática de SecureStorage, mantenida por compatibilidad con código legacy.
  */
 public class UtilidadCifradoMejorada {
 
