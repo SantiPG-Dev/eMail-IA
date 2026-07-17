@@ -10,6 +10,7 @@ import java.util.concurrent.TimeoutException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -18,6 +19,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 // Orquesta el flujo OAuth2 completo: URL de auth → callback local → tokens.
+// Las credenciales (clientId, clientSecret) se inyectan desde application.yml
+// para que no viajen por la red ni se expongan al frontend.
 @Service
 public class OAuthService {
 
@@ -29,9 +32,21 @@ public class OAuthService {
     public static final ConcurrentHashMap<String, Boolean> ACTIVE_OAUTH_STATES = new ConcurrentHashMap<>();
 
     private final ObjectMapper mapper;
+    private final String googleClientId;
+    private final String googleClientSecret;
+    private final String microsoftClientId;
+    private final String microsoftClientSecret;
 
-    public OAuthService() {
+    public OAuthService(
+            @Value("${EMAILAI_GOOGLE_CLIENT_ID:}") String googleClientId,
+            @Value("${EMAILAI_GOOGLE_CLIENT_SECRET:}") String googleClientSecret,
+            @Value("${EMAILAI_MICROSOFT_CLIENT_ID:}") String microsoftClientId,
+            @Value("${EMAILAI_MICROSOFT_CLIENT_SECRET:}") String microsoftClientSecret) {
         this.mapper = new ObjectMapper();
+        this.googleClientId = googleClientId;
+        this.googleClientSecret = googleClientSecret;
+        this.microsoftClientId = microsoftClientId;
+        this.microsoftClientSecret = microsoftClientSecret;
     }
 
     /**
@@ -45,40 +60,66 @@ public class OAuthService {
         return state;
     }
 
+    // ── Iniciar flujo ───────────────────────────────────────────
+
     /**
-     * Inicia el flujo OAuth: genera URL, inicia servidor callback, abre navegador.
-     *
+     * Inicia flujo OAuth con Google.
      * @return URL de autorización para abrir en el navegador
      */
-    public String iniciarFlujoGoogle(String clientId, String clientSecret) {
+    public String iniciarFlujoGoogle() {
         String state = generarState();
-        GoogleOAuthProvider provider = new GoogleOAuthProvider(clientId, clientSecret,
+        GoogleOAuthProvider provider = new GoogleOAuthProvider(
+                googleClientId, googleClientSecret,
                 "http://localhost:" + CALLBACK_PORT + "/oauth/callback");
         return provider.generarUrlAutorizacion(state);
     }
 
     /**
-     * Inicia el flujo OAuth Microsoft.
+     * Inicia flujo OAuth con Microsoft.
      */
-    public String iniciarFlujoMicrosoft(String clientId, String clientSecret) {
+    public String iniciarFlujoMicrosoft() {
         String state = generarState();
-        MicrosoftOAuthProvider provider = new MicrosoftOAuthProvider(clientId, clientSecret,
+        MicrosoftOAuthProvider provider = new MicrosoftOAuthProvider(
+                microsoftClientId, microsoftClientSecret,
                 "http://localhost:" + CALLBACK_PORT + "/oauth/callback");
         return provider.generarUrlAutorizacion(state);
     }
 
     /**
-     * Espera el callback OAuth y canjea el código por tokens.
+     * Inicia el flujo OAuth según el proveedor.
      */
-    public OAuthTokenResult esperarCallbackYCanjear(String tokenUrl, String clientId,
-                                                      String clientSecret, String redirectUri,
-                                                      int timeoutSeconds)
+    public String iniciarFlujo(String proveedor) {
+        return switch (proveedor.toUpperCase()) {
+            case "GOOGLE" -> iniciarFlujoGoogle();
+            case "MICROSOFT" -> iniciarFlujoMicrosoft();
+            default -> throw new IllegalArgumentException("Proveedor OAuth no soportado: " + proveedor);
+        };
+    }
+
+    // ── Callback y canje ────────────────────────────────────────
+
+    /**
+     * Inicia el servidor callback, espera el resultado, canjea el código por tokens.
+     *
+     * @param proveedor GOOGLE | MICROSOFT
+     * @param timeoutSeconds tiempo máximo de espera
+     * @return tokens OAuth obtenidos
+     */
+    public OAuthSession esperarCallback(String proveedor, int timeoutSeconds)
             throws IOException, InterruptedException, ExecutionException, TimeoutException {
-        OAuthCallbackServer server = new OAuthCallbackServer(CALLBACK_PORT);
+
+        String tokenUrl = "GOOGLE".equalsIgnoreCase(proveedor)
+                ? GoogleOAuthProvider.TOKEN_URL
+                : MicrosoftOAuthProvider.TOKEN_URL;
+        String clientId = "GOOGLE".equalsIgnoreCase(proveedor) ? googleClientId : microsoftClientId;
+        String clientSecret = "GOOGLE".equalsIgnoreCase(proveedor) ? googleClientSecret : microsoftClientSecret;
+        String redirectUri = "http://localhost:" + CALLBACK_PORT + "/oauth/callback";
+
+        var server = new OAuthCallbackServer(CALLBACK_PORT);
         server.start();
 
         try {
-            OAuthCallbackServer.OAuthCallbackResult result = server.waitForCallback(timeoutSeconds);
+            var result = server.waitForCallback(timeoutSeconds);
             String state = result.state();
 
             // Validar state (anti-CSRF + anti-replay)
@@ -88,7 +129,7 @@ public class OAuthService {
             }
 
             // Canjear código por tokens
-            return canjearCodigo(tokenUrl, clientId, clientSecret, redirectUri, result.code());
+            return canjearCodigo(tokenUrl, clientId, clientSecret, redirectUri, result.code(), proveedor);
         } catch (CancellationException | TimeoutException e) {
             server.stop();
             throw new TimeoutException("Tiempo de espera agotado para el callback OAuth");
@@ -96,10 +137,10 @@ public class OAuthService {
     }
 
     /**
-     * Canjea el código de autorización por tokens (access + refresh).
+     * Canjea el código de autorización por tokens y devuelve la sesión completa.
      */
-    public OAuthTokenResult canjearCodigo(String tokenUrl, String clientId, String clientSecret,
-                                           String redirectUri, String code) {
+    public OAuthSession canjearCodigo(String tokenUrl, String clientId, String clientSecret,
+                                       String redirectUri, String code, String proveedor) {
         try {
             RestClient rc = RestClient.create();
             String body = "grant_type=authorization_code"
@@ -121,17 +162,59 @@ public class OAuthService {
             long expiresIn = json.path("expires_in").asLong(3600);
             long expiresAt = System.currentTimeMillis() + (expiresIn * 1000);
 
-            return new OAuthTokenResult(accessToken, refreshToken, expiresAt);
+            // Obtener email del usuario desde el perfil
+            String email = obtenerEmail(proveedor, accessToken);
+
+            return new OAuthSession(proveedor, email, accessToken, refreshToken, expiresAt);
         } catch (Exception e) {
             throw new OAuth2Exception("Error al canjear código OAuth: " + e.getMessage(), e);
         }
     }
 
     /**
+     * Obtiene el email del usuario autenticado desde la API de perfil del proveedor.
+     */
+    private String obtenerEmail(String proveedor, String accessToken) {
+        try {
+            String profileUrl = "GOOGLE".equalsIgnoreCase(proveedor)
+                    ? GoogleOAuthProvider.PROFILE_URL
+                    : MicrosoftOAuthProvider.PROFILE_URL;
+
+            RestClient rc = RestClient.create();
+            String response = rc.get()
+                    .uri(profileUrl)
+                    .header("Authorization", "Bearer " + accessToken)
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode json = mapper.readTree(response);
+
+            if ("GOOGLE".equalsIgnoreCase(proveedor)) {
+                return json.path("email").asText();
+            } else {
+                // Microsoft: el email está en mail o userPrincipalName
+                String email = json.path("mail").asText("");
+                if (email.isBlank()) {
+                    email = json.path("userPrincipalName").asText("");
+                }
+                return email;
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo obtener el email del perfil OAuth: {}", e.getMessage());
+            return "oauth-" + System.currentTimeMillis() + "@localhost";
+        }
+    }
+
+    /**
      * Renueva un access token usando el refresh token.
      */
-    public OAuthTokenResult renovarToken(String tokenUrl, String clientId, String clientSecret,
-                                          String refreshToken) {
+    public OAuthTokenResult renovarToken(String proveedor, String refreshToken) {
+        String tokenUrl = "GOOGLE".equalsIgnoreCase(proveedor)
+                ? GoogleOAuthProvider.TOKEN_URL
+                : MicrosoftOAuthProvider.TOKEN_URL;
+        String clientId = "GOOGLE".equalsIgnoreCase(proveedor) ? googleClientId : microsoftClientId;
+        String clientSecret = "GOOGLE".equalsIgnoreCase(proveedor) ? googleClientSecret : microsoftClientSecret;
+
         try {
             RestClient rc = RestClient.create();
             String body = "grant_type=refresh_token"
@@ -158,6 +241,6 @@ public class OAuthService {
         }
     }
 
-    /** Resultado del flujo de tokens. */
+    /** Resultado del refresco de tokens (sin email). */
     public record OAuthTokenResult(String accessToken, String refreshToken, long expiresAt) {}
 }

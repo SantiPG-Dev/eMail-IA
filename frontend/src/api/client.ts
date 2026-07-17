@@ -101,6 +101,11 @@ export const enviarApi = {
     api.post('/api/enviar', data),
 };
 
+export const oauthApi = {
+  iniciar: (proveedor: string) => api.post('/api/oauth/iniciar', null, { params: { proveedor } }),
+  esperarCallback: (proveedor: string) => api.post('/api/oauth/callback', null, { params: { proveedor } }),
+};
+
 export const utilApi = {
   syncAll: () => api.post('/api/util/sync-all'),
 };
