@@ -133,13 +133,25 @@ export default function LoginPage() {
     }
   }, [cuentaSeleccionada, cuentas, password, login, navigate]);
 
-  const handleAccountSaved = useCallback(async () => {
+  const handleAccountSaved = useCallback(async (result?: { email: string; password: string }) => {
     try {
       const res = await cuentaApi.list();
       setCuentas(res.data || []);
+      // Si es la primera cuenta, auto-loguear con las credenciales recién creadas
+      if (result?.email && result?.password) {
+        setLoading(true);
+        setStatus('Iniciando sesión...');
+        const ok = await login(result.email, result.password);
+        if (ok) {
+          navigate('/', { replace: true });
+          return;
+        }
+        setLoading(false);
+        setStatus('Cuenta creada. Introduce tu contraseña para entrar.');
+      }
     } catch { /* ignore */ }
     setShowSetupModal(false);
-  }, []);
+  }, [login, navigate]);
 
   const cuentaActiva = cuentas.find(c => c.id === cuentaSeleccionada);
   const mitad = Math.ceil(cuentas.length / 2);

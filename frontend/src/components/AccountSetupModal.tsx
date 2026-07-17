@@ -4,7 +4,7 @@ import { cuentaApi, oauthApi } from '../api/client';
 
 interface Props {
   open: boolean;
-  onClose: () => void;
+  onClose: (result?: { email: string; password: string }) => void;
 }
 
 // Modal de creación de cuenta. Para Gmail/Outlook usa OAuth2,
@@ -48,7 +48,7 @@ export default function AccountSetupModal({ open, onClose }: Props) {
       oauthExpiresAt: null,
     });
     setSaved(true);
-    setTimeout(() => onClose(), 1500);
+    setTimeout(() => onClose({ email: data.email, password: data.password }), 1500);
   };
 
   // ── Iniciar flujo OAuth ─────────────────────────────────
