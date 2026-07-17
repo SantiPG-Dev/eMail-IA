@@ -38,10 +38,10 @@ public class OAuthService {
     private final String microsoftClientSecret;
 
     public OAuthService(
-            @Value("${EMAILAI_GOOGLE_CLIENT_ID:}") String googleClientId,
-            @Value("${EMAILAI_GOOGLE_CLIENT_SECRET:}") String googleClientSecret,
-            @Value("${EMAILAI_MICROSOFT_CLIENT_ID:}") String microsoftClientId,
-            @Value("${EMAILAI_MICROSOFT_CLIENT_SECRET:}") String microsoftClientSecret) {
+            @Value("${emailai.oauth.google.client-id:}") String googleClientId,
+            @Value("${emailai.oauth.google.client-secret:}") String googleClientSecret,
+            @Value("${emailai.oauth.microsoft.client-id:}") String microsoftClientId,
+            @Value("${emailai.oauth.microsoft.client-secret:}") String microsoftClientSecret) {
         this.mapper = new ObjectMapper();
         this.googleClientId = googleClientId;
         this.googleClientSecret = googleClientSecret;

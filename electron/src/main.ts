@@ -17,6 +17,37 @@ const DEV_FRONTEND = 'http://localhost:5173';
 let APP_URL = `http://localhost:${BACKEND_PORT}`;
 const BACKEND_JAR = findJar();
 
+// ── Credenciales OAuth ──────────────────────────────────────────
+// Se leen desde electron/oauth-config.json (no commiteado a git).
+// Si el archivo no existe, se crea con un template vacío.
+// Estas credenciales se pasan al backend como argumentos Spring.
+function loadOAuthConfig(): Record<string, string> {
+  const configPath = path.resolve(__dirname, '..', 'oauth-config.json');
+  const template = {
+    google: { clientId: '', clientSecret: '' },
+    microsoft: { clientId: '', clientSecret: '' }
+  };
+
+  if (!fs.existsSync(configPath)) {
+    fs.writeFileSync(configPath, JSON.stringify(template, null, 2), 'utf-8');
+    console.log('[Electron] Creado electron/oauth-config.json — rellena tus credenciales OAuth');
+    return {};
+  }
+
+  try {
+    const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const env: Record<string, string> = {};
+    if (cfg.google?.clientId) env.EMAILAI_GOOGLE_CLIENT_ID = cfg.google.clientId;
+    if (cfg.google?.clientSecret) env.EMAILAI_GOOGLE_CLIENT_SECRET = cfg.google.clientSecret;
+    if (cfg.microsoft?.clientId) env.EMAILAI_MICROSOFT_CLIENT_ID = cfg.microsoft.clientId;
+    if (cfg.microsoft?.clientSecret) env.EMAILAI_MICROSOFT_CLIENT_SECRET = cfg.microsoft.clientSecret;
+    return env;
+  } catch (e) {
+    console.warn('[Electron] oauth-config.json inválido:', e);
+    return {};
+  }
+}
+
 function detectFrontendUrl(): Promise<string> {
   return new Promise((resolve) => {
     const req = http.get(DEV_FRONTEND, (res) => {
@@ -90,18 +121,23 @@ function startBackend(): Promise<void> {
   return new Promise((resolve, reject) => {
     if (BACKEND_JAR) {
       console.log(`[Electron] Iniciando backend: java -jar ${BACKEND_JAR}`);
+      const oauthEnv = loadOAuthConfig();
       backendProcess = spawn('java', [
         '-jar', BACKEND_JAR,
         `--server.port=${BACKEND_PORT}`,
         '--emailai.data-dir=DB',
-      ], { stdio: ['ignore', 'pipe', 'pipe'] });
+      ], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, ...oauthEnv },
+      });
     } else {
       const backendDir = path.resolve(__dirname, '..', '..', 'backend');
       console.log(`[Electron] Iniciando backend: mvn spring-boot:run en ${backendDir}`);
+      const oauthEnv = loadOAuthConfig();
       backendProcess = spawn('mvn', ['spring-boot:run'], {
         cwd: backendDir,
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, SERVER_PORT: String(BACKEND_PORT) },
+        env: { ...process.env, ...oauthEnv, SERVER_PORT: String(BACKEND_PORT) },
       });
     }
 
