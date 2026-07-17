@@ -49,7 +49,6 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/health").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/debug/**").permitAll()
                 .requestMatchers("/api/status").permitAll()
                 // Login y creación de cuenta inicial son públicos
                 .requestMatchers(HttpMethod.GET, "/api/cuentas").permitAll()
@@ -84,7 +83,7 @@ public class SecurityConfig {
                     chain.doFilter(request, response);
                     return;
                 }
-                if (path.startsWith("/api/auth/") || path.startsWith("/api/debug/") || path.equals("/api/auth")
+                if (path.startsWith("/api/auth/") || path.equals("/api/auth")
                         || path.equals("/api/status") || path.equals("/api/cuentas")) {
                     chain.doFilter(request, response);
                     return;

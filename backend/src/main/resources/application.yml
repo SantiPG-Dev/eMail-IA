@@ -30,6 +30,8 @@ server:
 # Configuración de la app
 emailai:
   data-dir: DB
+  debug:
+    enabled: false  # DebugController solo se carga con emailai.debug.enabled=true
   ai:
     base-url: ${EMAILAI_AI_BASE_URL:http://localhost:1234}  # LM Studio
     model: ${EMAILAI_AI_MODEL:qwen3.5:9b}
