@@ -77,8 +77,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         statusText: `📨 +${totalDescargados} · 📬 ${totalServer} (${noLeidos} sin leer)`,
         lastSync: new Date().toISOString(),
       }));
-    } catch {
-      setState(s => ({ ...s, syncing: false, statusText: 'Error de conexión' }));
+    } catch (e: any) {
+      const errMsg = e?.response?.data?.error || e?.response?.data?.message || 'Error de conexión';
+      setState(s => ({ ...s, syncing: false, statusText: `⚠️ ${errMsg}` }));
     } finally {
       syncingRef.current = false;
     }

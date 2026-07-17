@@ -49,6 +49,19 @@ public final class DatabaseKeyStore {
         } catch (IOException e) {
             throw new IllegalStateException("No se pudo crear cipher.key: " + e.getMessage(), e);
         }
+
+        // Si la BD se regeneró (cipher.key nuevo), el config stale (con el hash
+        // de contraseña maestra anterior) ya no sirve — borrarlo para forzar setup.
+        Path staleConfig = Path.of("config", "preferences.properties");
+        try {
+            if (Files.exists(staleConfig)) {
+                Files.delete(staleConfig);
+                System.out.println("[DatabaseKeyStore] cipher.key nuevo: config stale borrado");
+            }
+        } catch (IOException ignored) {
+            // Si no se puede borrar, no es crítico
+        }
+
         cachedPassword = Base64.getEncoder().encodeToString(raw);
         return cachedPassword;
     }

@@ -14,7 +14,10 @@ import jakarta.mail.Folder;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
 
-// Endpoints de depuración para desarrollo. No desplegar en producción.
+// Endpoints de depuración solo disponibles cuando emailai.debug.enabled=true.
+// Por defecto el bean no se registra: nada de debug en producción.
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "emailai.debug.enabled", havingValue = "true", matchIfMissing = false)
 @RestController
 @RequestMapping("/api/debug")
 public class DebugController {

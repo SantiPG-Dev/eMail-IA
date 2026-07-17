@@ -3,7 +3,6 @@ package com.emailai.web.controller;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -11,13 +10,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.emailai.config.AppConfigStore;
+import com.emailai.service.CuentaService;
 
 /**
- * Test de integración del flujo de autenticación.
+ * Test del flujo de autenticación sin contraseña maestra.
  *
- * <p>Verifica: setup, login, endpoints protegidos con/sin token,
- * logout, y reintento de setup.
+ * <p>La autenticación ahora se hace contra IMAP (no hay master password).
+ * Login real requiere servidor IMAP y no se testea aquí.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -27,73 +26,44 @@ class AuthControllerTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private AppConfigStore configStore;
-
-    @BeforeEach
-    void cleanConfig() throws Exception {
-        // Limpiar config entre tests para evitar estado persistente
-        var configFile = new java.io.File("config/preferences.properties");
-        configFile.delete();
-        configStore.recargar();
-    }
+    private CuentaService cuentaService;
 
     @Test
-    void flujoCompleto() throws Exception {
-        // Verificar estado inicial (config limpia)
-        mockMvc.perform(get("/api/auth/status"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.configurada").value(false));
-        // 1. Setup
-        mockMvc.perform(post("/api/auth/setup")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"masterPassword\":\"test123\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.mensaje").value("Contraseña maestra configurada correctamente"));
-
-        // 2. Status ahora debe mostrar configurada
-        mockMvc.perform(get("/api/auth/status"))
-                .andExpect(jsonPath("$.configurada").value(true));
-
-        // 3. Login correcto → devuelve JWT
-        var loginResult = mockMvc.perform(post("/api/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"masterPassword\":\"test123\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.exito").value(true))
-                .andExpect(jsonPath("$.token").isNotEmpty())
-                .andReturn();
-        String token = loginResult.getResponse().getHeader("token");
-        // El token viene en el body, no en header
-        String body = loginResult.getResponse().getContentAsString();
-        String jwtToken = body.split("\"token\":\"")[1].split("\"")[0];
-
-        // 4. Endpoint protegido CON token → OK
-        mockMvc.perform(get("/api/tareas")
-                .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk());
-
-        // 5. Endpoint protegido SIN token → 401
-        mockMvc.perform(get("/api/tareas"))
-                .andExpect(status().isUnauthorized());
-
-        // 6. Login incorrecto → 401
+    void loginSinCuentasDevuelveNotFound() throws Exception {
+        // Sin cuentas configuradas → login devuelve 404
         mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"masterPassword\":\"wrong\"}"))
-                .andExpect(status().isUnauthorized());
+                .content("{\"email\":\"nadie@test.com\",\"masterPassword\":\"pass\"}"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    void noPermiteDosSetups() throws Exception {
-        // Primer setup
-        mockMvc.perform(post("/api/auth/setup")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"masterPassword\":\"test123\"}"));
+    void statusSinCuentas() throws Exception {
+        mockMvc.perform(get("/api/auth/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.configurada").value(false))
+                .andExpect(jsonPath("$.sesionActiva").value(false));
+    }
 
-        // Segundo setup debe fallar
-        mockMvc.perform(post("/api/auth/setup")
+    @Test
+    void logoutSinSesion() throws Exception {
+        mockMvc.perform(post("/api/auth/logout"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void loginSinEmail() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"masterPassword\":\"otra123\"}"))
+                .content("{\"email\":\"\",\"masterPassword\":\"pass\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void loginSinPassword() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"test@test.com\",\"masterPassword\":\"\"}"))
                 .andExpect(status().isBadRequest());
     }
 }

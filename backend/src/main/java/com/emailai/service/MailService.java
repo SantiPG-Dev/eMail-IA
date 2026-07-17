@@ -546,6 +546,16 @@ public class MailService {
         }
     }
 
+    // ── Verificación de credenciales ───────────────────────────
+    // Conecta al servidor y cierra. Si no lanza excepción, las credenciales son válidas.
+    // Usado por AuthController para login.
+
+    public void probarConexion(String host, int puerto, String user, String password,
+                                 String tipoConexion) throws MessagingException {
+        Store store = conectarPorTipo(host, puerto, user, password, tipoConexion);
+        store.close();
+    }
+
     // Resultado de sincronización de una carpeta
     public record SyncResult(String carpeta, int totalServer, int noLeidos, int descargados) {}
 }

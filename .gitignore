@@ -25,9 +25,14 @@ electron/node_modules/
 electron/release/
 electron-builder-cache/
 
-# --- Archivos de datos locales (H2 cifrada, modelos Weka) ---
+# --- Archivos de datos locales (H2 cifrada, modelos Weka, JWT key) ---
 *.mv.db
 *.trace.db
+**/jwt.key
+
+# --- Secretos (OAuth credentials, no commitear) ---
+electron/oauth-config.json
+*.env.local
 emailAI.db
 *.model
 DB/

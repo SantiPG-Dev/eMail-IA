@@ -6,80 +6,93 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import com.emailai.config.AppConfigStore;
+import com.emailai.domain.entities.Cuenta;
 import com.emailai.security.JwtService;
 import com.emailai.security.SecureSessionManager;
-import com.emailai.security.SecureStorage;
+import com.emailai.service.CuentaService;
+import com.emailai.service.MailService;
 import com.emailai.web.dto.LoginRequest;
 import com.emailai.web.dto.LoginResponse;
 
-// Autenticación con contraseña maestra.
-// POST /api/auth/setup → primera ejecución, crea hash PBKDF2.
-// POST /api/auth/login → verifica contra hash, devuelve JWT.
+// Autenticación con credenciales IMAP del correo.
+// No hay contraseña maestra separada — tu password de email es tu password de la app.
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private static final String PREF_HASH = "master_password_hash";
-
-    private final AppConfigStore configStore;
+    private final CuentaService cuentaService;
+    private final MailService mailService;
     private final JwtService jwtService;
     private final SecureSessionManager sessionManager;
 
-    public AuthController(AppConfigStore configStore, JwtService jwtService,
-                          SecureSessionManager sessionManager) {
-        this.configStore = configStore;
+    public AuthController(CuentaService cuentaService, MailService mailService,
+                          JwtService jwtService, SecureSessionManager sessionManager) {
+        this.cuentaService = cuentaService;
+        this.mailService = mailService;
         this.jwtService = jwtService;
         this.sessionManager = sessionManager;
     }
 
     /**
-     * Comprueba si ya existe una contraseña maestra configurada.
+     * Estado de la app: si hay cuentas configuradas, se puede iniciar sesión.
      */
     @GetMapping("/status")
     public Map<String, Object> status() {
-        boolean configurada = configStore.containsKey(PREF_HASH);
-        return Map.of("configurada", configurada, "sesionActiva", sessionManager.isActive());
+        boolean hayCuentas = !cuentaService.listarTodas().isEmpty();
+        return Map.of("configurada", hayCuentas, "sesionActiva", sessionManager.isActive());
     }
 
     /**
-     * Configura la contraseña maestra (solo primera ejecución).
-     */
-    @PostMapping("/setup")
-    public ResponseEntity<Map<String, String>> setup(@RequestBody LoginRequest req) {
-        if (configStore.containsKey(PREF_HASH)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "La contraseña maestra ya está configurada"));
-        }
-
-        String hash = SecureStorage.hashear(req.masterPassword());
-        configStore.put(PREF_HASH, hash);
-
-        return ResponseEntity.ok(Map.of("mensaje", "Contraseña maestra configurada correctamente"));
-    }
-
-    /**
-     * Inicia sesión con la contraseña maestra.
+     * Inicia sesión verificando las credenciales IMAP contra el servidor de correo.
      */
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest req) {
-        String storedHash = configStore.get(PREF_HASH, null);
-        if (storedHash == null) {
-            return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED)
-                    .body(Map.of("error", "No hay contraseña configurada. Usa /api/auth/setup primero"));
+        String email = req.email();
+        String password = req.masterPassword(); // reusamos el campo masterPassword para la contraseña IMAP
+
+        if (email == null || email.isBlank() || password == null || password.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Email y contraseña obligatorios"));
         }
 
-        if (!SecureStorage.verificarHash(req.masterPassword(), storedHash)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Contraseña incorrecta"));
+        // Buscar cuenta por email
+        Cuenta cuenta = cuentaService.buscarPorEmail(email).orElse(null);
+        if (cuenta == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "No hay cuenta configurada para " + email));
         }
 
-        // Derivar clave para sesión (PBKDF2 con la misma contraseña)
-        sessionManager.iniciarSesion(req.masterPassword());
+        // Verificar credenciales conectando al IMAP
+        String servidor = cuenta.getServidor() != null ? cuenta.getServidor()
+                : (email.contains("gmail") ? "imap.gmail.com"
+                   : email.contains("outlook") || email.contains("hotmail") ? "outlook.office365.com"
+                   : email.contains("gmx") ? "imap.gmx.com"
+                   : "imap.gmail.com");
+        int puerto = cuenta.getPuerto() != null ? cuenta.getPuerto() : 993;
+        String tipoConexion = cuenta.getTipoConexion() != null ? cuenta.getTipoConexion() : "IMAP";
 
-        // Generar JWT
-        String token = jwtService.generateToken("emailai-user");
-        return ResponseEntity.ok(new LoginResponse(token, "local", true));
+        try {
+            mailService.probarConexion(servidor, puerto, email, password, tipoConexion);
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (msg.toUpperCase().contains("AUTHENTICATIONFAILED") || msg.contains("authentication failed")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Contraseña incorrecta para " + email
+                                + ". Si tienes 2FA, genera una contraseña específica para apps."));
+            }
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", "No se pudo conectar al servidor " + servidor + ": " + msg));
+        }
+
+        // Actualizar contraseña almacenada (texto plano en H2, que ya está cifrada con cipher.key)
+        cuenta.setPasswordCifrada(password);
+        cuentaService.guardar(cuenta);
+
+        // Iniciar sesión
+        sessionManager.iniciarSesion();
+        String token = jwtService.generateToken(email);
+
+        return ResponseEntity.ok(new LoginResponse(token, email, true));
     }
 
     /**

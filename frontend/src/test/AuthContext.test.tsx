@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { ReactNode } from 'react';
 
-// Mock completo del API client
 const mockPost = vi.fn();
 const mockGet = vi.fn();
 
@@ -15,11 +14,6 @@ vi.mock('../api/client', () => ({
       request: { use: vi.fn() },
       response: { use: vi.fn() },
     },
-  },
-  authApi: {
-    status: vi.fn().mockResolvedValue({ data: { configurada: true } }),
-    setup: vi.fn(),
-    login: vi.fn(),
   },
 }));
 
@@ -39,6 +33,7 @@ describe('AuthContext', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
     expect(result.current.isAuthenticated).toBe(false);
     expect(result.current.token).toBeNull();
+    expect(result.current.hayCuentas).toBe(false);
   });
 
   it('login exitoso guarda token', async () => {
@@ -49,7 +44,7 @@ describe('AuthContext', () => {
 
     let success: boolean | undefined;
     await act(async () => {
-      success = await result.current.login('test123');
+      success = await result.current.login('test@test.com', 'testpass');
     });
 
     expect(success).toBe(true);
@@ -65,7 +60,7 @@ describe('AuthContext', () => {
 
     let success: boolean | undefined;
     await act(async () => {
-      success = await result.current.login('wrong');
+      success = await result.current.login('test@test.com', 'wrong');
     });
 
     expect(success).toBe(false);
@@ -73,7 +68,6 @@ describe('AuthContext', () => {
   });
 
   it('logout limpia token y estado', async () => {
-    // Primero autenticar
     const fakeToken = 'test-jwt-token';
     mockPost.mockResolvedValueOnce({ data: { token: fakeToken } }); // login
     mockPost.mockResolvedValueOnce({}); // logout
@@ -81,11 +75,10 @@ describe('AuthContext', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
-      await result.current.login('test123');
+      await result.current.login('test@test.com', 'testpass');
     });
     expect(result.current.isAuthenticated).toBe(true);
 
-    // Logout
     await act(async () => {
       await result.current.logout();
     });
@@ -95,24 +88,22 @@ describe('AuthContext', () => {
     expect(localStorage.getItem('emailai_token')).toBeNull();
   });
 
-  it('setup exitoso marca configurada', async () => {
-    mockPost.mockResolvedValue({ data: { mensaje: 'OK' } });
+  it('login con email y password', async () => {
+    const fakeToken = 'email-test-token';
+    mockPost.mockResolvedValue({ data: { token: fakeToken } });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     let success: boolean | undefined;
     await act(async () => {
-      success = await result.current.setup('newpass');
+      success = await result.current.login('santi@gmx.com', 'mipassword');
     });
 
     expect(success).toBe(true);
-  });
-
-  it('restaura token desde localStorage', () => {
-    localStorage.setItem('emailai_token', 'persisted-token');
-
-    const { result } = renderHook(() => useAuth(), { wrapper });
-    expect(result.current.isAuthenticated).toBe(true);
-    expect(result.current.token).toBe('persisted-token');
+    // Verificar que se llamó con email + password
+    expect(mockPost).toHaveBeenCalledWith('/api/auth/login', {
+      email: 'santi@gmx.com',
+      masterPassword: 'mipassword',
+    });
   });
 });
