@@ -36,6 +36,13 @@ emailai:
     timeout: 30
   todoist:
     api-key: ${EMAILAI_TODOIST_API_KEY:}
+  oauth:
+    google:
+      client-id: ${EMAILAI_GOOGLE_CLIENT_ID:}
+      client-secret: ${EMAILAI_GOOGLE_CLIENT_SECRET:}
+    microsoft:
+      client-id: ${EMAILAI_MICROSOFT_CLIENT_ID:}
+      client-secret: ${EMAILAI_MICROSOFT_CLIENT_SECRET:}
   security:
     jwt:
       secret: ${EMAILAI_JWT_SECRET:emailai-local-session-key-2026}

@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import AccountForm, { type AccountFormData } from './AccountForm';
-import { cuentaApi } from '../api/client';
+import { cuentaApi, oauthApi } from '../api/client';
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
-// Modal de creación de cuenta (primer uso o añadir cuenta).
-// Incluye detección automática de configuración IMAP/POP3 según proveedor.
+// Modal de creación de cuenta. Para Gmail/Outlook usa OAuth2,
+// para el resto usa IMAP/POP3 con contraseña.
 const PROVIDERS_LOOKUP: Record<string, { imap: { host: string; port: number }; pop3: { host: string; port: number } }> = {
   gmail: { imap: { host: 'imap.gmail.com', port: 993 }, pop3: { host: 'pop.gmail.com', port: 995 } },
   outlook: { imap: { host: 'outlook.office365.com', port: 993 }, pop3: { host: 'outlook.office365.com', port: 995 } },
@@ -20,9 +20,15 @@ const PROVIDERS_LOOKUP: Record<string, { imap: { host: string; port: number }; p
   other: { imap: { host: '', port: 993 }, pop3: { host: '', port: 995 } },
 };
 
+// Proveedores que usan OAuth
+const OAUTH_PROVIDERS = ['gmail', 'outlook'];
+
 export default function AccountSetupModal({ open, onClose }: Props) {
   const [saved, setSaved] = useState(false);
+  const [status, setStatus] = useState('');
+  const [oauthInProgress, setOauthInProgress] = useState(false);
 
+  // ── Guardar cuenta normal (password IMAP/POP3) ──────────
   const handleSave = async (data: AccountFormData) => {
     const p = PROVIDERS_LOOKUP[data.proveedor] || PROVIDERS_LOOKUP.other;
     const conn = data.tipoConexion === 'IMAP' ? p.imap : p.pop3;
@@ -43,6 +49,60 @@ export default function AccountSetupModal({ open, onClose }: Props) {
     });
     setSaved(true);
     setTimeout(() => onClose(), 1500);
+  };
+
+  // ── Iniciar flujo OAuth ─────────────────────────────────
+  const handleOAuthStart = async (proveedor: string) => {
+    if (!OAUTH_PROVIDERS.includes(proveedor)) return;
+
+    setOauthInProgress(true);
+    setStatus('');
+
+    try {
+      // 1. Pedir URL de autorización al backend
+      const authRes = await oauthApi.iniciar(proveedor);
+      const authUrl = authRes.data.authUrl;
+
+      // 2. Abrir navegador del sistema
+      if (window.electronAPI?.openExternal) {
+        await window.electronAPI.openExternal(authUrl);
+      } else {
+        window.open(authUrl, '_blank');
+      }
+
+      // 3. Esperar el callback (el backend captura el redirect)
+      const callbackRes = await oauthApi.esperarCallback(proveedor);
+      const session = callbackRes.data;
+
+      // 4. Crear la cuenta con los tokens OAuth
+      const proveedorUpper = proveedor === 'gmail' ? 'GOOGLE' : 'MICROSOFT';
+      const host = proveedor === 'gmail'
+        ? { imap: 'imap.gmail.com', smtp: 'smtp.gmail.com' }
+        : { imap: 'outlook.office365.com', smtp: 'smtp.office365.com' };
+
+      await cuentaApi.create({
+        nombre: session.email || proveedor,
+        email: session.email,
+        servidor: host.imap,
+        puerto: 993,
+        usuario: session.email,
+        password: '',  // No hace falta para OAuth
+        tipoConexion: 'IMAP',
+        esDefault: true,
+        oauthProvider: proveedorUpper,
+        oauthAccessToken: session.accessToken,
+        oauthRefreshToken: session.refreshToken || '',
+        oauthExpiresAt: session.expiresAt,
+      });
+
+      setSaved(true);
+      setTimeout(() => onClose(), 1500);
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err.message || 'Error en autenticación OAuth';
+      setStatus('❌ ' + msg);
+    } finally {
+      setOauthInProgress(false);
+    }
   };
 
   if (!open) return null;
@@ -72,12 +132,18 @@ export default function AccountSetupModal({ open, onClose }: Props) {
               Configurar cuenta de correo
             </h2>
             <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              Introduce los datos de tu cuenta
+              {oauthInProgress ? 'Autenticando con OAuth...' : 'Introduce los datos de tu cuenta'}
             </p>
           </div>
         </div>
 
-        <AccountForm onSave={handleSave} onCancel={onClose} />
+        <AccountForm
+          onSave={handleSave}
+          onOAuthStart={handleOAuthStart}
+          onCancel={onClose}
+          status={status}
+          oauthInProgress={oauthInProgress}
+        />
       </div>
     </div>
   );

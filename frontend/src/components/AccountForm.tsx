@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 // Formulario de cuenta de correo: soporta IMAP, POP3, OAuth Google y Microsoft.
 // Los proveedores preconfigurados auto-rellenan servidor y puerto.
+// Gmail y Outlook activan el flujo OAuth al seleccionarlos del desplegable.
 interface AccountFormData {
   nombre: string;
   email: string;
@@ -12,13 +13,16 @@ interface AccountFormData {
 
 interface Props {
   onSave: (data: AccountFormData) => Promise<void>;
+  onOAuthStart?: (proveedor: string) => Promise<void>;
   onCancel?: () => void;
   status?: string;
   loading?: boolean;
+  oauthInProgress?: boolean;
 }
 
 interface ProviderInfo {
   label: string;
+  oauth?: boolean;                // true → Gmail/Outlook, usa OAuth
   imap: { host: string; port: number };
   pop3: { host: string; port: number };
   smtp: { host: string; port: number };
@@ -26,13 +30,13 @@ interface ProviderInfo {
 
 const PROVIDERS: Record<string, ProviderInfo> = {
   gmail: {
-    label: 'Gmail',
+    label: 'Gmail', oauth: true,
     imap: { host: 'imap.gmail.com', port: 993 },
     pop3: { host: 'pop.gmail.com', port: 995 },
     smtp: { host: 'smtp.gmail.com', port: 465 },
   },
   outlook: {
-    label: 'Outlook / Hotmail',
+    label: 'Outlook / Hotmail', oauth: true,
     imap: { host: 'outlook.office365.com', port: 993 },
     pop3: { host: 'outlook.office365.com', port: 995 },
     smtp: { host: 'smtp.office365.com', port: 587 },
@@ -75,7 +79,7 @@ const PROVIDERS: Record<string, ProviderInfo> = {
   },
 };
 
-export default function AccountForm({ onSave, onCancel, status: externalStatus, loading: externalLoading }: Props) {
+export default function AccountForm({ onSave, onOAuthStart, onCancel, status: externalStatus, loading: externalLoading, oauthInProgress }: Props) {
   const [proveedor, setProveedor] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [nombre, setNombre] = useState('');
@@ -88,6 +92,7 @@ export default function AccountForm({ onSave, onCancel, status: externalStatus, 
   const status = externalStatus ?? internalStatus;
   const loading = externalLoading ?? internalLoading;
   const provider = proveedor ? PROVIDERS[proveedor] : null;
+  const isOauth = provider?.oauth ?? false;
   const connInfo = provider ? (tipoConexion === 'IMAP' ? provider.imap : provider.pop3) : null;
 
   const selectProvider = (key: string) => {
@@ -96,6 +101,10 @@ export default function AccountForm({ onSave, onCancel, status: externalStatus, 
     const p = PROVIDERS[key];
     if (p && key !== 'other' && !nombre) {
       setNombre(p.label);
+    }
+    // Si el proveedor usa OAuth, disparar el flujo automáticamente
+    if (p?.oauth && onOAuthStart) {
+      onOAuthStart(key);
     }
   };
 
@@ -160,7 +169,7 @@ export default function AccountForm({ onSave, onCancel, status: externalStatus, 
                     color: proveedor === key ? '#0F172A' : 'var(--color-text)',
                   }}
                 >
-                  {p.label}
+                  {p.oauth ? `🔑 ${p.label} (OAuth)` : p.label}
                 </button>
               ))}
             </div>
@@ -168,93 +177,127 @@ export default function AccountForm({ onSave, onCancel, status: externalStatus, 
         </div>
       </div>
 
-      {/* Nombre cuenta */}
-      <div>
-        <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
-          Nombre de la cuenta
-        </label>
-        <input value={nombre} onChange={e => setNombre(e.target.value)}
-          placeholder="Ej: Personal, Trabajo, Estudio..."
-          className="w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors"
-          style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
-      </div>
+      {isOauth ? (
+        /* ── Flujo OAuth ──────────────────────────────────── */
+        <>
+          <div className="rounded-lg p-4 border text-center"
+            style={{ backgroundColor: 'var(--color-bg)', borderColor: 'var(--color-border)' }}>
+            <p className="text-sm font-bold mb-2" style={{ color: 'var(--color-text)' }}>
+              {oauthInProgress ? '⏳ Esperando autorización...' : `🔑 Iniciar sesión con ${provider?.label}`}
+            </p>
+            {oauthInProgress ? (
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
+                  style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  Se ha abierto el navegador. Autoriza la aplicación y vuelve aquí.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                Al seleccionar este proveedor se usará OAuth2.
+                No necesitas introducir contraseña.
+              </p>
+            )}
+          </div>
+          {status && (
+            <p className="text-xs text-center" style={{ color: status.startsWith('✅') ? '#22c55e' : '#ef4444' }}>
+              {status}
+            </p>
+          )}
+        </>
+      ) : (
+        /* ── Flujo con contraseña ─────────────────────────── */
+        <>
+          {/* Nombre cuenta */}
+          <div>
+            <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
+              Nombre de la cuenta
+            </label>
+            <input value={nombre} onChange={e => setNombre(e.target.value)}
+              placeholder="Ej: Personal, Trabajo, Estudio..."
+              className="w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors"
+              style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+          </div>
 
-      {/* Email */}
-      <div>
-        <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
-          Cuenta de correo *
-        </label>
-        <input value={email} onChange={e => setEmail(e.target.value)}
-          placeholder="usuario@dominio.com"
-          className="w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors"
-          style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
-      </div>
+          {/* Email */}
+          <div>
+            <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
+              Cuenta de correo *
+            </label>
+            <input value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="usuario@dominio.com"
+              className="w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors"
+              style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+          </div>
 
-      {/* Contraseña */}
-      <div>
-        <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
-          Contraseña *
-        </label>
-        <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-          placeholder="Contraseña de la cuenta"
-          className="w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors"
-          style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
-      </div>
+          {/* Contraseña */}
+          <div>
+            <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
+              Contraseña *
+            </label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              placeholder="Contraseña de la cuenta"
+              className="w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors"
+              style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+          </div>
 
-      {/* Tipo conexión */}
-      <div>
-        <label className="text-xs font-bold block mb-1.5" style={{ color: 'var(--color-text)' }}>
-          Tipo de conexión
-        </label>
-        <div className="flex gap-2">
-          <button onClick={() => setTipoConexion('IMAP')}
-            className="flex-1 px-3 py-2 text-sm font-bold rounded-lg transition-colors"
-            style={{
-              backgroundColor: tipoConexion === 'IMAP' ? 'var(--color-accent-selected)' : 'var(--color-bg)',
-              color: tipoConexion === 'IMAP' ? '#0F172A' : 'var(--color-text)',
-              border: tipoConexion === 'IMAP' ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
-            }}>
-            📥 IMAP
-          </button>
-          <button onClick={() => setTipoConexion('POP3')}
-            className="flex-1 px-3 py-2 text-sm font-bold rounded-lg transition-colors"
-            style={{
-              backgroundColor: tipoConexion === 'POP3' ? 'var(--color-accent-selected)' : 'var(--color-bg)',
-              color: tipoConexion === 'POP3' ? '#0F172A' : 'var(--color-text)',
-              border: tipoConexion === 'POP3' ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
-            }}>
-            📩 POP3
-          </button>
-        </div>
-        {connInfo && (
-          <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-            {tipoConexion}: {connInfo.host}:{connInfo.port}
-          </p>
-        )}
-      </div>
+          {/* Tipo conexión */}
+          <div>
+            <label className="text-xs font-bold block mb-1.5" style={{ color: 'var(--color-text)' }}>
+              Tipo de conexión
+            </label>
+            <div className="flex gap-2">
+              <button onClick={() => setTipoConexion('IMAP')}
+                className="flex-1 px-3 py-2 text-sm font-bold rounded-lg transition-colors"
+                style={{
+                  backgroundColor: tipoConexion === 'IMAP' ? 'var(--color-accent-selected)' : 'var(--color-bg)',
+                  color: tipoConexion === 'IMAP' ? '#0F172A' : 'var(--color-text)',
+                  border: tipoConexion === 'IMAP' ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
+                }}>
+                📥 IMAP
+              </button>
+              <button onClick={() => setTipoConexion('POP3')}
+                className="flex-1 px-3 py-2 text-sm font-bold rounded-lg transition-colors"
+                style={{
+                  backgroundColor: tipoConexion === 'POP3' ? 'var(--color-accent-selected)' : 'var(--color-bg)',
+                  color: tipoConexion === 'POP3' ? '#0F172A' : 'var(--color-text)',
+                  border: tipoConexion === 'POP3' ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
+                }}>
+                📩 POP3
+              </button>
+            </div>
+            {connInfo && (
+              <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                {tipoConexion}: {connInfo.host}:{connInfo.port}
+              </p>
+            )}
+          </div>
 
-      {/* Status */}
-      {status && (
-        <p className="text-xs" style={{ color: status.startsWith('✅') ? '#22c55e' : '#ef4444' }}>
-          {status}
-        </p>
+          {/* Status */}
+          {status && (
+            <p className="text-xs" style={{ color: status.startsWith('✅') ? '#22c55e' : '#ef4444' }}>
+              {status}
+            </p>
+          )}
+
+          {/* Botones */}
+          <div className="flex justify-end gap-2 pt-2">
+            {onCancel && (
+              <button onClick={onCancel}
+                className="px-4 py-1.5 text-sm rounded-lg transition-colors"
+                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>
+                Cancelar
+              </button>
+            )}
+            <button onClick={handleSave} disabled={loading}
+              className="px-5 py-1.5 text-sm font-bold rounded-pill disabled:opacity-50 transition-colors"
+              style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>
+              {loading ? 'Guardando...' : 'Guardar cuenta'}
+            </button>
+          </div>
+        </>
       )}
-
-      {/* Botones */}
-      <div className="flex justify-end gap-2 pt-2">
-        {onCancel && (
-          <button onClick={onCancel}
-            className="px-4 py-1.5 text-sm rounded-lg transition-colors"
-            style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>
-            Cancelar
-          </button>
-        )}
-        <button onClick={handleSave} disabled={loading}
-          className="px-5 py-1.5 text-sm font-bold rounded-pill disabled:opacity-50 transition-colors"
-          style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>
-          {loading ? 'Guardando...' : 'Guardar cuenta'}
-        </button>
-      </div>
     </div>
   );
 }
