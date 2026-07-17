@@ -8,10 +8,11 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  setup: (password: string) => Promise<boolean>;
-  isConfigured: boolean;
+  cuentas: Array<{ id: number; email: string; nombre: string }>;
+  hayCuentas: boolean;
+  statusChecked: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -20,32 +21,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(() => ({
     token: localStorage.getItem('emailai_token'),
     isAuthenticated: false,
-    loading: true,  // Arranca validando el token guardado
+    loading: true,
   }));
-  const [isConfigured, setIsConfigured] = useState(false);
+  const [cuentas, setCuentas] = useState<Array<{ id: number; email: string; nombre: string }>>([]);
+  const [statusChecked, setStatusChecked] = useState(false);
 
-  // Al arrancar: valida el token contra el backend o lo borra si es inválido
+  // Al arrancar: validar token guardado y cargar estado
   useEffect(() => {
-    const token = localStorage.getItem('emailai_token');
-    if (!token) {
-      setState({ token: null, isAuthenticated: false, loading: false });
-      return;
-    }
+    const init = async () => {
+      try {
+        const statusRes = await api.get('/api/auth/status');
+        const configurada = statusRes.data?.configurada === true;
+        const sesionActiva = statusRes.data?.sesionActiva === true;
 
-    api.get('/api/cuentas')
-      .then(() => {
-        setState({ token, isAuthenticated: true, loading: false });
-      })
-      .catch(() => {
-        localStorage.removeItem('emailai_token');
+        if (configurada) {
+          const cuentasRes = await api.get('/api/cuentas');
+          setCuentas(cuentasRes.data || []);
+        }
+
+        const token = localStorage.getItem('emailai_token');
+        if (token && sesionActiva) {
+          setState({ token, isAuthenticated: true, loading: false });
+        } else if (token) {
+          // Token guardado pero sesión expirada (backend reiniciado)
+          localStorage.removeItem('emailai_token');
+          setState({ token: null, isAuthenticated: false, loading: false });
+        } else {
+          setState({ token: null, isAuthenticated: false, loading: false });
+        }
+      } catch {
         setState({ token: null, isAuthenticated: false, loading: false });
-      });
+      } finally {
+        setStatusChecked(true);
+      }
+    };
+    init();
   }, []);
 
-  const login = useCallback(async (password: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setState(s => ({ ...s, loading: true }));
     try {
-      const res = await api.post('/api/auth/login', { masterPassword: password });
+      const res = await api.post('/api/auth/login', { email, masterPassword: password });
       const t = res.data.token;
       localStorage.setItem('emailai_token', t);
       setState({ token: t, isAuthenticated: true, loading: false });
@@ -62,18 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ token: null, isAuthenticated: false, loading: false });
   }, []);
 
-  const setup = useCallback(async (password: string): Promise<boolean> => {
-    try {
-      await api.post('/api/auth/setup', { masterPassword: password });
-      setIsConfigured(true);
-      return true;
-    } catch {
-      return false;
-    }
-  }, []);
-
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, setup, isConfigured }}>
+    <AuthContext.Provider value={{
+      ...state, login, logout,
+      cuentas, hayCuentas: cuentas.length > 0,
+      statusChecked,
+    }}>
       {children}
     </AuthContext.Provider>
   );

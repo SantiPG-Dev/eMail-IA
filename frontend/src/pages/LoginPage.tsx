@@ -2,11 +2,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { authApi, cuentaApi } from '../api/client';
+import { cuentaApi } from '../api/client';
 import AccountSetupModal from '../components/AccountSetupModal';
 
-// Login con multi-cuenta. Muestra las cuentas configuradas en columnas laterales.
-// Si es primer acceso, pide crear contraseña maestra. Si ya hay, pide la contraseña.
+// Login sin contraseña maestra. Seleccionas tu cuenta de correo y
+// entras tu password IMAP — esa misma password te loguea en la app.
 
 interface Cuenta {
   id: number;
@@ -16,7 +16,7 @@ interface Cuenta {
   servidor: string;
 }
 
-/* ── Componente reutilizable: tarjeta de perfil ── */
+/* ── Tarjeta de perfil ── */
 function PerfilCard({ cuenta, seleccionada, onSeleccionar }: { cuenta: Cuenta; seleccionada: boolean; onSeleccionar: () => void }) {
   const getInitials = (name: string) =>
     name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -32,64 +32,40 @@ function PerfilCard({ cuenta, seleccionada, onSeleccionar }: { cuenta: Cuenta; s
         borderColor: seleccionada ? 'var(--color-accent)' : 'var(--color-border)',
       }}
       onClick={onSeleccionar}
-      title={seleccionada ? 'Cuenta seleccionada' : 'Seleccionar esta cuenta'}
     >
-      {/* Avatar circular con iniciales */}
       <div
-        className="w-12 h-12 rounded-full flex items-center justify-center
-          text-sm font-bold shadow-inner"
+        className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold shadow-inner"
         style={{
-          background:
-            cuenta.tipoConexion === 'POP3'
-              ? 'linear-gradient(135deg, #FBBF24, #F59E0B)'
-              : 'linear-gradient(135deg, #22D3EE, #06B6D4)',
+          background: 'linear-gradient(135deg, #22D3EE, #06B6D4)',
           color: '#0F172A',
         }}
       >
         {getInitials(cuenta.nombre)}
       </div>
-
       <div className="text-center">
-        <p className="text-xs font-bold truncate max-w-24"
-          style={{ color: 'var(--color-text)' }}>
+        <p className="text-xs font-bold truncate max-w-24" style={{ color: 'var(--color-text)' }}>
           {cuenta.nombre}
         </p>
-        <p className="text-[10px] truncate max-w-24"
-          style={{ color: 'var(--color-text-muted)' }}>
+        <p className="text-[10px] truncate max-w-24" style={{ color: 'var(--color-text-muted)' }}>
           {cuenta.email}
         </p>
       </div>
-
-      <span
-        className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase"
+      <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase"
         style={{
-          backgroundColor:
-            cuenta.tipoConexion === 'POP3'
-              ? 'rgba(251, 191, 36, 0.2)'
-              : 'rgba(34, 211, 238, 0.2)',
-          color: cuenta.tipoConexion === 'POP3' ? '#FBBF24' : '#22D3EE',
-        }}
-      >
+          backgroundColor: 'rgba(34, 211, 238, 0.2)',
+          color: '#22D3EE',
+        }}>
         {cuenta.tipoConexion || 'IMAP'}
       </span>
     </div>
   );
 }
 
-/* ── Componente reutilizable: botón "+" añadir perfil ── */
 function AddPerfilCard({ onClick }: { onClick: () => void }) {
   return (
-    <div
-      className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl
-        border-2 border-dashed cursor-pointer transition-all duration-200
-        hover:scale-105 w-28 h-[128px]"
-      style={{
-        borderColor: 'var(--color-border)',
-        color: 'var(--color-text-muted)',
-      }}
-      onClick={onClick}
-      title="Añadir nueva cuenta"
-    >
+    <div className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200 hover:scale-105 w-28 h-[128px]"
+      style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}
+      onClick={onClick}>
       <span className="text-2xl leading-none">+</span>
       <span className="text-[10px] font-medium text-center">Añadir perfil</span>
     </div>
@@ -98,80 +74,64 @@ function AddPerfilCard({ onClick }: { onClick: () => void }) {
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, setup } = useAuth();
-  const { mode, toggleMode, setTheme, theme } = useTheme();
+  const { login, hayCuentas, loading: authLoading } = useAuth();
+  const { mode, toggleMode } = useTheme();
 
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
-  const [needsSetup, setNeedsSetup] = useState(false);
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [cuentaSeleccionada, setCuentaSeleccionada] = useState<number | null>(null);
-  const loadedRef = useRef(false);
+  const [datosCargados, setDatosCargados] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Solo ejecutar una vez al montar
   useEffect(() => {
-    if (loadedRef.current) return;
-    loadedRef.current = true;
-
-    let cargarCuentasOk = false;
-
-    // Cargar estado y cuentas en paralelo
-    Promise.all([
-      // Si falla (401 sin token), catch devuelve vacío y marcamos error
-      cuentaApi.list()
-        .then(res => {
-          cargarCuentasOk = true;
-          return res.data || [];
-        })
-        .catch(() => {
-          cargarCuentasOk = false;
-          return [];
-        }),
-      authApi.status()
-        .then(res => res.data || { configurada: false })
-        .catch(() => ({ configurada: false }))
-    ]).then(([lista, statusRes]: [any, any]) => {
-      setCuentas(lista);
-      const configurada = statusRes?.configurada === true;
-      setNeedsSetup(!configurada);
-      // Solo auto-abrir modal si: hay contraseña, se pudieron cargar cuentas, y no hay ninguna
-      if (configurada && cargarCuentasOk && lista.length === 0) {
-        setShowSetupModal(true);
-      }
-    });
+    cuentaApi.list()
+      .then(res => setCuentas(res.data || []))
+      .catch(() => setCuentas([]))
+      .finally(() => setDatosCargados(true));
   }, []);
 
-  // Enfocar input al montar (con cleanup para evitar timebooks huérfanos)
   useEffect(() => {
     const timer = setTimeout(() => inputRef.current?.focus(), 300);
     return () => clearTimeout(timer);
-  }, [needsSetup]);
+  }, [cuentaSeleccionada]);
+
+  // Si es primera vez (sin cuentas), auto-abrir modal de configuración
+  useEffect(() => {
+    if (datosCargados && cuentas.length === 0) {
+      setShowSetupModal(true);
+    }
+  }, [datosCargados, cuentas.length]);
 
   const handleSubmit = useCallback(async () => {
+    if (!cuentaSeleccionada && cuentas.length > 0) {
+      setStatus('Selecciona una cuenta primero');
+      return;
+    }
+    if (!password) return;
+
     setLoading(true);
     setStatus('');
+
+    const email = cuentaSeleccionada
+      ? cuentas.find(c => c.id === cuentaSeleccionada)?.email || ''
+      : '';
+
     try {
-      let ok: boolean;
-      if (needsSetup) {
-        ok = await setup(password);
-        if (ok) {
-          setStatus('Contraseña configurada. Iniciando sesión...');
-          ok = await login(password);
-        }
+      const ok = await login(email, password);
+      if (ok) {
+        navigate('/', { replace: true });
       } else {
-        ok = await login(password);
+        setStatus('Contraseña incorrecta. Si tienes 2FA, genera una contraseña específica para apps.');
       }
-      if (ok) navigate('/', { replace: true });
-      else setStatus(needsSetup ? 'Error al configurar' : 'Contraseña incorrecta');
     } catch {
       setStatus('Error de conexión con el servidor');
     } finally {
       setLoading(false);
     }
-  }, [needsSetup, password, setup, login, navigate]);
+  }, [cuentaSeleccionada, cuentas, password, login, navigate]);
 
   const handleAccountSaved = useCallback(async () => {
     try {
@@ -181,34 +141,19 @@ export default function LoginPage() {
     setShowSetupModal(false);
   }, []);
 
-  const hasAccounts = cuentas.length > 0;
   const cuentaActiva = cuentas.find(c => c.id === cuentaSeleccionada);
-
-  // Repartir cuentas entre columna izq y dcha
   const mitad = Math.ceil(cuentas.length / 2);
   const izquierda = cuentas.slice(0, mitad);
   const derecha = cuentas.slice(mitad);
 
-  const seleccionarCuenta = (id: number) => {
-    setCuentaSeleccionada(id);
-    setStatus('');
-    inputRef.current?.focus();
-  };
-
-  /* ── Render: columna de tarjetas ── */
   const renderColumna = (lista: Cuenta[]) => (
     <div className="flex flex-col items-center gap-3">
       <p className="text-[11px] font-semibold uppercase tracking-widest mb-1"
-        style={{ color: 'var(--color-text-muted)' }}>
-        Perfiles
-      </p>
+        style={{ color: 'var(--color-text-muted)' }}>Perfiles</p>
       {lista.map(c => (
-        <PerfilCard
-          key={c.id}
-          cuenta={c}
+        <PerfilCard key={c.id} cuenta={c}
           seleccionada={c.id === cuentaSeleccionada}
-          onSeleccionar={() => seleccionarCuenta(c.id)}
-        />
+          onSeleccionar={() => { setCuentaSeleccionada(c.id); setStatus(''); }} />
       ))}
       <AddPerfilCard onClick={() => setShowSetupModal(true)} />
     </div>
@@ -217,38 +162,19 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden"
       style={{ backgroundColor: 'var(--color-bg)' }}>
-
-      {/* Decoración: gradiente sutil de fondo (clase CSS, evita repaints inline) */}
       <div className="absolute inset-0 pointer-events-none login-gradient" />
 
-      {/* ── LAYOUT TRES COLUMNAS ── */}
       <div className="relative z-10 flex items-start justify-center gap-8 w-full max-w-5xl px-6">
-
-        {/* COLUMNA IZQUIERDA — tarjetas */}
-        {hasAccounts && (
+        {cuentas.length > 0 && (
           <div className="w-28 shrink-0 pt-8">{renderColumna(izquierda)}</div>
         )}
 
-        {/* COLUMNA CENTRAL — logo + formulario */}
         <div className="flex flex-col items-center gap-6 w-full max-w-sm">
-
-          {/* Logo grande sin fondo */}
           <div className="flex items-center justify-center">
-            <img src="/logo.png" alt="eMail-IA"
-              className="w-96 object-contain" />
+            <img src="/logo.png" alt="eMail-IA" className="w-96 object-contain" />
           </div>
 
-          {/* Texto de estado */}
-          {needsSetup ? (
-            <div className="text-center space-y-1">
-              <h1 className="text-lg font-bold" style={{ color: 'var(--color-accent)' }}>
-                🆕 Primer acceso
-              </h1>
-              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                Crea una contraseña maestra para proteger tus datos
-              </p>
-            </div>
-          ) : cuentaActiva ? (
+          {cuentaActiva ? (
             <div className="text-center space-y-1">
               <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                 Cuenta seleccionada
@@ -257,80 +183,70 @@ export default function LoginPage() {
                 {cuentaActiva.email}
               </h1>
               <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                Introduce tu contraseña maestra
+                Introduce tu contraseña de correo
               </p>
             </div>
           ) : (
             <div className="text-center space-y-1">
               <h1 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>
-                {hasAccounts ? 'Selecciona un perfil' : '🔐 Inicia sesión'}
+                {cuentas.length > 0 ? 'Selecciona un perfil' : '🆕 Configura tu cuenta'}
               </h1>
               <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                {hasAccounts
-                  ? 'Toca una cuenta de la izquierda o derecha para empezar'
-                  : 'Introduce tu contraseña maestra'}
+                {cuentas.length > 0
+                  ? 'Toca una cuenta de la izquierda/derecha e introduce tu contraseña IMAP'
+                  : 'Añade tu primera cuenta de correo para empezar'}
               </p>
             </div>
           )}
 
-          {/* Input de contraseña */}
-          <input
-            ref={inputRef}
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-            placeholder={needsSetup ? 'Crea una contraseña maestra' : 'Introduce la contraseña maestra'}
-            className="w-full px-4 py-3 rounded-xl border text-sm outline-none
-              transition-all duration-200 placeholder:opacity-50
-              focus:ring-2 focus:ring-offset-2
-              bg-[var(--color-bg)] text-[var(--color-text)]
-              border-[var(--color-border)]
-              focus:border-[var(--color-accent)] focus:ring-[var(--color-accent)]/30"
-            autoComplete="off"
-            disabled={loading}
-          />
+          {cuentaActiva && (
+            <input ref={inputRef} type="password" value={password}
+              onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              placeholder="Contraseña de tu correo"
+              className="w-full px-4 py-3 rounded-xl border text-sm outline-none transition-all duration-200
+                placeholder:opacity-50 focus:ring-2 focus:ring-offset-2
+                bg-[var(--color-bg)] text-[var(--color-text)]
+                border-[var(--color-border)] focus:border-[var(--color-accent)] focus:ring-[var(--color-accent)]/30"
+              autoComplete="off" disabled={loading} />
+          )}
 
-          {/* Botón único (abajo, mismo estilo siempre) */}
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !password}
-            className="w-full py-3 rounded-xl font-bold text-sm
-              transition-all duration-200
-              disabled:opacity-40 disabled:cursor-not-allowed
-              hover:brightness-110 active:scale-[0.98]
-              text-white shadow-lg shadow-blue-500/20"
-            style={{
-              background: 'linear-gradient(135deg, #3B82F6, #2563EB)',
-            }}
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10"
-                    stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor"
-                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                </svg>
-                Procesando...
-              </span>
-            ) : (
-              'Entrar'
-            )}
-          </button>
+          {cuentaActiva && (
+            <button onClick={handleSubmit} disabled={loading || !password}
+              className="w-full py-3 rounded-xl font-bold text-sm transition-all duration-200
+                disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 active:scale-[0.98]
+                text-white shadow-lg shadow-blue-500/20"
+              style={{ background: 'linear-gradient(135deg, #3B82F6, #2563EB)' }}>
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  Verificando IMAP...
+                </span>
+              ) : 'Entrar'}
+            </button>
+          )}
 
-          {/* Status */}
+          {!cuentaActiva && cuentas.length === 0 && (
+            <button onClick={() => setShowSetupModal(true)}
+              className="w-full py-3 rounded-xl font-bold text-sm transition-all duration-200
+                hover:brightness-110 active:scale-[0.98] text-white shadow-lg shadow-blue-500/20"
+              style={{ background: 'linear-gradient(135deg, #3B82F6, #2563EB)' }}>
+              Añadir cuenta de correo
+            </button>
+          )}
+
           {status && (
             <p className={`text-xs text-center font-medium ${
               status.includes('Error') || status.includes('incorrecta')
-                ? 'text-red-500'
-                : 'text-[var(--color-accent)]'
+                ? 'text-red-500' : 'text-[var(--color-accent)]'
             }`}>
               {status}
             </p>
           )}
 
-          {/* Modo oscuro/claro */}
           <div className="flex items-center gap-2 py-2">
             <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>☾</span>
             <button onClick={toggleMode}
@@ -343,8 +259,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA — tarjetas */}
-        {hasAccounts && (
+        {cuentas.length > 0 && (
           <div className="w-28 shrink-0 pt-8">{renderColumna(derecha)}</div>
         )}
       </div>
