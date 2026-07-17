@@ -47,7 +47,8 @@ emailai:
       client-secret: ${EMAILAI_MICROSOFT_CLIENT_SECRET:}
   security:
     jwt:
-      secret: ${EMAILAI_JWT_SECRET:emailai-local-session-key-2026}
+      # Sin fallback: si no hay EMAILAI_JWT_SECRET, JwtService genera y persiste en data-dir/jwt.key
+      secret: ${EMAILAI_JWT_SECRET:}
       expiration-hours: 24
 
 logging:
