@@ -34,6 +34,10 @@ public class CuentaController {
         this.credentialService = credentialService;
     }
 
+    // El listado es público (sin JWT) porque la página de login necesita mostrar
+    // las cuentas configuradas antes de que el usuario introduzca la contraseña maestra.
+    // CuentaResponse NO incluye passwords ni tokens: solo id, nombre, email, servidor,
+    // puerto, tipoConexion y oauthProvider. Aceptable para app local (solo localhost).
     @GetMapping
     public List<CuentaResponse> listar() {
         return cuentaService.listarTodas().stream().map(this::toResponse).toList();
