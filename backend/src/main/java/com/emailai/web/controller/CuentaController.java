@@ -94,7 +94,7 @@ public class CuentaController {
         } catch (Exception e) {
             String msg = e.getMessage() != null ? e.getMessage() : "";
             if (msg.toUpperCase().contains("AUTHENTICATIONFAILED") || msg.contains("authentication failed")) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "Credenciales IMAP incorrectas. Verifica tu contraseña.", "ok", false));
             }
             log.warn("Error en sync: {}", msg);
