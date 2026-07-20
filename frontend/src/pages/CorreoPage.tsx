@@ -18,18 +18,16 @@ interface Mensaje {
 function htmlSegunCategoria(html: string, categoria?: string): string {
   if (!html) return '';
   if (categoria === 'LEGITIMO') return html; // los legítimos cargan todo
+  // No legítimo: CSP img-src 'none' bloquea TODAS las imágenes (http, data URIs,
+  // CSS background-image) a nivel navegador. Más robusto que quitar <img src> a mano,
+  // que se dejaba las data: y los background-image (por eso seguían viéndose).
+  const csp = '<meta http-equiv="Content-Security-Policy" content="img-src \'none\';">';
   try {
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    doc.querySelectorAll('img[src]').forEach(img => {
-      const src = (img.getAttribute('src') || '').trim();
-      if (/^https?:\/\//i.test(src) || src.startsWith('cid:')) {
-        img.setAttribute('data-src-bloqueado', src); // se conserva la URL por si se reclasifica a LEGITIMO
-        img.removeAttribute('src');
-      }
-    });
-    return doc.body.innerHTML;
+    doc.head.insertAdjacentHTML('afterbegin', csp);
+    return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
   } catch {
-    return html;
+    return csp + html;
   }
 }
 
