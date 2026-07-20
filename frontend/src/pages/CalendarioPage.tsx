@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { eventoApi } from '../api/client';
 import EventoDialog from '../components/EventoDialog';
+import { useAsync } from '../hooks/useAsync';
+import { Spinner, ErrorState } from '../components/StateViews';
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -12,15 +14,13 @@ export default function CalendarioPage() {
   const [today] = useState(() => new Date());
   const [month, setMonth] = useState(today.getMonth());
   const [year, setYear] = useState(today.getFullYear());
-  const [events, setEvents] = useState<string[]>([]);
+  const { data: events, loading, error, reload } = useAsync<string[]>(
+    () => eventoApi.datesWithEvents().then(r => r.data || []), [month, year]
+  );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
 
-  useEffect(() => {
-    eventoApi.datesWithEvents()
-      .then(r => setEvents(r.data || []))
-      .catch(() => {});
-  }, [month, year]);
+  const eventList = events ?? [];
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -46,38 +46,42 @@ export default function CalendarioPage() {
           style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)' }}>▶</button>
       </div>
 
-      <div className="grid grid-cols-7 gap-px">
-        {DAYS.map(d => (
-          <div key={d} className="text-center text-xs font-bold py-1"
-            style={{ color: 'var(--color-text-secondary)' }}>{d}</div>
-        ))}
-        {cells.map((d, i) => {
-          const fs = d ? fechaStr(d) : '';
-          const isToday = fs === todayStr;
-          const hasEvents = events.includes(fs);
-          return (
-            <div key={i} onClick={() => { if (d) { setSelectedDate(fs); setDialogOpen(true); } }}
-              className="min-h-[80px] p-1 text-sm rounded transition-colors cursor-pointer"
-              style={{
-                backgroundColor: d ? (isToday ? '#1a3a5c' : 'var(--color-bg-card)') : 'transparent',
-                border: isToday ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
-                color: d ? 'var(--color-text)' : 'transparent',
-              }}>
-              {d && <span className="font-bold text-xs">{d}</span>}
-              {hasEvents && <div className="w-1.5 h-1.5 rounded-full mt-1"
-                style={{ backgroundColor: 'var(--color-accent)' }} />}
-            </div>
-          );
-        })}
-      </div>
+      {loading ? (
+        <Spinner label="Cargando calendario..." />
+      ) : error ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : (
+        <div className="grid grid-cols-7 gap-px">
+          {DAYS.map(d => (
+            <div key={d} className="text-center text-xs font-bold py-1"
+              style={{ color: 'var(--color-text-secondary)' }}>{d}</div>
+          ))}
+          {cells.map((d, i) => {
+            const fs = d ? fechaStr(d) : '';
+            const isToday = fs === todayStr;
+            const hasEvents = eventList.includes(fs);
+            return (
+              <div key={i} onClick={() => { if (d) { setSelectedDate(fs); setDialogOpen(true); } }}
+                className="min-h-[80px] p-1 text-sm rounded transition-colors cursor-pointer"
+                style={{
+                  backgroundColor: d ? (isToday ? '#1a3a5c' : 'var(--color-bg-card)') : 'transparent',
+                  border: isToday ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
+                  color: d ? 'var(--color-text)' : 'transparent',
+                }}>
+                {d && <span className="font-bold text-xs">{d}</span>}
+                {hasEvents && <div className="w-1.5 h-1.5 rounded-full mt-1"
+                  style={{ backgroundColor: 'var(--color-accent)' }} />}
+              </div>
+            );
+          })}
+        </div>
+      )}
       {/* Dialog para crear evento */}
       <EventoDialog
         open={dialogOpen}
         fecha={selectedDate}
         onClose={() => setDialogOpen(false)}
-        onSaved={() => {
-          eventoApi.datesWithEvents().then(r => setEvents(r.data || [])).catch(() => {});
-        }}
+        onSaved={reload}
       />
     </div>
   );

@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { contactoApi } from '../api/client';
+import { useAsync } from '../hooks/useAsync';
+import { Spinner, EmptyState, ErrorState } from '../components/StateViews';
 
 interface Contacto {
   id: number; nombre: string; email: string; telefono: string;
@@ -7,13 +9,11 @@ interface Contacto {
 
 // CRUD de contactos con datos cifrados (email, teléfono) en backend.
 export default function ContactosPage() {
-  const [contactos, setContactos] = useState<Contacto[]>([]);
+  const { data: contactos, loading, error, reload } = useAsync<Contacto[]>(
+    () => contactoApi.list().then(r => r.data || []), []
+  );
   const [selected, setSelected] = useState<Contacto | null>(null);
   const [form, setForm] = useState({ nombre: '', email: '', telefono: '' });
-
-  useEffect(() => { load(); }, []);
-
-  const load = () => contactoApi.list().then(r => setContactos(r.data)).catch(() => {});
 
   const save = async () => {
     if (selected) {
@@ -23,7 +23,7 @@ export default function ContactosPage() {
     }
     setForm({ nombre: '', email: '', telefono: '' });
     setSelected(null);
-    load();
+    reload();
   };
 
   const edit = (c: Contacto) => {
@@ -34,14 +34,22 @@ export default function ContactosPage() {
   const remove = async (id: number) => {
     await contactoApi.delete(id);
     if (selected?.id === id) { setSelected(null); setForm({ nombre: '', email: '', telefono: '' }); }
-    load();
+    reload();
   };
+
+  const lista = contactos ?? [];
 
   return (
     <div className="flex h-full p-4 gap-4" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* Lista */}
       <div className="w-[300px] shrink-0 space-y-1 overflow-y-auto">
-        {contactos.map(c => (
+        {loading ? (
+          <Spinner label="Cargando contactos..." />
+        ) : error ? (
+          <ErrorState message={error} onRetry={reload} />
+        ) : lista.length === 0 ? (
+          <EmptyState icon="👥" title="Sin contactos" hint="Crea uno en el formulario de la derecha" />
+        ) : lista.map(c => (
           <div key={c.id} onClick={() => edit(c)}
             className="p-2 rounded-lg cursor-pointer text-sm"
             style={{
@@ -52,10 +60,6 @@ export default function ContactosPage() {
             <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{c.email}</div>
           </div>
         ))}
-        {contactos.length === 0 && (
-          <p className="text-xs text-center" style={{ color: 'var(--color-text-secondary)' }}>
-            Sin contactos</p>
-        )}
       </div>
 
       {/* Formulario */}
