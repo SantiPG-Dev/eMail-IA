@@ -10,6 +10,10 @@ import * as http from 'http';
 // o si no, sirve el build estático desde el backend embeebido.
 
 process.env.ELECTRON_ENABLE_STACK_DUMPING = 'false';
+// silencia logs internos de Chromium que ensucian la consola en desarrollo
+// (ej. "[ERROR:debug_utils.cc] Hit debug scenario: 4" al cargar iframes srcdoc/about:blank).
+// log-level=3 => solo se muestran mensajes FATAL. No afecta a la app.
+app.commandLine.appendSwitch('log-level', '3');
 
 const BACKEND_PORT = 8420;
 const HEALTH_URL = `http://localhost:${BACKEND_PORT}/health`;
