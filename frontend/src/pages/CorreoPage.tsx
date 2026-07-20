@@ -270,7 +270,7 @@ export default function CorreoPage() {
               {selected.html ? (
                 // allow-same-origin carga los <link>/estilos del correo;
                 // SIN allow-scripts => los scripts del correo no ejecutan (sigue siendo seguro).
-                <iframe srcDoc={htmlSegunCategoria(selected.html, selected.categoria)} className="w-full h-full border-0" title="Cuerpo" sandbox="allow-same-origin" />
+                <iframe key={selected.id + ':' + (selected.categoria || 'x')} srcDoc={htmlSegunCategoria(selected.html, selected.categoria)} className="w-full h-full border-0" title="Cuerpo" sandbox="allow-same-origin" />
               ) : (
                 <pre className="text-sm whitespace-pre-wrap font-sans" style={{ color: 'var(--color-text)' }}>
                   {selected.cuerpo}</pre>

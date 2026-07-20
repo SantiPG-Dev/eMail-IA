@@ -312,6 +312,12 @@ public class MailService {
                 mensaje.setCategoria("LEGITIMO");
                 return mensaje;
             }
+            if (!spamIaService.modeloExiste(mensaje.getCuentaHash())) {
+                // Sin modelo entrenado: no se puede clasificar -> indeterminado.
+                // (anti-tracking: los DESCONOCIDO no cargan imágenes remotas)
+                mensaje.setCategoria("DESCONOCIDO");
+                return mensaje;
+            }
             SpamIaService.ClaseCorreo clase =
                     spamIaService.clasificar(mensaje.getCuentaHash(), mensaje);
             mensaje.setCategoria(clase.name());

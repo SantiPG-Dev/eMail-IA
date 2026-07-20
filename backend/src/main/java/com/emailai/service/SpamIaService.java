@@ -80,6 +80,11 @@ public class SpamIaService {
         return modelosDir.resolve("modelo_" + cuentaHash + ".model");
     }
 
+    /** ¿Existe modelo entrenado para esta cuenta? */
+    public boolean modeloExiste(String cuentaHash) {
+        return Files.exists(modeloPath(cuentaHash));
+    }
+
     // Entrena o reentrena el modelo Weka de una cuenta
     public void entrenarModelo(String cuentaHash, List<Mensaje> ejemplos) throws Exception {
         if (cuentaHash == null || ejemplos == null || ejemplos.isEmpty()) return;
