@@ -11,6 +11,28 @@ interface Mensaje {
   fechaRecepcion: string; destinatarios?: string;
 }
 
+// Política anti-tracking: SOLO los correos LEGITIMOS cargan imágenes remotas.
+// SPAM / PHISHING / DESCONOCIDO las bloquean (los <img> remotos son web beacons que
+// confirman al remitente que abriste el correo). Al reclasificar (ej. marcar SPAM),
+// cambia selected.categoria y el iframe se re-renderiza sin imágenes -> desaparecen.
+function htmlSegunCategoria(html: string, categoria?: string): string {
+  if (!html) return '';
+  if (categoria === 'LEGITIMO') return html; // los legítimos cargan todo
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('img[src]').forEach(img => {
+      const src = (img.getAttribute('src') || '').trim();
+      if (/^https?:\/\//i.test(src) || src.startsWith('cid:')) {
+        img.setAttribute('data-src-bloqueado', src); // se conserva la URL por si se reclasifica a LEGITIMO
+        img.removeAttribute('src');
+      }
+    });
+    return doc.body.innerHTML;
+  } catch {
+    return html;
+  }
+}
+
 // Página principal de correo: lista de mensajes (split 30/70) con detalle,
 // iframe HTML, panel IA (resumen/sugerir), y acciones (clasificar, borrar, mover).
 export default function CorreoPage() {
@@ -248,7 +270,7 @@ export default function CorreoPage() {
               {selected.html ? (
                 // allow-same-origin carga los <link>/estilos del correo;
                 // SIN allow-scripts => los scripts del correo no ejecutan (sigue siendo seguro).
-                <iframe srcDoc={selected.html} className="w-full h-full border-0" title="Cuerpo" sandbox="allow-same-origin" />
+                <iframe srcDoc={htmlSegunCategoria(selected.html, selected.categoria)} className="w-full h-full border-0" title="Cuerpo" sandbox="allow-same-origin" />
               ) : (
                 <pre className="text-sm whitespace-pre-wrap font-sans" style={{ color: 'var(--color-text)' }}>
                   {selected.cuerpo}</pre>
