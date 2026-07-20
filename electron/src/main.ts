@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, dialog, Tray, Menu, Notification, nativeImage, session } from 'electron';
+import { app, BrowserWindow, shell, dialog, Tray, Menu, Notification, nativeImage, session, ipcMain } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { spawn, execSync, ChildProcess } from 'child_process';
@@ -326,6 +326,11 @@ async function createWindow() {
 }
 
 // ── App lifecycle ────────────────────────────────────────────────
+// ── IPC: purgar caché HTTP (anti-tracking al marcar SPAM) ─────────
+ipcMain.handle('cache:clear', async () => {
+  try { await session.defaultSession.clearCache(); } catch { /* ignore */ }
+});
+
 app.whenReady().then(async () => {
   try {
     // Construir frontend si no existe (lo sirve el backend desde frontend/dist/)

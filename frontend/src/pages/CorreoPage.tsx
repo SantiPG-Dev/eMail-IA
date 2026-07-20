@@ -298,6 +298,7 @@ export default function CorreoPage() {
                   try {
                     const res = await mensajeApi.classify(selected.id, 'SPAM');
                     setSelected(res.data);
+                    window.electronAPI?.clearCache(); // purge del caché HTTP (anti-tracking)
                     await cargarMensajes(carpetaImap);
                   } catch (e: any) {
                     setErrorMensajes(e?.response?.data?.error || e?.message || 'No se pudo clasificar');

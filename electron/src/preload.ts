@@ -18,4 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Información del sistema
   platform: process.platform,
   versions: process.versions,
+
+  // Purgar caché HTTP (anti-tracking al marcar un correo como SPAM)
+  clearCache: () => ipcRenderer.invoke('cache:clear'),
 });
