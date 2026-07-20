@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api, { mensajeApi, cuentaApi } from '../api/client';
 import { useSync } from '../context/SyncContext';
+import { Spinner, EmptyState, ErrorState } from '../components/StateViews';
 import ComposePage from './ComposePage';
 
 interface Mensaje {
@@ -14,7 +15,9 @@ interface Mensaje {
 // iframe HTML, panel IA (resumen/sugerir), y acciones (clasificar, borrar, mover).
 export default function CorreoPage() {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
-  const { triggerSync, refreshMessages, syncing, progress, statusText, refreshKey } = useSync();
+  const [loadingMensajes, setLoadingMensajes] = useState(true);
+  const [errorMensajes, setErrorMensajes] = useState<string | null>(null);
+  const { triggerSync, syncing, statusText, refreshKey } = useSync();
   const [selected, setSelected] = useState<Mensaje | null>(null);
   const [search, setSearch] = useState('');
   const [hasAccounts, setHasAccounts] = useState(false);
@@ -28,40 +31,36 @@ export default function CorreoPage() {
   const carpetaImap = searchParams.get('carpeta') || 'INBOX';
 
   const cargarMensajes = useCallback(async (carpeta?: string) => {
+    setLoadingMensajes(true);
+    setErrorMensajes(null);
     try {
       const cuentas = await cuentaApi.list();
+      setHasAccounts(cuentas.data.length > 0);
       if (cuentas.data.length > 0) {
         const c = cuentas.data[0];
         setCuentaHash(c.email);
         const carpetaActual = carpeta || carpetaImap;
         const res = await mensajeApi.list(c.email, carpetaActual);
         setMensajes(res.data.mensajes || []);
+      } else {
+        setMensajes([]);
       }
-    } catch {}
+    } catch (e: any) {
+      setErrorMensajes(e?.response?.data?.error || e?.message || 'Error al cargar los mensajes');
+    } finally {
+      setLoadingMensajes(false);
+    }
   }, [carpetaImap]);
 
   // Carga inicial y cuando cambia la carpeta
   useEffect(() => {
-    cuentaApi.list().then(r => {
-      setHasAccounts(r.data.length > 0);
-      if (r.data.length > 0) {
-        const c = r.data[0];
-        setCuentaHash(c.email);
-        mensajeApi.list(c.email, carpetaImap).then(res => setMensajes(res.data.mensajes || [])).catch(() => {});
-      }
-    }).catch(() => {});
-  }, [carpetaImap]);
+    cargarMensajes(carpetaImap);
+  }, [carpetaImap, cargarMensajes]);
 
   // Recargar mensajes cuando SyncContext completa un sync
   useEffect(() => {
-    if (refreshKey > 0) {
-      cuentaApi.list().then(r => {
-        if (r.data.length > 0) {
-          mensajeApi.list(r.data[0].email, carpetaImap).then(res => setMensajes(res.data.mensajes || [])).catch(() => {});
-        }
-      }).catch(() => {});
-    }
-  }, [refreshKey, carpetaImap]);
+    if (refreshKey > 0) cargarMensajes(carpetaImap);
+  }, [refreshKey, cargarMensajes, carpetaImap]);
 
   const sincronizar = async () => {
     await triggerSync();
@@ -70,10 +69,16 @@ export default function CorreoPage() {
 
   const handleSearch = async () => {
     if (!search.trim()) { await cargarMensajes(carpetaImap); return; }
+    setLoadingMensajes(true);
+    setErrorMensajes(null);
     try {
       const res = await mensajeApi.search(cuentaHash, search);
       setMensajes(res.data.mensajes || []);
-    } catch { /* error silencioso */ }
+    } catch (e: any) {
+      setErrorMensajes(e?.response?.data?.error || e?.message || 'Error en la búsqueda');
+    } finally {
+      setLoadingMensajes(false);
+    }
   };
 
   const eliminarMensaje = async () => {
@@ -82,7 +87,9 @@ export default function CorreoPage() {
       await mensajeApi.delete(selected.id);
       setMensajes(prev => prev.filter(m => m.id !== selected.id));
       setSelected(null);
-    } catch { /* error silencioso */ }
+    } catch (e: any) {
+      setErrorMensajes(e?.response?.data?.error || e?.message || 'No se pudo borrar el mensaje');
+    }
   };
 
   const abrirCompose = (mode: 'nuevo' | 'responder' | 'reenviar') => {
@@ -161,14 +168,22 @@ export default function CorreoPage() {
             style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>🔍</button>
         </div>
 
-        {statusText !== 'Inactivo' && (
+        {statusText && statusText !== 'Inactivo' && (
           <p className="text-xs" style={{ color: statusText.includes('Error') ? '#ef4444' : 'var(--color-accent)' }}>
             {statusText}
           </p>
         )}
 
         <div className="flex-1 overflow-y-auto space-y-1">
-          {mensajes.map(m => (
+          {loadingMensajes ? (
+            <Spinner label="Cargando mensajes..." />
+          ) : errorMensajes ? (
+            <ErrorState message={errorMensajes} onRetry={() => cargarMensajes(carpetaImap)} />
+          ) : mensajes.length === 0 ? (
+            <EmptyState icon={hasAccounts ? '📬' : '⚙️'}
+              title={hasAccounts ? 'Bandeja vacía' : 'Sin cuenta configurada'}
+              hint={hasAccounts ? 'Pulsa ↕ para sincronizar tu correo' : 'Añade una cuenta en Configuración'} />
+          ) : mensajes.map(m => (
             <div key={m.id} onClick={() => setSelected(m)}
               className="px-2.5 py-1.5 rounded-lg cursor-pointer text-xs"
               style={{
@@ -181,11 +196,6 @@ export default function CorreoPage() {
               <div className="text-[10px] opacity-60">{m.fechaRecepcion?.slice(0, 10)}</div>
             </div>
           ))}
-          {mensajes.length === 0 && !syncing && (
-            <p className="text-xs text-center mt-4" style={{ color: 'var(--color-text-secondary)' }}>
-              {hasAccounts ? 'Pulsa ⬇ para sincronizar' : 'Añade una cuenta en Configuración'}
-            </p>
-          )}
         </div>
       </div>
 
@@ -265,7 +275,9 @@ export default function CorreoPage() {
                     const res = await mensajeApi.classify(selected.id, 'SPAM');
                     setSelected(res.data);
                     await cargarMensajes(carpetaImap);
-                  } catch {}
+                  } catch (e: any) {
+                    setErrorMensajes(e?.response?.data?.error || e?.message || 'No se pudo clasificar');
+                  }
                 }}
                   className="px-3 py-1.5 text-[10px] font-bold rounded-pill"
                   style={{ backgroundColor: '#ef4444', color: 'white' }}>🚫 SPAM</button>
@@ -275,7 +287,9 @@ export default function CorreoPage() {
                     const res = await mensajeApi.classify(selected.id, 'LEGITIMO');
                     setSelected(res.data);
                     await cargarMensajes(carpetaImap);
-                  } catch {}
+                  } catch (e: any) {
+                    setErrorMensajes(e?.response?.data?.error || e?.message || 'No se pudo clasificar');
+                  }
                 }}
                   className="px-3 py-1.5 text-[10px] font-bold rounded-pill"
                   style={{ backgroundColor: '#22c55e', color: 'white' }}>✅ Legít</button>

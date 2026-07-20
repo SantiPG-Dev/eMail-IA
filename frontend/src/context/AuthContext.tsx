@@ -13,6 +13,7 @@ interface AuthContextType extends AuthState {
   cuentas: Array<{ id: number; email: string; nombre: string }>;
   hayCuentas: boolean;
   statusChecked: boolean;
+  loginError: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -25,6 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }));
   const [cuentas, setCuentas] = useState<Array<{ id: number; email: string; nombre: string }>>([]);
   const [statusChecked, setStatusChecked] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   // Al arrancar: validar token guardado y cargar estado
   useEffect(() => {
@@ -60,13 +62,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setState(s => ({ ...s, loading: true }));
+    setLoginError(null);
     try {
       const res = await api.post('/api/auth/login', { email, masterPassword: password });
       const t = res.data.token;
       localStorage.setItem('emailai_token', t);
       setState({ token: t, isAuthenticated: true, loading: false });
       return true;
-    } catch {
+    } catch (err: any) {
+      // Mostrar el mensaje real del backend (401 contraseña, 404 sin cuenta, 503 IMAP caído...)
+      const msg = err?.response?.data?.error || err?.message || null;
+      setLoginError(msg);
       setState(s => ({ ...s, loading: false }));
       return false;
     }
@@ -82,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{
       ...state, login, logout,
       cuentas, hayCuentas: cuentas.length > 0,
-      statusChecked,
+      statusChecked, loginError,
     }}>
       {children}
     </AuthContext.Provider>

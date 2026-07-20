@@ -74,7 +74,7 @@ function AddPerfilCard({ onClick }: { onClick: () => void }) {
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, hayCuentas, loading: authLoading } = useAuth();
+  const { login, loginError, hayCuentas, loading: authLoading } = useAuth();
   const { mode, toggleMode } = useTheme();
 
   const [password, setPassword] = useState('');
@@ -124,7 +124,7 @@ export default function LoginPage() {
       if (ok) {
         navigate('/', { replace: true });
       } else {
-        setStatus('Contraseña incorrecta. Si tienes 2FA, genera una contraseña específica para apps.');
+        setStatus(loginError || 'No se pudo iniciar sesión. Revisa tu conexión y la contraseña.');
       }
     } catch {
       setStatus('Error de conexión con el servidor');

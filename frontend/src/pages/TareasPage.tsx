@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { tareaApi } from '../api/client';
+import { useAsync } from '../hooks/useAsync';
+import { Spinner, EmptyState, ErrorState } from '../components/StateViews';
 
 interface Tarea {
   id: number; titulo: string; descripcion: string;
@@ -19,26 +21,26 @@ const PRIORIDAD = { ALTA: { bg: '#ff5252', label: 'ALTA' },
                     BAJA: { bg: '#69f0ae', label: 'BAJA' } } as any;
 
 export default function TareasPage() {
-  const [tareas, setTareas] = useState<Tarea[]>([]);
+  const { data: tareas, loading, error, reload } = useAsync<Tarea[]>(
+    () => tareaApi.list().then(r => r.data || []), []
+  );
   const [filter, setFilter] = useState('all');
   const [titulo, setTitulo] = useState('');
-
-  useEffect(() => { tareaApi.list().then(r => setTareas(r.data)).catch(() => {}); }, []);
 
   const add = async () => {
     if (!titulo.trim()) return;
     await tareaApi.create({ titulo, prioridad: 'MEDIA', estado: 'pendiente' });
     setTitulo('');
-    tareaApi.list().then(r => setTareas(r.data));
+    reload();
   };
 
   const toggleEstado = async (t: Tarea) => {
     const nuevoEstado = t.estado === 'completada' ? 'pendiente' : 'completada';
     await tareaApi.update(t.id, { ...t, estado: nuevoEstado });
-    tareaApi.list().then(r => setTareas(r.data));
+    reload();
   };
 
-  const filtered = tareas.filter(t => {
+  const filtered = (tareas ?? []).filter(t => {
     if (filter === 'all') return true;
     if (!t.fechaVencimiento) return false;
     const d = new Date(t.fechaVencimiento);
@@ -82,33 +84,41 @@ export default function TareasPage() {
       </div>
 
       {/* Lista */}
-      <div className="space-y-1">
-        {filtered.map(t => {
-          const prio = PRIORIDAD[t.prioridad] || PRIORIDAD.MEDIA;
-          return (
-            <div key={t.id}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm"
-              style={{
-                backgroundColor: t.estado === 'completada'
-                  ? 'var(--color-bg-elevated)' : 'var(--color-bg-card)',
-                opacity: t.estado === 'completada' ? 0.6 : 1,
-              }}>
-              <input type="checkbox" checked={t.estado === 'completada'}
-                onChange={() => toggleEstado(t)}
-                className="cursor-pointer" />
-              <span className={`flex-1 ${t.estado === 'completada' ? 'line-through' : ''}`}
-                style={{ color: 'var(--color-text)' }}>{t.titulo}</span>
-              <span className="text-xs px-1.5 py-0.5 rounded font-bold"
-                style={{ backgroundColor: prio.bg, color: prio.bg === '#ffca28' ? '#111' : 'white' }}>
-                {prio.label}</span>
-              {t.fechaVencimiento && (
-                <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                  {t.fechaVencimiento}</span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {loading ? (
+        <Spinner label="Cargando tareas..." />
+      ) : error ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon="📝" title="No hay tareas" hint="Añade una arriba para empezar" />
+      ) : (
+        <div className="space-y-1">
+          {filtered.map(t => {
+            const prio = PRIORIDAD[t.prioridad] || PRIORIDAD.MEDIA;
+            return (
+              <div key={t.id}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm"
+                style={{
+                  backgroundColor: t.estado === 'completada'
+                    ? 'var(--color-bg-elevated)' : 'var(--color-bg-card)',
+                  opacity: t.estado === 'completada' ? 0.6 : 1,
+                }}>
+                <input type="checkbox" checked={t.estado === 'completada'}
+                  onChange={() => toggleEstado(t)}
+                  className="cursor-pointer" />
+                <span className={`flex-1 ${t.estado === 'completada' ? 'line-through' : ''}`}
+                  style={{ color: 'var(--color-text)' }}>{t.titulo}</span>
+                <span className="text-xs px-1.5 py-0.5 rounded font-bold"
+                  style={{ backgroundColor: prio.bg, color: prio.bg === '#ffca28' ? '#111' : 'white' }}>
+                  {prio.label}</span>
+                {t.fechaVencimiento && (
+                  <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                    {t.fechaVencimiento}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

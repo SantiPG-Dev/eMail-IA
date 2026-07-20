@@ -53,7 +53,10 @@ public class SpamIaService {
         clases.add("LEGITIMO");
         clases.add("SPAM");
         clases.add("PHISHING");
-        attrClase = new Attribute("clase", clases);
+        // nombre único "@@class@@" para que no colisione con ninguna palabra
+        // del texto. StringToWordVector crea un atributo por palabra; si un correo contiene
+        // "clase", chocaba con el atributo class y Weka lanzaba "Attribute names are not unique".
+        attrClase = new Attribute("@@class@@", clases);
         atributos.add(attrClase);
     }
 
