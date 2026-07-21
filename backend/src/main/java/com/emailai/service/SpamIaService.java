@@ -9,11 +9,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import weka.classifiers.Classifier;
-import weka.classifiers.bayes.NaiveBayes;
+import weka.classifiers.bayes.NaiveBayesMultinomial;
 import weka.classifiers.meta.FilteredClassifier;
 import weka.core.Attribute;
 import weka.core.DenseInstance;
@@ -28,6 +31,8 @@ import com.emailai.domain.entities.Mensaje;
 @Service
 public class SpamIaService {
 
+    private static final Logger log = LoggerFactory.getLogger(SpamIaService.class);
+
     private final Path modelosDir;
     private final Object modelLock = new Object();
 
@@ -37,6 +42,17 @@ public class SpamIaService {
 
     public enum ClaseCorreo {
         LEGITIMO, SPAM, PHISHING
+    }
+
+    // conjunto único de clases válidas. Cualquier etiqueta fuera de
+    // este set hace que setValue(attrClase, ...) lance IllegalArgumentException
+    // (Value not defined for nominal attribute) y envenene todo reentrenamiento.
+    // Centralizado aquí para que MailService valide en la frontera del controller.
+    public static final Set<String> CLASES_VALIDAS =
+            Set.of("LEGITIMO", "SPAM", "PHISHING");
+
+    public static boolean esClaseValida(String c) {
+        return c != null && CLASES_VALIDAS.contains(c.toUpperCase());
     }
 
     public SpamIaService() throws IOException {
@@ -69,7 +85,14 @@ public class SpamIaService {
     private FilteredClassifier crearClasificadorBase() {
         StringToWordVector filter = new StringToWordVector();
         filter.setAttributeIndices("first");
-        Classifier base = new NaiveBayes();
+        // Multinomial NB + TF es el estándar para clasificación de texto
+        // (spam filtering). El NaiveBayes gaussiano sobre conteos crudos de palabras
+        // es la elección incorrecta: asume distribución normal en atributos numéricos
+        // densos, y sobre cuerpo de correo real (HTML, firmas, stopwords) colapsa
+        // asignando casi todo a la clase mayoritaria. Multinomial modeliza directamente
+        // la frecuencia de términos por clase.
+        filter.setTFTransform(true);
+        Classifier base = new NaiveBayesMultinomial();
         FilteredClassifier fc = new FilteredClassifier();
         fc.setFilter(filter);
         fc.setClassifier(base);
@@ -93,6 +116,11 @@ public class SpamIaService {
 
         for (Mensaje m : ejemplos) {
             if (m.getCategoria() == null) continue;
+            // filtrar etiquetas fuera del enum nominal. Una sola fila
+            // inválida haría explotar buildClassifier; la saltamos en vez de
+            // abortar todo el reentrenamiento (dato envenenado por un fetch
+            // antiguo con ?categoria=foo al controller).
+            if (!CLASES_VALIDAS.contains(m.getCategoria().toUpperCase())) continue;
             String texto = (m.getCuerpo() != null ? m.getCuerpo() : "") +
                            " " + (m.getAsunto() != null ? m.getAsunto() : "");
             DenseInstance inst = new DenseInstance(2);
@@ -102,6 +130,13 @@ public class SpamIaService {
         }
 
         if (data.isEmpty()) return;
+
+        // diagnóstico. Sin esto no podemos saber qué composición de
+        // clases ve el modelo (causa raíz de "todo se clasifica como LEGITIMO").
+        int[] hist = new int[attrClase.numValues()];
+        for (int i = 0; i < data.numInstances(); i++) hist[(int) data.instance(i).classValue()]++;
+        log.info("Entrenando modelo Weka cuenta {}: {} instancias, histograma LEGITIMO/SPAM/PHISHING={}",
+                cuentaHash, data.numInstances(), java.util.Arrays.toString(hist));
 
         FilteredClassifier fc = crearClasificadorBase();
         fc.buildClassifier(data);

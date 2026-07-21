@@ -329,6 +329,14 @@ public class MailService {
     }
 
     public Mensaje forzarCategoria(Mensaje mensaje, String categoria) {
+        // validación en la frontera del controller. Cualquier valor
+        // fuera del enum nominal envenena Entrenamiento + Mensaje y hace explotar
+        // todos los reentrenamientos futuros. Rechazar antes de persistir.
+        if (!SpamIaService.esClaseValida(categoria)) {
+            throw new IllegalArgumentException(
+                    "Categoría inválida: " + categoria
+                    + " (válidas: LEGITIMO, SPAM, PHISHING)");
+        }
         mensaje.setCategoria(categoria.toUpperCase());
         Entrenamiento ej = new Entrenamiento();
         ej.setCuentaHash(mensaje.getCuentaHash());
@@ -360,26 +368,34 @@ public class MailService {
                 spamIaService.entrenarModelo(cuentaHash, mensajes);
                 log.info("Modelo reentrenado para cuenta {} con {} ejemplos",
                         cuentaHash, mensajes.size());
+            } else {
+                log.warn("Reentrenamiento omitido para cuenta {}: {} ejemplos (mín 3)",
+                        cuentaHash, mensajes.size());
             }
         } catch (Exception e) {
-            log.error("Error reentrenando modelo: {}", e.getMessage());
+            log.error("Error reentrenando modelo (conEntrenamiento) cuenta {}", cuentaHash, e);
         }
     }
 
     public void reentrenarModelo(String cuentaHash) {
         try {
             var mensajes = mensajeService.listarPorCarpeta(cuentaHash, "INBOX");
+            // antes solo se filtraba DESCONOCIDO; cualquier categoria
+            // fuera del enum (ej. INDETERMINADO de tests, o ?categoria=foo
+            // histórico) hacía explotar setValue. Filtrar por enum válido.
             var entrenamiento = mensajes.stream()
-                    .filter(m -> m.getCategoria() != null
-                            && !"DESCONOCIDO".equals(m.getCategoria()))
+                    .filter(m -> SpamIaService.esClaseValida(m.getCategoria()))
                     .toList();
             if (entrenamiento.size() >= 5) {
                 spamIaService.entrenarModelo(cuentaHash, entrenamiento);
                 log.info("Modelo reentrenado para cuenta {} con {} ejemplos",
                         cuentaHash, entrenamiento.size());
+            } else {
+                log.warn("Reentrenamiento omitido para cuenta {}: {} ejemplos válidos (mín 5)",
+                        cuentaHash, entrenamiento.size());
             }
         } catch (Exception e) {
-            log.error("Error reentrenando modelo: {}", e.getMessage());
+            log.error("Error reentrenando modelo cuenta {}", cuentaHash, e);
         }
     }
 
