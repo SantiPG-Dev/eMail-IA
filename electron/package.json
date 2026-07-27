@@ -2,7 +2,7 @@
   "name": "emailai-electron",
   "version": "1.0.0",
   "description": "eMail-IA Desktop App (Electron wrapper)",
-  "author": "Santiago Pérez Gómez <santiago@example.com>",
+  "author": "Santiago Pérez Gómez <SantiPG-Dev@gmx.com>",
   "homepage": "https://github.com/santipg/eMail-IA",
   "main": "dist/main.js",
   "scripts": {
@@ -11,7 +11,8 @@
     "dev": "npx tsc && electron dist/main.js",
     "dist": "npx tsc && electron-builder",
     "dist:linux": "npx tsc && electron-builder --linux",
-    "dist:dir": "npx tsc && electron-builder --dir"
+    "dist:dir": "npx tsc && electron-builder --dir",
+    "dist:rpm": "bash build-rpm.sh"
   },
   "devDependencies": {
     "electron": "^33.0.0",

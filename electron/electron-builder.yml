@@ -28,12 +28,15 @@ mac:
 
 linux:
   category: Office
-  maintainer: Santiago Pérez Gómez <santiago@example.com>  # cámbialo por tu email real antes de publicar
+  maintainer: Santiago Pérez Gómez <SantiPG-Dev@gmx.com>
   target:
     - target: AppImage
       arch: [x64]
     - target: deb
       arch: [x64]
+  # rpm se construye vía build-rpm.sh + emailai-electron.spec propio.
+  # fpm 1.9.3 (bundled) rompe con rpmbuild moderno: bug builddir/BUILDROOT,
+  # reporta todos los ficheros como "File not found". Spec manual lo evita.
   artifactName: ${name}-${version}-${arch}.${ext}
 
 win:
