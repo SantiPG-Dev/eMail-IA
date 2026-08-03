@@ -1,6 +1,9 @@
 package com.emailai.service;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,19 +57,35 @@ public class SyncSchedulerService {
         }
         estado = "sincronizando";
         List<Cuenta> cuentas = cuentaService.listarTodas();
-        for (Cuenta cuenta : cuentas) {
+        if (!cuentas.isEmpty()) {
+            // pool fijo min(4, n) por ejecución. Suficiente para multi-cuenta sin
+            // saturar IMAP. Si hace falta reuso, inyectar un @Bean TaskExecutor.
+            ExecutorService pool = Executors.newFixedThreadPool(Math.min(4, cuentas.size()));
             try {
-                if (cuenta.getOauthProvider() != null && cuenta.getOauthAccessToken() != null) {
-                    syncOAuth(cuenta);
-                } else if (cuenta.getUsuarioCifrado() != null && cuenta.getPasswordCifrada() != null) {
-                    syncPassword(cuenta);
-                }
-            } catch (Exception e) {
-                log.error("Error sincronizando cuenta {}: {}", cuenta.getEmail(), e.getMessage());
+                CompletableFuture.allOf(
+                        cuentas.stream()
+                                .map(c -> CompletableFuture.runAsync(() -> syncCuenta(c), pool))
+                                .toArray(CompletableFuture[]::new)
+                ).join();
+            } finally {
+                pool.shutdown();
             }
         }
         ultimaSync = java.time.LocalTime.now().toString().substring(0, 5);
         estado = "inactivo";
+    }
+
+    /** Sincroniza una sola cuenta (password u OAuth), aislando sus errores. */
+    private void syncCuenta(Cuenta cuenta) {
+        try {
+            if (cuenta.getOauthProvider() != null && cuenta.getOauthAccessToken() != null) {
+                syncOAuth(cuenta);
+            } else if (cuenta.getUsuarioCifrado() != null && cuenta.getPasswordCifrada() != null) {
+                syncPassword(cuenta);
+            }
+        } catch (Exception e) {
+            log.error("Error sincronizando cuenta {}: {}", cuenta.getEmail(), e.getMessage());
+        }
     }
 
     private void syncPassword(Cuenta cuenta) throws Exception {

@@ -42,15 +42,18 @@ public class MailService {
     private final AiService aiService;
     private final RemitenteConfiableService remitenteService;
     private final EntrenamientoService entrenamientoService;
+    private final int mailTimeoutMs;
 
     public MailService(MensajeService mensajeService, SpamIaService spamIaService,
                        AiService aiService, RemitenteConfiableService remitenteService,
-                       EntrenamientoService entrenamientoService) {
+                       EntrenamientoService entrenamientoService,
+                       @org.springframework.beans.factory.annotation.Value("${emailai.mail.timeout:10000}") int mailTimeoutMs) {
         this.mensajeService = mensajeService;
         this.spamIaService = spamIaService;
         this.aiService = aiService;
         this.remitenteService = remitenteService;
         this.entrenamientoService = entrenamientoService;
+        this.mailTimeoutMs = mailTimeoutMs;
     }
 
     // ── Conexión IMAP/POP3 ──────────────────────────────────────
@@ -69,8 +72,8 @@ public class MailService {
         } else {
             props.put(propPrefix + ".starttls.enable", "true");
         }
-        props.put(propPrefix + ".connectiontimeout", "10000");
-        props.put(propPrefix + ".timeout", "10000");
+        props.put(propPrefix + ".connectiontimeout", String.valueOf(mailTimeoutMs));
+        props.put(propPrefix + ".timeout", String.valueOf(mailTimeoutMs));
 
         // POP3: NO eliminar mensajes del servidor al leerlos
         if ("pop3".equals(protocol)) {
@@ -527,7 +530,7 @@ public class MailService {
     }
 
     // ── Envío SMTP ──────────────────────────────────────────────
-    // Autenticación con STARTTLS, timeout 10s.
+    // Autenticación con STARTTLS, timeout configurable (emailai.mail.timeout).
 
     public boolean enviarCorreo(String smtpHost, int smtpPort, String user, String password,
                                  String to, String cc, String subject, String body) {
@@ -537,8 +540,8 @@ public class MailService {
             props.put("mail.smtp.port", smtpPort);
             props.put("mail.smtp.auth", "true");
             props.put("mail.smtp.starttls.enable", "true");
-            props.put("mail.smtp.connectiontimeout", "10000");
-            props.put("mail.smtp.timeout", "10000");
+            props.put("mail.smtp.connectiontimeout", String.valueOf(mailTimeoutMs));
+            props.put("mail.smtp.timeout", String.valueOf(mailTimeoutMs));
 
             Session session = Session.getInstance(props, new jakarta.mail.Authenticator() {
                 @Override
