@@ -36,6 +36,8 @@ emailai:
     base-url: ${EMAILAI_AI_BASE_URL:http://localhost:1234}  # LM Studio
     model: ${EMAILAI_AI_MODEL:qwen3.5:9b}
     timeout: 30
+  mail:
+    timeout: ${EMAILAI_MAIL_TIMEOUT:10000}  # ms — IMAP/POP3/SMTP connect+read
   todoist:
     api-key: ${EMAILAI_TODOIST_API_KEY:}
   oauth:

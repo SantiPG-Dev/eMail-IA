@@ -63,12 +63,15 @@ public class CuentaController {
         c.setOauthAccessToken(req.oauthAccessToken());
         c.setOauthRefreshToken(req.oauthRefreshToken());
         c.setOauthExpiresAt(req.oauthExpiresAt());
-        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(cuentaService.guardar(c)));
+        CuentaResponse resp = toResponse(cuentaService.guardar(c));
+        log.info("AUDIT cuenta creada email={}", req.email());
+        return ResponseEntity.status(HttpStatus.CREATED).body(resp);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
         cuentaService.eliminar(id);
+        log.info("AUDIT cuenta eliminada id={}", id);
         return ResponseEntity.noContent().build();
     }
 

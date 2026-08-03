@@ -6,11 +6,13 @@ import java.util.Base64;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.time.Duration;
 import java.util.concurrent.TimeoutException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -142,7 +144,7 @@ public class OAuthService {
     public OAuthSession canjearCodigo(String tokenUrl, String clientId, String clientSecret,
                                        String redirectUri, String code, String proveedor) {
         try {
-            RestClient rc = RestClient.create();
+            RestClient rc = restClientConTimeout();
             String body = "grant_type=authorization_code"
                     + "&code=" + code
                     + "&redirect_uri=" + redirectUri
@@ -180,7 +182,7 @@ public class OAuthService {
                     ? GoogleOAuthProvider.PROFILE_URL
                     : MicrosoftOAuthProvider.PROFILE_URL;
 
-            RestClient rc = RestClient.create();
+            RestClient rc = restClientConTimeout();
             String response = rc.get()
                     .uri(profileUrl)
                     .header("Authorization", "Bearer " + accessToken)
@@ -216,7 +218,7 @@ public class OAuthService {
         String clientSecret = "GOOGLE".equalsIgnoreCase(proveedor) ? googleClientSecret : microsoftClientSecret;
 
         try {
-            RestClient rc = RestClient.create();
+            RestClient rc = restClientConTimeout();
             String body = "grant_type=refresh_token"
                     + "&refresh_token=" + refreshToken
                     + "&client_id=" + clientId
@@ -239,6 +241,17 @@ public class OAuthService {
         } catch (Exception e) {
             throw new OAuth2Exception("Error al renovar token OAuth: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * RestClient con connect/read timeout — evita hilos colgados si Google o
+     * Microsoft no responden. AiService y TodoistService ya usan builder+timeout.
+     */
+    private RestClient restClientConTimeout() {
+        var factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(15));
+        return RestClient.builder().requestFactory(factory).build();
     }
 
     /** Resultado del refresco de tokens (sin email). */

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { iaApi, mensajeApi } from '../api/client';
 
 interface ChatMsg {
-  role: 'user' | 'ia';
+  role: 'user' | 'ia' | 'error';
   text: string;
 }
 
@@ -24,8 +24,11 @@ export default function ChatIAPage() {
     try {
       const res = await iaApi.chat(msg);
       setMessages(prev => [...prev, { role: 'ia', text: res.data.respuesta || 'Sin respuesta' }]);
-    } catch {
-      setMessages(prev => [...prev, { role: 'ia', text: 'Error de conexión con la IA.' }]);
+    } catch (e: any) {
+      setMessages(prev => [...prev, {
+        role: 'error',
+        text: e?.response?.data?.error || e?.message || 'Error de conexión con la IA.',
+      }]);
     } finally {
       setTyping(false);
     }
@@ -46,9 +49,9 @@ export default function ChatIAPage() {
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className="max-w-[70%] px-3 py-2 rounded-xl text-sm"
               style={{
-                backgroundColor: m.role === 'user' ? '#01696F' : '#201F1D',
-                color: m.role === 'user' ? 'white' : '#cdccca',
-                border: m.role === 'ia' ? '1px solid #393836' : 'none',
+                backgroundColor: m.role === 'user' ? '#01696F' : m.role === 'error' ? '#3b1414' : '#201F1D',
+                color: m.role === 'error' ? '#fca5a5' : m.role === 'user' ? 'white' : '#cdccca',
+                border: m.role !== 'user' ? `1px solid ${m.role === 'error' ? '#7f1d1d' : '#393836'}` : 'none',
               }}>
               {m.text}
             </div>

@@ -32,6 +32,7 @@ export default function ContactosPage() {
   };
 
   const remove = async (id: number) => {
+    if (!window.confirm('¿Eliminar este contacto?')) return;
     await contactoApi.delete(id);
     if (selected?.id === id) { setSelected(null); setForm({ nombre: '', email: '', telefono: '' }); }
     reload();

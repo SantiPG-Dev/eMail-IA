@@ -8,6 +8,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
@@ -23,8 +24,11 @@ class HealthControllerTest {
     }
 
     @Test
-    void status_200() throws Exception {
+    void status_200_conChecksDeSubsistemas() throws Exception {
         mockMvc.perform(get("/api/status"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.checks.h2").exists())
+                .andExpect(jsonPath("$.checks.lmStudio").exists())
+                .andExpect(jsonPath("$.checks.weka.modelos").exists());
     }
 }
