@@ -2,6 +2,8 @@ package com.emailai.web.controller;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,6 +19,8 @@ import com.emailai.web.dto.MensajeResponse;
 @RestController
 @RequestMapping("/api/mensajes")
 public class MensajeController {
+
+    private static final Logger log = LoggerFactory.getLogger(MensajeController.class);
 
     private final MensajeService mensajeService;
     private final MailService mailService;
@@ -64,6 +68,7 @@ public class MensajeController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         mensajeService.eliminar(id);
+        log.info("AUDIT mensaje borrado (local) id={}", id);
         return ResponseEntity.noContent().build();
     }
 
@@ -149,6 +154,8 @@ public class MensajeController {
         mailService.eliminarDelServidor(host, m.getCuentaHash(), pass,
                 m.getCarpetaImap(), m.getUid(), tipo);
         mensajeService.eliminar(id);
+        log.info("AUDIT mensaje borrado del servidor id={} cuenta={} carpeta={}",
+                id, m.getCuentaHash(), m.getCarpetaImap());
         return "Eliminado";
     }
 

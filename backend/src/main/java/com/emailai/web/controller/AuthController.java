@@ -6,6 +6,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.emailai.domain.entities.Cuenta;
 import com.emailai.security.JwtService;
 import com.emailai.security.SecureSessionManager;
@@ -19,6 +22,8 @@ import com.emailai.web.dto.LoginResponse;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final CuentaService cuentaService;
     private final MailService mailService;
@@ -58,6 +63,7 @@ public class AuthController {
         // Buscar cuenta por email
         Cuenta cuenta = cuentaService.buscarPorEmail(email).orElse(null);
         if (cuenta == null) {
+            log.warn("AUDIT login fail user={} motivo=cuenta-no-existe", email);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "No hay cuenta configurada para " + email));
         }
@@ -76,10 +82,12 @@ public class AuthController {
         } catch (Exception e) {
             String msg = e.getMessage() != null ? e.getMessage() : "";
             if (msg.toUpperCase().contains("AUTHENTICATIONFAILED") || msg.contains("authentication failed")) {
+                log.warn("AUDIT login fail user={} motivo=credenciales", email);
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(Map.of("error", "Contraseña incorrecta para " + email
                                 + ". Si tienes 2FA, genera una contraseña específica para apps."));
             }
+            log.warn("AUDIT login fail user={} motivo=servidor", email);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("error", "No se pudo conectar al servidor " + servidor + ": " + msg));
         }
@@ -92,6 +100,7 @@ public class AuthController {
         sessionManager.iniciarSesion();
         String token = jwtService.generateToken(email);
 
+        log.info("AUDIT login ok user={}", email);
         return ResponseEntity.ok(new LoginResponse(token, email, true));
     }
 
@@ -101,6 +110,7 @@ public class AuthController {
     @PostMapping("/logout")
     public Map<String, String> logout() {
         sessionManager.cerrarSesion();
+        log.info("AUDIT logout");
         return Map.of("mensaje", "Sesión cerrada");
     }
 }
