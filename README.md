@@ -3,6 +3,7 @@
 **Cliente de correo de escritorio con IA que cuida tu privacidad.**
 
 > App independiente (no web) — filtro spam que aprende de ti, asistente IA, calendario y tareas. Todo local y cifrado.
+> **Estado:** desarrollo activo en rama `development` — empaquetado Linux funcional (AppImage/deb/rpm).
 
 ---
 
@@ -52,17 +53,17 @@ eMail-IA/
 | F1 | Backend Spring Boot base | ✅ |
 | F2 | Dominio (JPA + repos + servicios) | ✅ |
 | F3 | REST API + WebSocket | ✅ |
-| F4 | Seguridad (master-pass, OAuth) | ⏳ |
+| F4 | Seguridad (OAuth2, JWT persistente, login IMAP) | ✅ |
 | F5 | Tests backend | ⏳ |
-| F6 | Frontend base (React + Tailwind + temas) | ⏳ |
-| F7 | Frontend completo (replicar vistas) | ⏳ |
+| F6 | Frontend base (React + Tailwind + 16 temas) | ✅ |
+| F7 | Frontend completo (replicar vistas + IA + anti-tracking) | ✅ |
 | F8 | Tests frontend | ✅ |
 | F9 | Electron wrapper | ✅ |
 | F10 | Packaging + CI | ✅ |
 
 ---
 
-## 📦 Cómo ejecutar (próximamente)
+## 📦 Cómo ejecutar
 
 ```bash
 # Desarrollo
@@ -72,6 +73,19 @@ cd frontend && pnpm dev                # Vite :5173 → proxy :8080
 # Desktop (Electron)
 cd electron && pnpm start              # Lanza backend + abre ventana
 ```
+
+---
+
+## 📦 Empaquetado (Linux)
+
+```bash
+cd frontend && pnpm build
+cd backend  && mvn package -DskipTests
+cd electron && npm run dist:linux      # AppImage + .deb
+            && npm run dist:rpm        # .rpm (spec propio)
+```
+
+Artifacts en `electron/release/`: AppImage (~181 MB), `.deb` (~147 MB), `.rpm` (~153 MB).
 
 ---
 
