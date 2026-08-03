@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeContext';
 import { cuentaApi } from '../api/client';
 import AccountForm from '../components/AccountForm';
 import type { AccountFormData } from '../components/AccountForm';
+import { Spinner, EmptyState } from '../components/StateViews';
 
 // Pantalla de configuración con secciones: General, Cuentas, IA y Temas (16 temas).
 type Section = 'general' | 'cuentas' | 'ia' | 'temas';
@@ -53,7 +54,16 @@ export default function ConfigPage() {
   const [section, setSection] = useState<Section>('general');
 
   const [cuentas, setCuentas] = useState<any[]>([]);
+  const [loadingCuentas, setLoadingCuentas] = useState(true);
+  const [errorCuentas, setErrorCuentas] = useState('');
   const [status, setStatus] = useState('');
+
+  // Auto-ocultar el banner de status tras 4s
+  useEffect(() => {
+    if (!status) return;
+    const t = setTimeout(() => setStatus(''), 4000);
+    return () => clearTimeout(t);
+  }, [status]);
 
   const [fuente, setFuente] = useState(() => localStorage.getItem('emailai_font') || 'Segoe UI');
   const [tamano, setTamano] = useState(() => parseInt(localStorage.getItem('emailai_fontsize') || '14'));
@@ -97,26 +107,37 @@ export default function ConfigPage() {
 
   useEffect(() => { cargarCuentas(); }, []);
 
-  const cargarCuentas = () => {
-    cuentaApi.list().then(r => setCuentas(r.data)).catch(() => {});
+  const cargarCuentas = async () => {
+    setLoadingCuentas(true);
+    setErrorCuentas('');
+    try { const r = await cuentaApi.list(); setCuentas(r.data); }
+    catch (e: any) {
+      setErrorCuentas(e?.response?.data?.error || e?.message || 'No se pudieron cargar las cuentas');
+    } finally { setLoadingCuentas(false); }
   };
 
   const handleSave = async (data: AccountFormData) => {
     const p = PROVIDERS_LOOKUP[data.proveedor] || PROVIDERS_LOOKUP.other;
     const conn = data.tipoConexion === 'IMAP' ? p.imap : p.pop3;
 
-    await cuentaApi.create({
-      nombre: data.nombre, email: data.email, servidor: conn.host, puerto: conn.port,
-      usuario: data.email, password: data.password, tipoConexion: data.tipoConexion,
-      esDefault: cuentas.length === 0, oauthProvider: null,
-      oauthAccessToken: null, oauthRefreshToken: null, oauthExpiresAt: null,
-    });
-    cargarCuentas();
+    try {
+      await cuentaApi.create({
+        nombre: data.nombre, email: data.email, servidor: conn.host, puerto: conn.port,
+        usuario: data.email, password: data.password, tipoConexion: data.tipoConexion,
+        esDefault: cuentas.length === 0, oauthProvider: null,
+        oauthAccessToken: null, oauthRefreshToken: null, oauthExpiresAt: null,
+      });
+      setStatus('✅ Cuenta añadida correctamente');
+      cargarCuentas();
+    } catch (e: any) {
+      setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo crear la cuenta'));
+    }
   };
 
   const eliminarCuenta = async (id: number) => {
-    try { await cuentaApi.delete(id); cargarCuentas(); }
-    catch { setStatus('Error al eliminar'); }
+    if (!window.confirm('¿Eliminar la cuenta? Se borrarán sus correos sincronizados.')) return;
+    try { await cuentaApi.delete(id); setStatus('✅ Cuenta eliminada'); cargarCuentas(); }
+    catch (e: any) { setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo eliminar')); }
   };
 
   const aplicarFuente = (f: string, s: number) => {
@@ -151,6 +172,18 @@ export default function ConfigPage() {
 
       {/* Contenido */}
       <div className="flex-1 p-4 overflow-auto space-y-6">
+        {/* Banner de status (éxito/error) — se auto-oculta a los 4s */}
+        {status && (
+          <div className="px-3 py-2 rounded-lg text-xs font-medium"
+            style={{
+              backgroundColor: status.startsWith('Error') ? '#3b1414' : '#0f2e1f',
+              color: status.startsWith('Error') ? '#fca5a5' : '#86efac',
+              border: `1px solid ${status.startsWith('Error') ? '#7f1d1d' : '#166534'}`,
+            }}>
+            {status}
+          </div>
+        )}
+
         {/* ── General ── */}
         {section === 'general' && (
           <div className="space-y-4">
@@ -166,7 +199,11 @@ export default function ConfigPage() {
         {section === 'cuentas' && (
           <div className="space-y-6">
             <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>Cuentas de correo</h3>
-            {cuentas.length > 0 && (
+            {loadingCuentas ? (
+              <Spinner label="Cargando cuentas..." />
+            ) : errorCuentas ? (
+              <p className="text-sm" style={{ color: '#ef4444' }}>{errorCuentas}</p>
+            ) : cuentas.length > 0 ? (
               <div className="p-3 rounded-lg border-l-4"
                 style={{ backgroundColor: 'var(--color-bg-card)', borderColor: 'var(--color-accent-selected)' }}>
                 <p className="text-xs font-bold mb-2" style={{ color: 'var(--color-text)' }}>Cuentas configuradas</p>
@@ -186,6 +223,8 @@ export default function ConfigPage() {
                   ))}
                 </div>
               </div>
+            ) : (
+              <EmptyState icon="📬" title="Sin cuentas configuradas" hint="Añade tu primera cuenta en el formulario de abajo" />
             )}
             <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-card)' }}>
               <p className="text-sm font-bold mb-3" style={{ color: 'var(--color-text)' }}>Añadir cuenta</p>

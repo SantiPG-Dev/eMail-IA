@@ -19,11 +19,16 @@ export default function ComposePage({ mode, to, subject, body, onClose }: Props)
   const [sending, setSending] = useState(false);
 
   const enviar = async () => {
-    if (!para || !asunto) { setStatus('Para y Asunto son obligatorios'); return; }
+    const emails = para.split(',').map(s => s.trim()).filter(Boolean);
+    const emailOk = emails.length > 0 && emails.every(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    if (!emailOk || !asunto.trim()) {
+      setStatus('Revisa «Para» (email válido) y «Asunto»');
+      return;
+    }
     setSending(true);
     setStatus('Enviando...');
     try {
-      const res = await enviarApi.send({ para, cc, asunto, cuerpo });
+      const res = await enviarApi.send({ para: emails.join(', '), cc, asunto: asunto.trim(), cuerpo });
       if (res.data.ok) {
         setStatus('✅ Enviado correctamente');
         setTimeout(() => onClose(), 1500);

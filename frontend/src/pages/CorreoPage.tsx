@@ -103,6 +103,7 @@ export default function CorreoPage() {
 
   const eliminarMensaje = async () => {
     if (!selected) return;
+    if (!window.confirm('¿Borrar el mensaje seleccionado?')) return;
     try {
       await mensajeApi.delete(selected.id);
       setMensajes(prev => prev.filter(m => m.id !== selected.id));
