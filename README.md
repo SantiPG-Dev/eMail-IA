@@ -3,7 +3,7 @@
 **Cliente de correo de escritorio con IA que cuida tu privacidad.**
 
 > App independiente (no web) — filtro spam que aprende de ti, asistente IA, calendario y tareas. Todo local y cifrado.
-> **Estado:** desarrollo activo en rama `development` — empaquetado Linux funcional (AppImage/deb/rpm).
+> **Estado:** **Release 1.0.0 empaquetada en Fedora 44** (AppImage + RPM + deb). Desarrollo en rama `development`.
 
 ---
 
@@ -76,16 +76,25 @@ cd electron && pnpm start              # Lanza backend + abre ventana
 
 ---
 
-## 📦 Empaquetado (Linux)
+## 📦 Empaquetado 1.0.0 (Linux / Fedora)
+
+Pipeline unificado (backend + frontend + electron TS):
 
 ```bash
-cd frontend && pnpm build
-cd backend  && mvn package -DskipTests
-cd electron && npm run dist:linux      # AppImage + .deb
-            && npm run dist:rpm        # .rpm (spec propio)
+./scripts/build-package.sh --skip-tests    # JAR 1.0.0 + frontend dist + electron dist
+cd electron && npx electron-builder build --linux   # AppImage + .deb
+             && bash build-rpm.sh                  # .rpm (spec propio, rpmbuild nativo)
 ```
 
-Artifacts en `electron/release/`: AppImage (~181 MB), `.deb` (~147 MB), `.rpm` (~153 MB).
+Artefactos en `electron/release/`:
+
+| Artefacto | Tamaño | Uso |
+|---|---|---|
+| `emailai-electron-1.0.0-x86_64.AppImage` | ~181 MB | **Recomendado** — `chmod +x` y ejecutar. Universal, sin instalar. |
+| `rpm/RPMS/x86_64/emailai-electron-1.0.0-1.fc44.x86_64.rpm` | ~153 MB | Fedora: `sudo dnf install …rpm` (resuelve `java-21-openjdk` + deps Electron). |
+| `emailai-electron-1.0.0-amd64.deb` | ~147 MB | Debian/Ubuntu (requiere `libxcrypt-compat` en sistemas nuevos). |
+
+El backend JAR (`emailai-backend-1.0.0.jar`, 85 MB) se embebe en `resources/backend.jar` dentro de cada artefacto. Requiere Java 21 en el PATH en tiempo de ejecución.
 
 ---
 

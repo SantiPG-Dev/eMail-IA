@@ -15,7 +15,7 @@ icon: assets/icon-256.png
 # sin JRE empaquetado — la app asume Java 21 en el PATH del sistema.
 # Para distribuir sin dependencia de Java, bundle JRE con jlink y descomentar la entrada jre/.
 extraResources:
-  - from: ../backend/target/emailai-backend-1.0-SNAPSHOT.jar
+  - from: ../backend/target/emailai-backend-1.0.0.jar
     to: backend.jar
 
 mac:
