@@ -74,7 +74,7 @@ function findJar(): string | null {
   if (jarArg) return jarArg.slice('--jar='.length);
 
   // 2) Desarrollo: JAR compilado en backend/target/
-  const devJar = path.resolve(__dirname, '..', '..', 'backend', 'target', 'emailai-backend-1.0-SNAPSHOT.jar');
+  const devJar = path.resolve(__dirname, '..', '..', 'backend', 'target', 'emailai-backend-1.0.0.jar');
   if (fs.existsSync(devJar)) return devJar;
 
   // 3) Producción: JAR en resources/
@@ -235,7 +235,6 @@ function showSplash() {
 
 // ── Ventana principal ────────────────────────────────────────────
 async function createWindow() {
-  // Limpiar TODO: caché, storage, cookies, service workers
   await session.defaultSession.clearCache().catch(() => {});
   await session.defaultSession.clearStorageData({
     storages: ['localstorage', 'serviceworkers', 'cachestorage']

@@ -18,6 +18,7 @@ Requires:       libXtst
 Requires:       alsa-lib
 Requires:       at-spi2-core
 Requires:       xdg-utils
+Requires:       java-21-openjdk
 
 %description
 eMail-IA Desktop App — Electron wrapper around the eMail-IA Java backend.

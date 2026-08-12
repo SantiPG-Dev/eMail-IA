@@ -15,12 +15,12 @@ echo "=========================================="
 echo "[1/4] Backend..."
 cd "$ROOT_DIR/backend"
 $SKIP_TESTS && mvn clean package -DskipTests -q || mvn clean package -q
-echo "       JAR: backend/target/emailai-backend-1.0-SNAPSHOT.jar"
+echo "       JAR: backend/target/emailai-backend-1.0.0.jar"
 
 echo "[2/4] Frontend..."
 cd "$ROOT_DIR/frontend"
 pnpm install --ignore-scripts --frozen-lockfile -q 2>/dev/null
-pnpm build -q
+pnpm build
 echo "       Build: frontend/dist/"
 
 echo "[3/4] Electron..."
