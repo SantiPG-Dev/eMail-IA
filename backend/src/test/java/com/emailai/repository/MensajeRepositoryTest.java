@@ -1,5 +1,6 @@
 package com.emailai.repository;
 
+import com.emailai.domain.entities.Adjunto;
 import com.emailai.domain.entities.Mensaje;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -73,5 +75,25 @@ class MensajeRepositoryTest {
         assertEquals(2, pagina2.size());
         // Orden descendente: la primera página contiene las fechas más recientes
         assertTrue(pagina1.get(0).getFechaRecepcion().compareTo(pagina1.get(1).getFechaRecepcion()) >= 0);
+    }
+
+    @Test
+    void adjuntos_persistenConCascadeYSeCarganConElMensaje() {
+        Mensaje m = nuevo("u-adj", "hashAdj", "INBOX", "2026-07-05");
+        Adjunto adj = new Adjunto();
+        adj.setNombre("factura.pdf");
+        adj.setMimeType("application/pdf");
+        adj.setTamanoBytes(1234L);
+        adj.setDatos(new byte[]{1, 2, 3, 4});
+        m.addAdjunto(adj);
+        repo.save(m);
+
+        List<Mensaje> res = repo.findByCuentaHashAndCarpetaImapOrderByFechaRecepcionDescIdDesc("hashAdj", "INBOX");
+        assertEquals(1, res.size());
+        Mensaje cargado = res.get(0);
+        assertNotNull(cargado.getAdjuntos());
+        assertEquals(1, cargado.getAdjuntos().size());
+        assertEquals("factura.pdf", cargado.getAdjuntos().get(0).getNombre());
+        assertEquals(1234L, cargado.getAdjuntos().get(0).getTamanoBytes());
     }
 }

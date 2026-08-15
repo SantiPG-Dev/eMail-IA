@@ -2,6 +2,9 @@ package com.emailai.domain.entities;
 
 import jakarta.persistence.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 // Mensaje de correo sincronizado vía IMAP.
 // La unique constraint evita duplicados: mismo UID + cuenta + carpeta.
 // La clasificación (categoria) la asigna SpamIaService con Weka.
@@ -55,7 +58,17 @@ public class Mensaje {
     @Column(name = "fecha_recepcion", nullable = false, columnDefinition = "TEXT")
     private String fechaRecepcion;
 
+    @OneToMany(mappedBy = "mensaje", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Adjunto> adjuntos = new ArrayList<>();
+
     public Mensaje() {}
+
+    public List<Adjunto> getAdjuntos() { return adjuntos; }
+    public void setAdjuntos(List<Adjunto> adjuntos) { this.adjuntos = adjuntos; }
+    public void addAdjunto(Adjunto adjunto) {
+        adjunto.setMensaje(this);
+        this.adjuntos.add(adjunto);
+    }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

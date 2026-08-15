@@ -5,10 +5,14 @@ import { useSync } from '../context/SyncContext';
 import { Spinner, EmptyState, ErrorState } from '../components/StateViews';
 import ComposePage from './ComposePage';
 
+interface Adjunto {
+  id: number; nombre: string; mimeType?: string; tamanoBytes?: number;
+}
+
 interface Mensaje {
   id: number; uid: string; remitente: string; asunto: string;
   cuerpo: string; html: string; categoria: string; prioridad: string;
-  fechaRecepcion: string; destinatarios?: string;
+  fechaRecepcion: string; destinatarios?: string; adjuntos?: Adjunto[];
 }
 
 // Política anti-tracking: SOLO los correos LEGITIMOS cargan imágenes remotas.
@@ -28,6 +32,31 @@ function htmlSegunCategoria(html: string, categoria?: string): string {
     return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
   } catch {
     return csp + html;
+  }
+}
+
+function formatBytes(n?: number): string {
+  if (!n || n <= 0) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// Descarga un adjunto vía API (con el JWT del interceptor) y lo guarda en disco.
+async function descargarAdjunto(mensajeId: number, adj: Adjunto): Promise<void> {
+  try {
+    const res = await mensajeApi.descargarAdjunto(mensajeId, adj.id);
+    const blob = new Blob([res.data]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = adj.nombre || 'adjunto';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err: any) {
+    alert('No se pudo descargar el adjunto: ' + (err?.response?.data?.error || err.message || 'error'));
   }
 }
 
@@ -262,6 +291,25 @@ export default function CorreoPage() {
                   style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>Reenviar</button>
               </div>
             </div>
+
+            {/* Adjuntos */}
+            {selected.adjuntos && selected.adjuntos.length > 0 && (
+              <div className="rounded-lg p-2 flex flex-wrap gap-2"
+                style={{ backgroundColor: 'var(--color-bg-card)' }}>
+                {selected.adjuntos.map(a => (
+                  <button key={a.id} onClick={() => descargarAdjunto(selected.id, a)}
+                    title={`Descargar ${a.nombre}`}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs max-w-full"
+                    style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>
+                    <span aria-hidden>📎</span>
+                    <span className="truncate max-w-[220px]">{a.nombre}</span>
+                    {a.tamanoBytes ? (
+                      <span className="shrink-0 text-[10px] opacity-60">{formatBytes(a.tamanoBytes)}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Cuerpo */}
             <div className="flex-1 overflow-auto rounded-lg p-2"

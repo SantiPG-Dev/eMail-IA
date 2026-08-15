@@ -67,7 +67,9 @@ export const mensajeApi = {
   get: (id: number) => api.get(`/api/mensajes/${id}`),
   delete: (id: number) => api.delete(`/api/mensajes/${id}`),
   classify: (id: number, categoria?: string) =>
-    api.post(`/api/mensajes/${id}/clasificar${categoria ? `?categoria=${categoria}` : ''}`), 
+    api.post(`/api/mensajes/${id}/clasificar${categoria ? `?categoria=${categoria}` : ''}`),
+  descargarAdjunto: (id: number, adjuntoId: number) =>
+    api.get(`/api/mensajes/${id}/adjuntos/${adjuntoId}`, { responseType: 'blob' }), 
   summarize: (id: number) => api.post(`/api/mensajes/${id}/resumen`),
   suggest: (id: number) => api.post(`/api/mensajes/${id}/sugerir`),
 };
