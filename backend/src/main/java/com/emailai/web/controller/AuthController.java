@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import com.emailai.domain.entities.Cuenta;
 import com.emailai.security.JwtService;
+import com.emailai.security.LoginRateLimiter;
 import com.emailai.security.SecureSessionManager;
 import com.emailai.service.CuentaService;
 import com.emailai.service.MailService;
@@ -29,13 +30,16 @@ public class AuthController {
     private final MailService mailService;
     private final JwtService jwtService;
     private final SecureSessionManager sessionManager;
+    private final LoginRateLimiter rateLimiter;
 
     public AuthController(CuentaService cuentaService, MailService mailService,
-                          JwtService jwtService, SecureSessionManager sessionManager) {
+                          JwtService jwtService, SecureSessionManager sessionManager,
+                          LoginRateLimiter rateLimiter) {
         this.cuentaService = cuentaService;
         this.mailService = mailService;
         this.jwtService = jwtService;
         this.sessionManager = sessionManager;
+        this.rateLimiter = rateLimiter;
     }
 
     /**
@@ -58,6 +62,15 @@ public class AuthController {
         if (email == null || email.isBlank() || password == null || password.isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", "Email y contraseña obligatorios"));
+        }
+
+        // Rate limiting: cada intento abre una conexión IMAP real contra el
+        // servidor de correo; sin límite, un bucle bloquea la cuenta.
+        StringBuilder motivo = new StringBuilder();
+        if (!rateLimiter.permitir(email, motivo)) {
+            log.warn("AUDIT login bloqueado user={} motivo={}", email, motivo);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(Map.of("error", motivo.toString()));
         }
 
         // Buscar cuenta por email
@@ -99,6 +112,7 @@ public class AuthController {
         // Iniciar sesión
         sessionManager.iniciarSesion();
         String token = jwtService.generateToken(email);
+        rateLimiter.reset(email);
 
         log.info("AUDIT login ok user={}", email);
         return ResponseEntity.ok(new LoginResponse(token, email, true));
