@@ -67,6 +67,7 @@ config/
 
 # ------ Mis cosas --------
 ToDo.md
+CHECKLIST-1.0.md
 
 # Backups de BD creados al resetear para testing
 DB.backup-*/
