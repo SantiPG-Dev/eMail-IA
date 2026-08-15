@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.*;
 
 import com.emailai.domain.entities.Cuenta;
 import com.emailai.security.CredentialService;
+import com.emailai.service.CredencialesMailService;
+import com.emailai.service.CredencialesMailService.Credenciales;
 import com.emailai.service.CuentaService;
 import com.emailai.service.MailService;
 import com.emailai.web.dto.CuentaRequest;
@@ -26,12 +28,15 @@ public class CuentaController {
     private final CuentaService cuentaService;
     private final MailService mailService;
     private final CredentialService credentialService;
+    private final CredencialesMailService credencialesMailService;
 
     public CuentaController(CuentaService cuentaService, MailService mailService,
-                            CredentialService credentialService) {
+                            CredentialService credentialService,
+                            CredencialesMailService credencialesMailService) {
         this.cuentaService = cuentaService;
         this.mailService = mailService;
         this.credentialService = credentialService;
+        this.credencialesMailService = credencialesMailService;
     }
 
     // El listado es público (sin JWT) porque la página de login necesita mostrar
@@ -81,15 +86,17 @@ public class CuentaController {
         try {
             Cuenta c = cuentaService.buscarPorId(id);
             String servidor = c.getServidor() != null ? c.getServidor()
-                    : "imap.gmail.com";
-            String user = c.getEmail();
-            String password = credentialService.descifrar(c.getPasswordCifrada());
-            if (c.getOauthProvider() != null) {
-                password = credentialService.descifrar(c.getOauthAccessToken());
-            }
+                    : (c.getOauthProvider() != null ? hostOAuth(c) : "imap.gmail.com");
             String tipoConexion = c.getTipoConexion() != null ? c.getTipoConexion() : "IMAP";
-            var resultado = mailService.sincronizarTodo(servidor, user, password, c.getEmail(),
-                    limite, tipoConexion);
+
+            Credenciales cred = credencialesMailService.resolver(c);
+            if (cred == null) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "error", "La cuenta no tiene credenciales válidas (re-autentica OAuth o configura password)",
+                    "ok", false));
+            }
+            var resultado = mailService.sincronizarTodo(servidor, cred.user(), cred.secret(), c.getEmail(),
+                    limite, tipoConexion, cred.esOAuth());
             return ResponseEntity.ok(resultado);
         } catch (com.emailai.common.NotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -99,12 +106,18 @@ public class CuentaController {
             log.warn("Error en sync (detalle): {}", msg, e);  // LOG COMPLETO con stacktrace
             if (msg.toUpperCase().contains("AUTHENTICATIONFAILED") || msg.contains("authentication failed")) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("error", "El servidor de correo rechazó las credenciales. Si tienes 2FA activado, genera una contraseña específica para apps desde la web de GMX.", "ok", false));
+                    .body(Map.of("error", "El servidor de correo rechazó las credenciales. Si tienes 2FA activado, genera una contraseña específica para apps desde la web de GMX.", "ok", false));
             }
             log.warn("Error en sync: {}", msg);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Error de conexión: " + msg, "ok", false));
         }
+    }
+
+    /** Host IMAP para cuentas OAuth (Gmail/Microsoft). */
+    private String hostOAuth(Cuenta c) {
+        return "MICROSOFT".equals(c.getOauthProvider())
+                ? "outlook.office365.com" : "imap.gmail.com";
     }
 
     /**
@@ -116,16 +129,17 @@ public class CuentaController {
         try {
             Cuenta c = cuentaService.buscarPorId(id);
             String servidor = c.getServidor() != null ? c.getServidor()
-                    : (c.getEmail() != null && c.getEmail().contains("outlook")
-                        ? "outlook.office365.com" : "imap.gmail.com");
-            String user = c.getEmail();
-            String password = credentialService.descifrar(c.getPasswordCifrada());
-            if (c.getOauthProvider() != null && c.getOauthAccessToken() != null) {
-                password = credentialService.descifrar(c.getOauthAccessToken());
-            }
-
+                    : (c.getOauthProvider() != null ? hostOAuth(c)
+                        : (c.getEmail() != null && c.getEmail().contains("outlook")
+                            ? "outlook.office365.com" : "imap.gmail.com"));
             String tipoConexion = c.getTipoConexion() != null ? c.getTipoConexion() : "IMAP";
-            var carpetas = mailService.listarCarpetas(servidor, user, password, tipoConexion);
+
+            Credenciales cred = credencialesMailService.resolver(c);
+            if (cred == null) {
+                return carpetasPorDefecto();
+            }
+            var carpetas = mailService.listarCarpetas(servidor, cred.user(), cred.secret(),
+                    tipoConexion, cred.esOAuth());
             return carpetas.stream()
                     .map(nombre -> Map.<String, Object>of(
                         "nombre", nombre,
@@ -135,11 +149,16 @@ public class CuentaController {
                     .toList();
         } catch (Exception e) {
             log.warn("No se pudieron listar carpetas IMAP: {}", e.getMessage());
-            return List.of(
-                Map.<String, Object>of("nombre", "INBOX", "mensajes", 0, "noLeidos", 0),
-                Map.<String, Object>of("nombre", "Sent", "mensajes", 0, "noLeidos", 0)
-            );
+            return carpetasPorDefecto();
         }
+    }
+
+    /** Carpetas de respaldo si no se puede conectar al servidor. */
+    private List<Map<String, Object>> carpetasPorDefecto() {
+        return List.of(
+            Map.<String, Object>of("nombre", "INBOX", "mensajes", 0, "noLeidos", 0),
+            Map.<String, Object>of("nombre", "Sent", "mensajes", 0, "noLeidos", 0)
+        );
     }
 
     private CuentaResponse toResponse(Cuenta c) {

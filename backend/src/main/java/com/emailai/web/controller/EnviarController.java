@@ -5,7 +5,8 @@ import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import com.emailai.security.CredentialService;
+import com.emailai.service.CredencialesMailService;
+import com.emailai.service.CredencialesMailService.Credenciales;
 import com.emailai.service.CuentaService;
 import com.emailai.service.MailService;
 
@@ -16,19 +17,19 @@ public class EnviarController {
 
     private final MailService mailService;
     private final CuentaService cuentaService;
-    private final CredentialService credentialService;
+    private final CredencialesMailService credencialesMailService;
 
     public EnviarController(MailService mailService, CuentaService cuentaService,
-                            CredentialService credentialService) {
+                            CredencialesMailService credencialesMailService) {
         this.mailService = mailService;
         this.cuentaService = cuentaService;
-        this.credentialService = credentialService;
+        this.credencialesMailService = credencialesMailService;
     }
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> enviar(@RequestBody EnviarRequest req) {
         try {
-            // Obtener credenciales de la cuenta default
+            // Obtener credenciales de la cuenta default (password u OAuth2 con XOAUTH2)
             var cuentaOpt = cuentaService.buscarDefault();
             if (cuentaOpt.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -37,21 +38,30 @@ public class EnviarController {
             }
 
             var cuenta = cuentaOpt.get();
-            String servidor = cuenta.getServidor() != null
-                ? cuenta.getServidor().replace("imap", "smtp")
-                : "smtp.gmail.com";
-            int puerto = servidor.contains("outlook") ? 587 : 465;
-            String user = cuenta.getEmail();
-            String pass = credentialService.descifrar(cuenta.getPasswordCifrada());
-
-            if (pass == null || pass.isBlank()) {
+            Credenciales cred = credencialesMailService.resolver(cuenta);
+            if (cred == null) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "error", "La cuenta no tiene password configurado",
+                    "error", "La cuenta no tiene credenciales válidas (re-autentica OAuth o configura password)",
                     "ok", false));
             }
 
-            boolean ok = mailService.enviarCorreo(servidor, puerto, user, pass,
-                    req.para(), req.cc(), req.asunto(), req.cuerpo());
+            // Host/puerto SMTP según proveedor; sustituye la antigua heurística
+            // replace("imap","smtp") que rompía con outlook (no contiene "imap").
+            String servidor;
+            int puerto;
+            if (cred.esOAuth()) {
+                servidor = "MICROSOFT".equals(cuenta.getOauthProvider())
+                        ? "smtp-mail.office.com" : "smtp.gmail.com";
+                puerto = 587;
+            } else if (cuenta.getServidor() != null && cuenta.getServidor().contains("imap")) {
+                servidor = cuenta.getServidor().replace("imap", "smtp");
+                puerto = 587;
+            } else {
+                servidor = cuenta.getServidor() != null ? cuenta.getServidor() : "smtp.gmail.com";
+                puerto = 587;
+            }
+            boolean ok = mailService.enviarCorreo(servidor, puerto, cred.user(), cred.secret(),
+                    req.para(), req.cc(), req.asunto(), req.cuerpo(), cred.esOAuth());
 
             return ResponseEntity.ok(Map.of(
                 "ok", ok,
