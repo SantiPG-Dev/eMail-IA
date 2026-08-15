@@ -33,6 +33,21 @@ public class OAuthService {
     /** Mapa de states activos (CSRF + anti-replay). */
     public static final ConcurrentHashMap<String, Boolean> ACTIVE_OAUTH_STATES = new ConcurrentHashMap<>();
 
+    /** Estados de un flujo OAuth asíncrono. */
+    public static final String FLUJO_PENDIENTE = "PENDIENTE";
+    public static final String FLUJO_COMPLETADO = "COMPLETADO";
+    public static final String FLUJO_TIMEOUT = "TIMEOUT";
+    public static final String FLUJO_ERROR = "ERROR";
+
+    /** Máximo de flujos terminados retenidos en memoria. */
+    private static final int MAX_FLUJOS_RETENIDOS = 10;
+
+    /** Flujos OAuth en curso o recién terminados, indexados por id. */
+    private final ConcurrentHashMap<String, EstadoFlujo> flujos = new ConcurrentHashMap<>();
+
+    /** Id del flujo con el servidor de callback escuchando (puerto único). */
+    private volatile String flujoActivoId = null;
+
     private final ObjectMapper mapper;
     private final String googleClientId;
     private final String googleClientSecret;
@@ -96,6 +111,91 @@ public class OAuthService {
             case "MICROSOFT" -> iniciarFlujoMicrosoft();
             default -> throw new IllegalArgumentException("Proveedor OAuth no soportado: " + proveedor);
         };
+    }
+
+    // ── Flujo asíncrono (no bloquea hilos Tomcat) ───────────────
+
+    /** Flujo iniciado: id para consultar estado + URL de autorización. */
+    public record FlujoIniciado(String flujoId, String authUrl) {}
+
+    /** Estado de un flujo: PENDIENTE | COMPLETADO | TIMEOUT | ERROR. */
+    public record EstadoFlujo(String estado, OAuthSession session, String error) {}
+
+    /**
+     * Inicia el flujo OAuth de forma asíncrona: arranca el servidor de
+     * callback en un hilo daemon y devuelve inmediatamente el id del flujo
+     * y la URL de autorización. El resultado se consulta con estadoFlujo().
+     *
+     * Solo puede haber un flujo escuchando a la vez (el callback usa un
+     * puerto fijo): si ya hay uno PENDIENTE lanza IllegalStateException.
+     */
+    public synchronized FlujoIniciado iniciarFlujoAsync(String proveedor) {
+        String p = proveedor.toUpperCase();
+        if (!p.equals("GOOGLE") && !p.equals("MICROSOFT")) {
+            throw new IllegalArgumentException("Proveedor OAuth no soportado: " + proveedor);
+        }
+        if (flujoActivoId != null) {
+            EstadoFlujo activo = flujos.get(flujoActivoId);
+            if (activo != null && FLUJO_PENDIENTE.equals(activo.estado())) {
+                throw new IllegalStateException(
+                        "Ya hay un flujo OAuth en curso — espera a que termine o caduque");
+            }
+        }
+
+        depurarFlujosTerminados();
+
+        String flujoId = generarFlujoId();
+        String authUrl = iniciarFlujo(p);  // genera y registra el state
+        flujos.put(flujoId, new EstadoFlujo(FLUJO_PENDIENTE, null, null));
+        flujoActivoId = flujoId;
+
+        Thread hilo = new Thread(() -> ejecutarFlujo(flujoId, p), "oauth-flujo-" + flujoId);
+        hilo.setDaemon(true);
+        hilo.start();
+
+        log.info("Flujo OAuth asíncrono iniciado id={} proveedor={}", flujoId, p);
+        return new FlujoIniciado(flujoId, authUrl);
+    }
+
+    /**
+     * Estado de un flujo. Los tokens solo viajan en COMPLETADO.
+     */
+    public EstadoFlujo estadoFlujo(String flujoId) {
+        EstadoFlujo estado = flujos.get(flujoId);
+        if (estado == null) {
+            throw new IllegalArgumentException("Flujo OAuth desconocido o expirado: " + flujoId);
+        }
+        return estado;
+    }
+
+    /** Ejecuta espera + canje en background y registra el resultado. */
+    private void ejecutarFlujo(String flujoId, String proveedor) {
+        try {
+            OAuthSession session = esperarCallback(proveedor, 130);
+            flujos.put(flujoId, new EstadoFlujo(FLUJO_COMPLETADO, session, null));
+            log.info("Flujo OAuth {} completado para {}", flujoId, session.email());
+        } catch (TimeoutException e) {
+            flujos.put(flujoId, new EstadoFlujo(FLUJO_TIMEOUT, null,
+                    "Tiempo de espera agotado para el callback OAuth"));
+            log.warn("Flujo OAuth {} timeout", flujoId);
+        } catch (Exception e) {
+            flujos.put(flujoId, new EstadoFlujo(FLUJO_ERROR, null, e.getMessage()));
+            log.warn("Flujo OAuth {} error: {}", flujoId, e.getMessage());
+        }
+    }
+
+    /** Id aleatorio de flujo (mismo formato que el state). */
+    private String generarFlujoId() {
+        byte[] bytes = new byte[16];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    /** Si hay demasiados flujos retenidos, borra los terminados más viejos. */
+    private void depurarFlujosTerminados() {
+        if (flujos.size() <= MAX_FLUJOS_RETENIDOS) return;
+        flujos.entrySet().removeIf(e -> !FLUJO_PENDIENTE.equals(e.getValue().estado())
+                && !e.getKey().equals(flujoActivoId));
     }
 
     // ── Callback y canje ────────────────────────────────────────

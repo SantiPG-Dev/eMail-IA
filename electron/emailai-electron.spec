@@ -25,9 +25,9 @@ eMail-IA Desktop App — Electron wrapper around the eMail-IA Java backend.
 Bundled: Electron 33 runtime, app.asar, backend.jar.
 Requires Java 21 on PATH at runtime (JRE not bundled).
 
-# binary-only package. %install copies the prebuilt linux-unpacked dir
-# straight into buildroot — bypasses the fpm 1.9.3 builddir/BUILDROOT nesting bug
-# that makes rpmbuild report every file as "File not found".
+# Paquete solo de binarios. %install copia el linux-unpacked precompilado
+# directamente al buildroot — evita el bug de anidamiento builddir/BUILDROOT
+# de fpm 1.9.3 que hace que rpmbuild reporte todos los ficheros como "File not found".
 %install
 SRC="%{emailai_src}"
 ICON="%{emailai_icon}"

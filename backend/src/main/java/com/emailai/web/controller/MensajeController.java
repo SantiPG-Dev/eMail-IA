@@ -8,7 +8,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.emailai.domain.entities.Mensaje;
-import com.emailai.security.CredentialService;
+import com.emailai.domain.entities.Cuenta;
+import com.emailai.service.CredencialesMailService;
+import com.emailai.service.CredencialesMailService.Credenciales;
 import com.emailai.service.CuentaService;
 import com.emailai.service.MailService;
 import com.emailai.service.MensajeService;
@@ -25,15 +27,15 @@ public class MensajeController {
     private final MensajeService mensajeService;
     private final MailService mailService;
     private final CuentaService cuentaService;
-    private final CredentialService credentialService;
+    private final CredencialesMailService credencialesMailService;
 
     public MensajeController(MensajeService mensajeService, MailService mailService,
                              CuentaService cuentaService,
-                             CredentialService credentialService) {
+                             CredencialesMailService credencialesMailService) {
         this.mensajeService = mensajeService;
         this.mailService = mailService;
         this.cuentaService = cuentaService;
-        this.credentialService = credentialService;
+        this.credencialesMailService = credencialesMailService;
     }
 
     @GetMapping
@@ -112,63 +114,59 @@ public class MensajeController {
 
     // ── Acciones IMAP ───────────────────────────────────────────
 
-    private String getPasswordFromCuenta(String cuentaHash) {
-        try {
-            var cuenta = cuentaService.buscarPorEmail(cuentaHash);
-            if (cuenta.isPresent()) {
-                String pass = credentialService.descifrar(cuenta.get().getPasswordCifrada());
-                if (pass != null && !pass.isBlank()) return pass;
-                String token = credentialService.descifrar(cuenta.get().getOauthAccessToken());
-                if (token != null && !token.isBlank()) return token;
-            }
-        } catch (Exception ignored) {}
-        return cuentaHash;
-    }
+    /**
+     * Resuelve host + credenciales (password u OAuth2 con refresh) de la
+     * cuenta del mensaje. Nunca usa el email como password: si la cuenta
+     * no tiene credenciales válidas, no se toca el servidor.
+     */
+    private record ContextoCuenta(String host, Credenciales cred, String tipoConexion) {}
 
-    private String getImapHost(String cuentaHash) {
+    private ContextoCuenta contextoDe(String cuentaHash) {
         try {
             var cuenta = cuentaService.buscarPorEmail(cuentaHash);
-            if (cuenta.isPresent() && cuenta.get().getServidor() != null)
-                return cuenta.get().getServidor();
-        } catch (Exception ignored) {}
-        return cuentaHash != null && cuentaHash.contains("outlook")
-                ? "outlook.office365.com" : "imap.gmail.com";
-    }
-
-    private String getTipoConexion(String cuentaHash) {
-        try {
-            var cuenta = cuentaService.buscarPorEmail(cuentaHash);
-            if (cuenta.isPresent() && cuenta.get().getTipoConexion() != null)
-                return cuenta.get().getTipoConexion();
-        } catch (Exception ignored) {}
-        return "IMAP";
+            if (cuenta.isEmpty()) return null;
+            Cuenta c = cuenta.get();
+            String host = c.getServidor() != null ? c.getServidor()
+                    : (c.getOauthProvider() != null || cuentaHash.contains("outlook")
+                        ? "outlook.office365.com" : "imap.gmail.com");
+            Credenciales cred = credencialesMailService.resolver(c);
+            String tipo = c.getTipoConexion() != null ? c.getTipoConexion() : "IMAP";
+            return new ContextoCuenta(host, cred, tipo);
+        } catch (Exception e) {
+            log.warn("Error resolviendo cuenta {}: {}", cuentaHash, e.getMessage());
+            return null;
+        }
     }
 
     /** Elimina del servidor (IMAP mueve a papelera, POP3 no aplica). */
     @DeleteMapping("/{id}/servidor")
-    public String eliminarDelServidor(@PathVariable Long id) {
+    public ResponseEntity<String> eliminarDelServidor(@PathVariable Long id) {
         Mensaje m = mensajeService.buscarPorId(id);
-        String pass = getPasswordFromCuenta(m.getCuentaHash());
-        String host = getImapHost(m.getCuentaHash());
-        String tipo = getTipoConexion(m.getCuentaHash());
-        mailService.eliminarDelServidor(host, m.getCuentaHash(), pass,
-                m.getCarpetaImap(), m.getUid(), tipo);
+        ContextoCuenta ctx = contextoDe(m.getCuentaHash());
+        if (ctx == null || ctx.cred() == null) {
+            return ResponseEntity.status(409).body(
+                "La cuenta no tiene credenciales válidas (re-autentica OAuth o configura password)");
+        }
+        mailService.eliminarDelServidor(ctx.host(), ctx.cred().user(), ctx.cred().secret(),
+                m.getCarpetaImap(), m.getUid(), ctx.tipoConexion(), ctx.cred().esOAuth());
         mensajeService.eliminar(id);
         log.info("AUDIT mensaje borrado del servidor id={} cuenta={} carpeta={}",
                 id, m.getCuentaHash(), m.getCarpetaImap());
-        return "Eliminado";
+        return ResponseEntity.ok("Eliminado");
     }
 
     /** Mueve a otra carpeta (POP3 no soportado). */
     @PostMapping("/{id}/mover")
-    public String mover(@PathVariable Long id, @RequestParam String destino) {
+    public ResponseEntity<String> mover(@PathVariable Long id, @RequestParam String destino) {
         Mensaje m = mensajeService.buscarPorId(id);
-        String pass = getPasswordFromCuenta(m.getCuentaHash());
-        String host = getImapHost(m.getCuentaHash());
-        String tipo = getTipoConexion(m.getCuentaHash());
-        mailService.moverACarpeta(host, m.getCuentaHash(), pass,
-                m.getCarpetaImap(), destino, m.getUid(), tipo);
-        return "Movido a " + destino;
+        ContextoCuenta ctx = contextoDe(m.getCuentaHash());
+        if (ctx == null || ctx.cred() == null) {
+            return ResponseEntity.status(409).body(
+                "La cuenta no tiene credenciales válidas (re-autentica OAuth o configura password)");
+        }
+        mailService.moverACarpeta(ctx.host(), ctx.cred().user(), ctx.cred().secret(),
+                m.getCarpetaImap(), destino, m.getUid(), ctx.tipoConexion(), ctx.cred().esOAuth());
+        return ResponseEntity.ok("Movido a " + destino);
     }
 
     private MensajeResponse toResponse(Mensaje m) {

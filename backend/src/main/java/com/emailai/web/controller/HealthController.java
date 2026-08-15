@@ -88,7 +88,7 @@ public class HealthController {
 
     private long contarModelosWeka() {
         if (!Files.exists(MODELOS_DIR)) return 0;
-        // O(n) list del dir. Suficiente — el nº de cuentas es pequeño.
+        // Listar el directorio en O(n); con el nº de cuentas que manejamos va sobrado.
         try (Stream<Path> s = Files.list(MODELOS_DIR)) {
             return s.filter(p -> {
                 String n = p.getFileName().toString();

@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import com.emailai.domain.entities.Cuenta;
 import com.emailai.security.CredentialService;
 import com.emailai.security.SecureSessionManager;
+import com.emailai.service.CredencialesMailService.Credenciales;
 
 // Sincronización automática cada 5 minutos (configurable vía emailai.sync.interval).
 // Soporta cuentas con contraseña y OAuth2.
@@ -30,14 +31,17 @@ public class SyncSchedulerService {
     private final CuentaService cuentaService;
     private final CredentialService credentialService;
     private final SecureSessionManager sessionManager;
+    private final CredencialesMailService credencialesMailService;
 
     public SyncSchedulerService(MailService mailService, CuentaService cuentaService,
                                 CredentialService credentialService,
-                                SecureSessionManager sessionManager) {
+                                SecureSessionManager sessionManager,
+                                CredencialesMailService credencialesMailService) {
         this.mailService = mailService;
         this.cuentaService = cuentaService;
         this.credentialService = credentialService;
         this.sessionManager = sessionManager;
+        this.credencialesMailService = credencialesMailService;
     }
 
     /** Devuelve el estado actual del scheduler. */
@@ -58,8 +62,9 @@ public class SyncSchedulerService {
         estado = "sincronizando";
         List<Cuenta> cuentas = cuentaService.listarTodas();
         if (!cuentas.isEmpty()) {
-            // pool fijo min(4, n) por ejecución. Suficiente para multi-cuenta sin
-            // saturar IMAP. Si hace falta reuso, inyectar un @Bean TaskExecutor.
+            // Pool de min(4, n) hilos por ejecución. Con multi-cuenta no hace
+            // falta más (saturaría IMAP). Si algún día hace falta reuso, meter
+            // un @Bean TaskExecutor.
             ExecutorService pool = Executors.newFixedThreadPool(Math.min(4, cuentas.size()));
             try {
                 CompletableFuture.allOf(
@@ -101,12 +106,18 @@ public class SyncSchedulerService {
     }
 
     private void syncOAuth(Cuenta cuenta) throws Exception {
+        // XOAUTH2: resuelve token (refresca si caducó) y conecta por SASL.
+        Credenciales cred = credencialesMailService.resolver(cuenta);
+        if (cred == null || !cred.esOAuth()) {
+            log.warn("Cuenta OAuth {} sin credenciales válidas — requiere re-autenticación", cuenta.getEmail());
+            return;
+        }
         String servidor = "imap.gmail.com";
         if ("MICROSOFT".equals(cuenta.getOauthProvider())) {
             servidor = "outlook.office365.com";
         }
-        var resultados = mailService.sincronizarTodo(servidor,
-                cuenta.getEmail(), credentialService.descifrar(cuenta.getOauthAccessToken()), cuenta.getEmail());
+        var resultados = mailService.sincronizarTodo(servidor, cred.user(), cred.secret(),
+                cuenta.getEmail(), 300, "IMAP", true);
         log.info("Sincronizadas {} carpetas OAuth para {}", resultados.size(), cuenta.getEmail());
     }
 }

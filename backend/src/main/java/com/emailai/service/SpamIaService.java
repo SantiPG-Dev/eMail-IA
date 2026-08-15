@@ -44,10 +44,9 @@ public class SpamIaService {
         LEGITIMO, SPAM, PHISHING
     }
 
-    // conjunto único de clases válidas. Cualquier etiqueta fuera de
-    // este set hace que setValue(attrClase, ...) lance IllegalArgumentException
-    // (Value not defined for nominal attribute) y envenene todo reentrenamiento.
-    // Centralizado aquí para que MailService valide en la frontera del controller.
+    // Clases válidas para el atributo nominal. Si intentamos setValue con una
+    // etiqueta que no esté aquí, Weka lanza IllegalArgumentException
+    // ("Value not defined for nominal attribute") y se fastidia el reentrenamiento.
     public static final Set<String> CLASES_VALIDAS =
             Set.of("LEGITIMO", "SPAM", "PHISHING");
 
@@ -69,9 +68,9 @@ public class SpamIaService {
         clases.add("LEGITIMO");
         clases.add("SPAM");
         clases.add("PHISHING");
-        // nombre único "@@class@@" para que no colisione con ninguna palabra
-        // del texto. StringToWordVector crea un atributo por palabra; si un correo contiene
-        // "clase", chocaba con el atributo class y Weka lanzaba "Attribute names are not unique".
+        // "@@class@@" no puede colisionar con ninguna palabra real del texto.
+        // StringToWordVector monta un atributo por palabra, y si un correo trae
+        // "clase" chocaba con el atributo class -> "Attribute names are not unique".
         attrClase = new Attribute("@@class@@", clases);
         atributos.add(attrClase);
     }
@@ -85,12 +84,10 @@ public class SpamIaService {
     private FilteredClassifier crearClasificadorBase() {
         StringToWordVector filter = new StringToWordVector();
         filter.setAttributeIndices("first");
-        // Multinomial NB + TF es el estándar para clasificación de texto
-        // (spam filtering). El NaiveBayes gaussiano sobre conteos crudos de palabras
-        // es la elección incorrecta: asume distribución normal en atributos numéricos
-        // densos, y sobre cuerpo de correo real (HTML, firmas, stopwords) colapsa
-        // asignando casi todo a la clase mayoritaria. Multinomial modeliza directamente
-        // la frecuencia de términos por clase.
+        // Multinomial NB + TF va mucho mejor que el gaussiano para texto: el gaussiano
+        // asume distribución normal sobre los conteos y con correos reales (HTML,
+        // firmas, stopwords) tiende a meterlo todo en la clase mayoritaria.
+        // Multinomial modeliza la frecuencia de términos por clase.
         filter.setTFTransform(true);
         Classifier base = new NaiveBayesMultinomial();
         FilteredClassifier fc = new FilteredClassifier();
@@ -116,10 +113,9 @@ public class SpamIaService {
 
         for (Mensaje m : ejemplos) {
             if (m.getCategoria() == null) continue;
-            // filtrar etiquetas fuera del enum nominal. Una sola fila
-            // inválida haría explotar buildClassifier; la saltamos en vez de
-            // abortar todo el reentrenamiento (dato envenenado por un fetch
-            // antiguo con ?categoria=foo al controller).
+            // Fuera del enum nominal haría explotar buildClassifier. Mejor saltarse
+            // la fila que abortar todo el reentrenamiento (puede venir de un
+            // ?categoria=foo histórico en el controller).
             if (!CLASES_VALIDAS.contains(m.getCategoria().toUpperCase())) continue;
             String texto = (m.getCuerpo() != null ? m.getCuerpo() : "") +
                            " " + (m.getAsunto() != null ? m.getAsunto() : "");
@@ -131,8 +127,8 @@ public class SpamIaService {
 
         if (data.isEmpty()) return;
 
-        // diagnóstico. Sin esto no podemos saber qué composición de
-        // clases ve el modelo (causa raíz de "todo se clasifica como LEGITIMO").
+        // Log del histograma para ver cómo queda el reparto de clases; si está
+        // muy desbalanceado el modelo tiende a clasificar todo como LEGITIMO.
         int[] hist = new int[attrClase.numValues()];
         for (int i = 0; i < data.numInstances(); i++) hist[(int) data.instance(i).classValue()]++;
         log.info("Entrenando modelo Weka cuenta {}: {} instancias, histograma LEGITIMO/SPAM/PHISHING={}",

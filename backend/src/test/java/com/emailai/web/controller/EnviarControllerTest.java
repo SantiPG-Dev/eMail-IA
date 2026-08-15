@@ -1,6 +1,7 @@
 package com.emailai.web.controller;
 
 import com.emailai.security.CredentialService;
+import com.emailai.service.CredencialesMailService;
 import com.emailai.service.CuentaService;
 import com.emailai.service.MailService;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ class EnviarControllerTest {
     @MockBean private MailService mailService;
     @MockBean private CuentaService cuentaService;
     @MockBean private CredentialService credentialService;
+    @MockBean private CredencialesMailService credencialesMailService;
 
     @Test
     void enviar_sinCuentaDefault_400() throws Exception {

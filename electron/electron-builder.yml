@@ -12,8 +12,8 @@ files:
 
 icon: assets/icon-256.png
 
-# sin JRE empaquetado — la app asume Java 21 en el PATH del sistema.
-# Para distribuir sin dependencia de Java, bundle JRE con jlink y descomentar la entrada jre/.
+# Sin JRE empaquetado: la app asume Java 21 en el PATH del sistema.
+# Para distribuir sin depender de Java, montar un JRE con jlink y descomentar jre/.
 extraResources:
   - from: ../backend/target/emailai-backend-1.0.0.jar
     to: backend.jar
@@ -34,9 +34,9 @@ linux:
       arch: [x64]
     - target: deb
       arch: [x64]
-  # rpm se construye vía build-rpm.sh + emailai-electron.spec propio.
-  # fpm 1.9.3 (bundled) rompe con rpmbuild moderno: bug builddir/BUILDROOT,
-  # reporta todos los ficheros como "File not found". Spec manual lo evita.
+  # El rpm se monta vía build-rpm.sh + emailai-electron.spec propio.
+  # fpm 1.9.3 (el que trae) se rompe con rpmbuild moderno (bug builddir/BUILDROOT:
+  # reporta todos los ficheros como "File not found"). Con spec a mano se evita.
   artifactName: ${name}-${version}-${arch}.${ext}
 
 win:
