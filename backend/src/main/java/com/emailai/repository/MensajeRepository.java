@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -14,10 +15,12 @@ import com.emailai.domain.entities.Mensaje;
 public interface MensajeRepository extends JpaRepository<Mensaje, Long> {
 
     /** Lista mensajes de una cuenta+carpeta ordenados por fecha descendente. */
+    @EntityGraph(attributePaths = "adjuntos")
     List<Mensaje> findByCuentaHashAndCarpetaImapOrderByFechaRecepcionDescIdDesc(
             String cuentaHash, String carpetaImap);
 
     /** Lista mensajes paginados de una cuenta+carpeta. */
+    @EntityGraph(attributePaths = "adjuntos")
     List<Mensaje> findByCuentaHashAndCarpetaImapOrderByFechaRecepcionDescIdDesc(
             String cuentaHash, String carpetaImap, Pageable pageable);
 

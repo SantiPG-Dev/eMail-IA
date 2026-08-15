@@ -7,13 +7,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.emailai.domain.entities.Adjunto;
 import com.emailai.domain.entities.Mensaje;
 import com.emailai.domain.entities.Cuenta;
+import com.emailai.repository.AdjuntoRepository;
 import com.emailai.service.CredencialesMailService;
 import com.emailai.service.CredencialesMailService.Credenciales;
 import com.emailai.service.CuentaService;
 import com.emailai.service.MailService;
 import com.emailai.service.MensajeService;
+import com.emailai.web.dto.AdjuntoResponse;
 import com.emailai.web.dto.MensajeListResponse;
 import com.emailai.web.dto.MensajeResponse;
 
@@ -28,14 +31,17 @@ public class MensajeController {
     private final MailService mailService;
     private final CuentaService cuentaService;
     private final CredencialesMailService credencialesMailService;
+    private final AdjuntoRepository adjuntoRepository;
 
     public MensajeController(MensajeService mensajeService, MailService mailService,
                              CuentaService cuentaService,
-                             CredencialesMailService credencialesMailService) {
+                             CredencialesMailService credencialesMailService,
+                             AdjuntoRepository adjuntoRepository) {
         this.mensajeService = mensajeService;
         this.mailService = mailService;
         this.cuentaService = cuentaService;
         this.credencialesMailService = credencialesMailService;
+        this.adjuntoRepository = adjuntoRepository;
     }
 
     @GetMapping
@@ -173,6 +179,34 @@ public class MensajeController {
         return new MensajeResponse(m.getId(), m.getUid(), m.getCuentaHash(),
                 m.getCarpetaImap(), m.getRemitente(), m.getDestinatarios(),
                 m.getCc(), m.getCco(), m.getAsunto(), m.getCuerpo(),
-                m.getHtml(), m.getCategoria(), m.getPrioridad(), m.getFechaRecepcion());
+                m.getHtml(), m.getCategoria(), m.getPrioridad(), m.getFechaRecepcion(),
+                m.getAdjuntos() != null
+                    ? m.getAdjuntos().stream().map(this::adjuntoResponse).toList()
+                    : List.of());
+    }
+
+    private AdjuntoResponse adjuntoResponse(Adjunto a) {
+        return new AdjuntoResponse(a.getId(), a.getNombre(), a.getMimeType(), a.getTamanoBytes());
+    }
+
+    /**
+     * Descarga un adjunto (metadatos + bytes). 404 si no pertenece al mensaje.
+     */
+    @GetMapping("/{id}/adjuntos/{adjuntoId}")
+    public ResponseEntity<byte[]> descargarAdjunto(@PathVariable Long id,
+                                                    @PathVariable Long adjuntoId) {
+        var adjuntoOpt = adjuntoRepository.findByIdAndMensajeId(adjuntoId, id);
+        if (adjuntoOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Adjunto adj = adjuntoOpt.get();
+        String nombre = java.net.URLEncoder.encode(adj.getNombre(), java.nio.charset.StandardCharsets.UTF_8)
+                .replace("+", "%20");
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename*=UTF-8''" + nombre)
+                .contentType(adj.getMimeType() != null
+                        ? org.springframework.http.MediaType.parseMediaType(adj.getMimeType())
+                        : org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
+                .body(adj.getDatos());
     }
 }

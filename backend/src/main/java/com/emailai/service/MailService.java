@@ -27,6 +27,7 @@ import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 
 import com.emailai.ai.AiService;
+import com.emailai.domain.entities.Adjunto;
 import com.emailai.domain.entities.Entrenamiento;
 import com.emailai.domain.entities.Mensaje;
 
@@ -37,6 +38,9 @@ import com.emailai.domain.entities.Mensaje;
 public class MailService {
 
     private static final Logger log = LoggerFactory.getLogger(MailService.class);
+
+    /** Máximo tamaño de adjunto: 25 MB (evita BLOBs gigantes en H2). */
+    private static final int MAX_ADJUNTO_BYTES = 25 * 1024 * 1024;
 
     private final MensajeService mensajeService;
     private final SpamIaService spamIaService;
@@ -343,7 +347,37 @@ public class MailService {
                 m.setHtml((String) part.getContent());
             } else if (part.getContent() instanceof MimeMultipart nested) {
                 extraerPartes(nested, m);
+            } else {
+                extraerAdjunto(part, m);
             }
+        }
+    }
+
+    /** Guarda como adjunto toda parte MIME que no sea texto del cuerpo. */
+    private void extraerAdjunto(jakarta.mail.Part part, Mensaje m) {
+        try {
+            String nombre = part.getFileName();
+            if (nombre == null || nombre.isBlank()) return;
+
+            // Límite de 25 MB por adjunto: no petar la H2 con blobs enormes.
+            int tam = part.getSize();
+            if (tam > MAX_ADJUNTO_BYTES) {
+                log.warn("Adjunto '{}' de {} bytes descartado (máx {} MB)",
+                        nombre, tam, MAX_ADJUNTO_BYTES / (1024 * 1024));
+                return;
+            }
+
+            byte[] datos = part.getInputStream().readAllBytes();
+            if (datos.length == 0) return;
+
+            Adjunto adj = new Adjunto();
+            adj.setNombre(nombre);
+            adj.setMimeType(part.getContentType());
+            adj.setTamanoBytes((long) datos.length);
+            adj.setDatos(datos);
+            m.addAdjunto(adj);
+        } catch (Exception e) {
+            log.warn("Error extrayendo adjunto de mensaje: {}", e.getMessage());
         }
     }
 
