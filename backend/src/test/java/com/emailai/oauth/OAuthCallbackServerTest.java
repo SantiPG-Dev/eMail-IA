@@ -23,8 +23,9 @@ class OAuthCallbackServerTest {
 
     private static final HttpClient HTTP = HttpClient.newHttpClient();
 
-    // Puerto efímero: reservar y liberar antes de crear el servidor. Ventana de
-    // carrera mínima, aceptable para test. no tocar prod para exponer getAddress.
+    // Puerto efímero: reservar y liberar antes de levantar el servidor. La
+    // ventana de carrera es mínima y para un test es suficiente (no merece la
+    // pena tocar producción para exponer getAddress).
     private static int puertoLibre() throws Exception {
         try (var s = new java.net.ServerSocket(0)) {
             return s.getLocalPort();

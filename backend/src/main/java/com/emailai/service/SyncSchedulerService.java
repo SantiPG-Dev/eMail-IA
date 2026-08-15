@@ -58,8 +58,9 @@ public class SyncSchedulerService {
         estado = "sincronizando";
         List<Cuenta> cuentas = cuentaService.listarTodas();
         if (!cuentas.isEmpty()) {
-            // pool fijo min(4, n) por ejecución. Suficiente para multi-cuenta sin
-            // saturar IMAP. Si hace falta reuso, inyectar un @Bean TaskExecutor.
+            // Pool de min(4, n) hilos por ejecución. Con multi-cuenta no hace
+            // falta más (saturaría IMAP). Si algún día hace falta reuso, meter
+            // un @Bean TaskExecutor.
             ExecutorService pool = Executors.newFixedThreadPool(Math.min(4, cuentas.size()));
             try {
                 CompletableFuture.allOf(

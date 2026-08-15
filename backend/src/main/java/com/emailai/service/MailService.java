@@ -332,9 +332,8 @@ public class MailService {
     }
 
     public Mensaje forzarCategoria(Mensaje mensaje, String categoria) {
-        // validación en la frontera del controller. Cualquier valor
-        // fuera del enum nominal envenena Entrenamiento + Mensaje y hace explotar
-        // todos los reentrenamientos futuros. Rechazar antes de persistir.
+        // Validar antes de persistir: una categoría fuera del enum se cuela en
+        // Entrenamiento y Mensaje y revienta los reentrenamientos futuros.
         if (!SpamIaService.esClaseValida(categoria)) {
             throw new IllegalArgumentException(
                     "Categoría inválida: " + categoria
@@ -383,9 +382,9 @@ public class MailService {
     public void reentrenarModelo(String cuentaHash) {
         try {
             var mensajes = mensajeService.listarPorCarpeta(cuentaHash, "INBOX");
-            // antes solo se filtraba DESCONOCIDO; cualquier categoria
-            // fuera del enum (ej. INDETERMINADO de tests, o ?categoria=foo
-            // histórico) hacía explotar setValue. Filtrar por enum válido.
+            // Antes solo se quitaba DESCONOCIDO, pero cualquier categoría fuera
+            // del enum (INDETERMINADO de tests, ?categoria=foo histórico...)
+            // hacía explotar el setValue. Mejor filtrar por enum válido.
             var entrenamiento = mensajes.stream()
                     .filter(m -> SpamIaService.esClaseValida(m.getCategoria()))
                     .toList();

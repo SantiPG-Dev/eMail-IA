@@ -267,8 +267,8 @@ export default function CorreoPage() {
             <div className="flex-1 overflow-auto rounded-lg p-2"
               style={{ backgroundColor: 'var(--color-bg-card)' }}>
               {selected.html ? (
-                // allow-same-origin carga los <link>/estilos del correo;
-                // SIN allow-scripts => los scripts del correo no ejecutan (sigue siendo seguro).
+                // allow-same-origin hace que carguen los <link>/estilos del correo;
+                // sin allow-scripts los scripts del correo no se ejecutan (sigue siendo seguro).
                 <iframe key={selected.id + ':' + (selected.categoria || 'x')} srcDoc={htmlSegunCategoria(selected.html, selected.categoria)} className="w-full h-full border-0" title="Cuerpo" sandbox="allow-same-origin" />
               ) : (
                 <pre className="text-sm whitespace-pre-wrap font-sans" style={{ color: 'var(--color-text)' }}>
