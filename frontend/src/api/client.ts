@@ -103,7 +103,8 @@ export const enviarApi = {
 
 export const oauthApi = {
   iniciar: (proveedor: string) => api.post('/api/oauth/iniciar', null, { params: { proveedor } }),
-  esperarCallback: (proveedor: string) => api.post('/api/oauth/callback', null, { params: { proveedor } }),
+  // Polling del estado del flujo: PENDIENTE | COMPLETADO | TIMEOUT | ERROR
+  estado: (flujoId: string) => api.get(`/api/oauth/estado/${flujoId}`),
 };
 
 export const utilApi = {

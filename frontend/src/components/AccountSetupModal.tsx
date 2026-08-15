@@ -59,9 +59,9 @@ export default function AccountSetupModal({ open, onClose }: Props) {
     setStatus('');
 
     try {
-      // 1. Pedir URL de autorización al backend
+      // 1. Pedir URL de autorización al backend (arranca la escucha en background)
       const authRes = await oauthApi.iniciar(proveedor);
-      const authUrl = authRes.data.authUrl;
+      const { flujoId, authUrl } = authRes.data;
 
       // 2. Abrir navegador del sistema
       if (window.electronAPI?.openExternal) {
@@ -70,9 +70,22 @@ export default function AccountSetupModal({ open, onClose }: Props) {
         window.open(authUrl, '_blank');
       }
 
-      // 3. Esperar el callback (el backend captura el redirect)
-      const callbackRes = await oauthApi.esperarCallback(proveedor);
-      const session = callbackRes.data;
+      // 3. Polling del estado hasta COMPLETADO/TIMEOUT/ERROR (máx 2,5 min)
+      let session: any = null;
+      const deadline = Date.now() + 150_000;
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 2000));
+        const res = await oauthApi.estado(flujoId);
+        if (res.status === 200 && res.data.accessToken) {
+          session = res.data;  // COMPLETADO
+          break;
+        }
+        if (res.status === 408 || res.status === 400) {
+          throw new Error(res.data?.error || 'Flujo OAuth fallido');
+        }
+        // PENDIENTE → seguir esperando
+      }
+      if (!session) throw new Error('Tiempo de espera agotado esperando la autorización');
 
       // 4. Crear la cuenta con los tokens OAuth
       const proveedorUpper = proveedor === 'gmail' ? 'GOOGLE' : 'MICROSOFT';
