@@ -1,6 +1,9 @@
 package com.emailai.ai;
 
+import java.time.Duration;
+
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -24,8 +27,14 @@ public class AiService {
             @Value("${emailai.ai.base-url:http://localhost:1234}") String baseUrl,
             @Value("${emailai.ai.model:qwen3.5:9b}") String model,
             @Value("${emailai.ai.timeout:30}") int timeoutSeconds) {
+        // Timeout REAL (connect + read): sin esto, una llamada a LM Studio
+        // colgada bloquea el hilo indefinidamente aunque la config diga 30s.
+        var factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setReadTimeout(Duration.ofSeconds(Math.max(1, timeoutSeconds)));
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
+                .requestFactory(factory)
                 .build();
         this.mapper = new ObjectMapper();
         this.model = model;
