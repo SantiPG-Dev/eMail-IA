@@ -60,13 +60,13 @@ public class CuentaController {
         c.setEmail(req.email());          // cifrado en Fase 4
         c.setServidor(req.servidor());
         c.setPuerto(req.puerto());
-        c.setUsuarioCifrado(req.usuario());
+        c.setUsuarioCifrado(credentialService.cifrar(req.usuario()));
         c.setPasswordCifrada(credentialService.cifrar(req.password()));
         c.setTipoConexion(req.tipoConexion() != null ? req.tipoConexion() : "IMAP");
         c.setEsDefault(req.esDefault());
         c.setOauthProvider(req.oauthProvider());
-        c.setOauthAccessToken(req.oauthAccessToken());
-        c.setOauthRefreshToken(req.oauthRefreshToken());
+        c.setOauthAccessToken(credentialService.cifrar(req.oauthAccessToken()));
+        c.setOauthRefreshToken(credentialService.cifrar(req.oauthRefreshToken()));
         c.setOauthExpiresAt(req.oauthExpiresAt());
         CuentaResponse resp = toResponse(cuentaService.guardar(c));
         log.info("AUDIT cuenta creada email={}", req.email());

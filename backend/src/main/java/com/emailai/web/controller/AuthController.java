@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.emailai.domain.entities.Cuenta;
+import com.emailai.security.CredentialService;
 import com.emailai.security.JwtService;
 import com.emailai.security.LoginRateLimiter;
 import com.emailai.security.SecureSessionManager;
@@ -31,15 +32,17 @@ public class AuthController {
     private final JwtService jwtService;
     private final SecureSessionManager sessionManager;
     private final LoginRateLimiter rateLimiter;
+    private final CredentialService credentialService;
 
     public AuthController(CuentaService cuentaService, MailService mailService,
                           JwtService jwtService, SecureSessionManager sessionManager,
-                          LoginRateLimiter rateLimiter) {
+                          LoginRateLimiter rateLimiter, CredentialService credentialService) {
         this.cuentaService = cuentaService;
         this.mailService = mailService;
         this.jwtService = jwtService;
         this.sessionManager = sessionManager;
         this.rateLimiter = rateLimiter;
+        this.credentialService = credentialService;
     }
 
     /**
@@ -105,8 +108,8 @@ public class AuthController {
                     .body(Map.of("error", "No se pudo conectar al servidor " + servidor + ": " + msg));
         }
 
-        // Actualizar contraseña almacenada (texto plano en H2, que ya está cifrada con cipher.key)
-        cuenta.setPasswordCifrada(password);
+        // Actualizar contraseña almacenada (cifrada con cipher.key)
+        cuenta.setPasswordCifrada(credentialService.cifrar(password));
         cuentaService.guardar(cuenta);
 
         // Iniciar sesión

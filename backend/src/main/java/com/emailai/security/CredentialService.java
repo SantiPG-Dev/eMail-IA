@@ -1,24 +1,107 @@
 package com.emailai.security;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.Arrays;
+import java.util.Base64;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
 import org.springframework.stereotype.Service;
 
-// Credenciales en texto plano dentro de H2 (la BD ya está cifrada con cipher.key AES-256).
-// En una app de escritorio local, la capa extra de cifrado es redundante.
+// Cifrado REAL de credenciales dentro de H2 (bug crítico #6 del checklist 1.0:
+// cifrar()/descifrar() eran la identidad y passwords/tokens OAuth quedaban en
+// texto plano en el .mv.db).
+//
+// Clave: derivada de DB/cipher.key (secreto aleatorio ya existente, el mismo
+// que cifra el archivo H2) — derivada UNA vez y cacheada; el PBKDF2 de 600k
+// iteraciones de SecureStorage sería demasiado lento para cada sync.
+// Formato: "enc1:" + Base64(iv || cifrado+tag GCM). IV aleatorio por cifrado.
+//
+// Migración transparente: descifrar() devuelve tal cual cualquier valor SIN
+// prefijo (dato legacy en claro) — se re-cifra solo la próxima vez que se
+// guarde la cuenta. Así no hace falta migración explícita de la BD.
 @Service
 public class CredentialService {
 
-    private static final Logger log = LoggerFactory.getLogger(CredentialService.class);
+    static final String PREFIJO = "enc1:";
+    private static final String ALGORITMO = "AES/GCM/NoPadding";
+    private static final int LONGITUD_IV = 12;
+    private static final int LONGITUD_TAG = 128;
+    private static final byte[] SAL_DERIVACION =
+            "emailai-credential-service-v1".getBytes(StandardCharsets.UTF_8);
 
-    public CredentialService() {
-    }
+    private static volatile SecretKeySpec claveCacheada;
 
     public String cifrar(String textoPlano) {
-        return textoPlano;
+        if (textoPlano == null || textoPlano.isBlank()) return textoPlano;
+        try {
+            byte[] iv = new byte[LONGITUD_IV];
+            java.security.SecureRandom.getInstanceStrong().nextBytes(iv);
+
+            Cipher cipher = Cipher.getInstance(ALGORITMO);
+            cipher.init(Cipher.ENCRYPT_MODE, clave(), new GCMParameterSpec(LONGITUD_TAG, iv));
+            byte[] cifrado = cipher.doFinal(textoPlano.getBytes(StandardCharsets.UTF_8));
+
+            byte[] resultado = new byte[iv.length + cifrado.length];
+            System.arraycopy(iv, 0, resultado, 0, iv.length);
+            System.arraycopy(cifrado, 0, resultado, iv.length, cifrado.length);
+
+            return PREFIJO + Base64.getEncoder().encodeToString(resultado);
+        } catch (Exception e) {
+            throw new SecurityException("Error al cifrar credencial", e);
+        }
     }
 
     public String descifrar(String textoCifrado) {
-        return textoCifrado;
+        if (textoCifrado == null || textoCifrado.isBlank()) return null;
+        // Legacy: valor en claro sin prefijo → devolver tal cual (migración al vuelo)
+        if (!textoCifrado.startsWith(PREFIJO)) return textoCifrado;
+        try {
+            byte[] datos = Base64.getDecoder().decode(textoCifrado.substring(PREFIJO.length()));
+            if (datos.length < LONGITUD_IV) {
+                throw new IllegalArgumentException("Credencial cifrada con formato inválido");
+            }
+            byte[] iv = Arrays.copyOfRange(datos, 0, LONGITUD_IV);
+            byte[] cuerpo = Arrays.copyOfRange(datos, LONGITUD_IV, datos.length);
+
+            Cipher cipher = Cipher.getInstance(ALGORITMO);
+            cipher.init(Cipher.DECRYPT_MODE, clave(), new GCMParameterSpec(LONGITUD_TAG, iv));
+            return new String(cipher.doFinal(cuerpo), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new SecurityException("Error al descifrar credencial", e);
+        }
+    }
+
+    /** ¿Está el valor cifrado de verdad (prefijo enc1:)? */
+    public boolean estaCifrado(String valor) {
+        return valor != null && valor.startsWith(PREFIJO);
+    }
+
+    /** Clave AES-256 derivada de cipher.key (cacheada tras la primera vez). */
+    private static SecretKeySpec clave() {
+        SecretKeySpec clave = claveCacheada;
+        if (clave != null) return clave;
+        synchronized (CredentialService.class) {
+            if (claveCacheada != null) return claveCacheada;
+            try {
+                Path keyFile = com.emailai.config.DatabaseKeyStore.getKeyFilePath();
+                byte[] material = Files.readAllBytes(keyFile);
+                // Expandir a 256 bits: SHA-256(cipher.key || sal fija)
+                byte[] entrada = new byte[material.length + SAL_DERIVACION.length];
+                System.arraycopy(material, 0, entrada, 0, material.length);
+                System.arraycopy(SAL_DERIVACION, 0, entrada, material.length, SAL_DERIVACION.length);
+                byte[] claveBytes = MessageDigest.getInstance("SHA-256").digest(entrada);
+                claveCacheada = new SecretKeySpec(claveBytes, "AES");
+                return claveCacheada;
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                        "No se pudo derivar la clave de credenciales desde cipher.key", e);
+            }
+        }
     }
 }
