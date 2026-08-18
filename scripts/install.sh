@@ -1,25 +1,19 @@
 #!/usr/bin/env bash
 # ============================================================
-# eMail-IA — Instalación local sin sudo en ~/.eMailAI
+# eMail-IA — Instalador local sin sudo en ~/.eMailAI
 # ============================================================
-# Instala el programa (jar con backend + frontend embebido) en
-# ~/.eMailAI y deja todo el flujo de la app dentro de esa carpeta:
-# BD H2, modelos Weka, jwt.key, logs y configuración OAuth.
+# Instala la aplicación de escritorio (wrapper Electron + backend
+# Java con frontend embebido) y mantiene TODO el flujo de la app
+# dentro de ~/.eMailAI: BD H2, modelos Weka, jwt.key, logs y
+# configuración OAuth. Nada se escribe fuera de:
 #
-# Crea:
-#   ~/.eMailAI/emailai-backend.jar      el programa
-#   ~/.eMailAI/oauth-config.json        credenciales OAuth (opcional)
-#   ~/.eMailAI/DB/                      datos en runtime (se crean solos)
-#   ~/.local/bin/emailai                ejecutable en el PATH
-#   ~/.local/share/applications/        entrada de menú KDE
-#   ~/.local/share/icons/hicolor/       icono
+#   ~/.eMailAI/                          programa + datos
+#   ~/.local/bin/emailai                 ejecutable (PATH)
+#   ~/.local/share/applications/         entrada de menú KDE
+#   ~/.local/share/icons/hicolor/        icono
 #
-# Uso:  bash scripts/install.sh          (desde la raíz del repo)
-# Desinstalar:
-#   emailai stop
-#   rm -rf ~/.eMailAI ~/.local/bin/emailai \
-#          ~/.local/share/applications/emailai.desktop \
-#          ~/.local/share/icons/hicolor/*/apps/emailai.png
+# Uso:          bash scripts/install.sh     (desde la raíz del repo)
+# Desinstalar:  bash scripts/uninstall.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,58 +21,87 @@ APP_DIR="$HOME/.eMailAI"
 BIN_DIR="$HOME/.local/bin"
 JAR_SRC="$ROOT/backend/target/emailai-backend-1.0.0.jar"
 JAR_DST="$APP_DIR/emailai-backend.jar"
+ELECTRON_SRC="$ROOT/electron/release/linux-unpacked"
+ELECTRON_DST="$APP_DIR/app"
 PORT=8420
 
-msg()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
-err()  { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
+ok()   { printf '  \033[1;32m✔\033[0m %s\n' "$*"; }
+pass() { printf '\033[1;32m✔ %s\033[0m\n' "$*"; }
+fail() { printf '\033[1;31m✘ ERROR: %s\033[0m\n' "$*" >&2; exit 1; }
+size() { du -sh "$1" 2>/dev/null | cut -f1; }
 
-# --- 1) Verificar el jar ------------------------------------------------
-if [[ ! -f "$JAR_SRC" ]]; then
-    err "No existe $JAR_SRC
-Compila primero:  cd frontend && pnpm build && cd ../backend && mvn package -DskipTests"
+banner() {
+    printf '\n\033[1;36m══════════════════════════════════════════════════════════════\033[0m\n'
+    printf '\033[1;36m %s\033[0m\n' "$*"
+    printf '\033[1;36m══════════════════════════════════════════════════════════════\033[0m\n'
+}
+
+banner "eMail-IA — Instalador local (sin sudo)"
+printf '  Destino de la instalación: \033[1m%s\033[0m\n' "$APP_DIR"
+printf '  Este script instala: wrapper Electron + backend Java + menú KDE\n\n'
+
+# ── Paso 1: comprobar que está todo compilado ─────────────────────────
+printf '\033[1m[1/6] Comprobando artefactos compilados\033[0m\n'
+[[ -f "$JAR_SRC" ]] || fail "No existe $JAR_SRC
+       Compila primero:  cd frontend && pnpm build && cd ../backend && mvn package -DskipTests"
+ok "Backend:  $JAR_SRC ($(size "$JAR_SRC"))"
+
+[[ -d "$ELECTRON_SRC" ]] || fail "No existe $ELECTRON_SRC
+       Compila primero:  cd electron && npm run dist:dir"
+ok "Electron: $ELECTRON_SRC ($(size "$ELECTRON_SRC"))"
+
+# ── Paso 2: copiar el programa a ~/.eMailAI ───────────────────────────
+printf '\033[1m[2/6] Copiando programa a %s\033[0m\n' "$APP_DIR"
+if [[ -d "$ELECTRON_DST" || -f "$JAR_DST" ]]; then
+    printf '  Ya había una instalación: se actualiza (tus datos en DB/ se conservan)\n'
+    rm -rf "$ELECTRON_DST"
 fi
-msg "Jar encontrado: $JAR_SRC ($(du -h "$JAR_SRC" | cut -f1))"
-
-# --- 2) Copiar programa a ~/.eMailAI -----------------------------------
 mkdir -p "$APP_DIR" "$BIN_DIR"
+printf '  Copiando wrapper Electron (%s)…\n' "$(size "$ELECTRON_SRC")"
+cp -a "$ELECTRON_SRC" "$ELECTRON_DST"
+ok "Wrapper instalado en $ELECTRON_DST"
+printf '  Copiando backend Java (%s)…\n' "$(size "$JAR_SRC")"
 cp -f "$JAR_SRC" "$JAR_DST"
-msg "Programa instalado en $JAR_DST"
+ok "Backend instalado en $JAR_DST"
 
-# --- 3) Config OAuth (si existe en electron/, se reutiliza) ------------
-OAUTH_SRC="$ROOT/electron/oauth-config.json"
-if [[ ! -f "$APP_DIR/oauth-config.json" ]]; then
-    if [[ -f "$OAUTH_SRC" ]]; then
-        cp "$OAUTH_SRC" "$APP_DIR/oauth-config.json"
-        msg "oauth-config.json copiado de electron/"
+# ── Paso 3: configuración OAuth ───────────────────────────────────────
+printf '\033[1m[3/6] Configuración OAuth\033[0m\n'
+OAUTH_DST="$APP_DIR/oauth-config.json"
+if [[ ! -f "$OAUTH_DST" ]]; then
+    if [[ -f "$ROOT/electron/oauth-config.json" ]]; then
+        cp "$ROOT/electron/oauth-config.json" "$OAUTH_DST"
+        ok "Copiado desde electron/oauth-config.json"
     else
-        cat > "$APP_DIR/oauth-config.json" <<'EOF'
+        cat > "$OAUTH_DST" <<'EOF'
 {
   "google": { "clientId": "", "clientSecret": "" },
   "microsoft": { "clientId": "", "clientSecret": "" }
 }
 EOF
-        msg "oauth-config.json plantilla creado (rellénalo para OAuth)"
+        ok "Creada plantilla $OAUTH_DST (rellénala para usar OAuth)"
     fi
 else
-    msg "oauth-config.json existente conservado"
+    ok "Existente conservado: $OAUTH_DST"
 fi
 
-# --- 4) Lanzador ~/.local/bin/emailai ----------------------------------
+# ── Paso 4: lanzador ~/.local/bin/emailai ─────────────────────────────
+printf '\033[1m[4/6] Instalando lanzador en %s/emailai\033[0m\n' "$BIN_DIR"
 cat > "$BIN_DIR/emailai" <<EOF
 #!/usr/bin/env bash
 # eMail-IA — lanzador de la instalación local (~/.eMailAI)
 set -u
 APP_DIR="\$HOME/.eMailAI"
+ELECTRON="\$APP_DIR/app/emailai-electron"
 JAR="\$APP_DIR/emailai-backend.jar"
 PID_FILE="\$APP_DIR/emailai.pid"
 LOG="\$APP_DIR/emailai.log"
 PORT=$PORT
-URL="http://localhost:\$PORT"
-HEALTH="\$URL/health"
+HEALTH="http://localhost:\$PORT/health"
 
 cargar_oauth() {
     local cfg="\$APP_DIR/oauth-config.json"
-    [ -f "\$cfg" ] && command -v python3 >/dev/null || return 0
+    [ -f "\$cfg" ] || return 0
+    command -v python3 >/dev/null || return 0
     eval "\$(python3 - "\$cfg" <<'PY'
 import json, sys
 try:
@@ -103,60 +126,39 @@ corriendo() {
 }
 
 cmd_start() {
-    if corriendo; then
-        echo "eMail-IA ya está corriendo en \$URL"
-    else
-        cargar_oauth
-        cd "\$APP_DIR" || exit 1
-        # setsid: sesión propia → sobrevive al cierre del terminal (fallback a nohup)
-        if command -v setsid >/dev/null; then
-            setsid nohup java -jar "\$JAR" \\
-                --server.port=\$PORT \\
-                --emailai.data-dir=DB \\
-                >> "\$LOG" 2>&1 &
-        else
-            nohup java -jar "\$JAR" \\
-                --server.port=\$PORT \\
-                --emailai.data-dir=DB \\
-                >> "\$LOG" 2>&1 &
-        fi
-        echo \$! > "\$PID_FILE"
-        echo -n "Arrancando eMail-IA"
-        for _ in \$(seq 1 60); do
-            corriendo && break
-            echo -n "."; sleep 1
-        done
-        echo
-        if corriendo; then
-            echo "eMail-IA listo en \$URL (log: \$LOG)"
-        else
-            echo "No arrancó en 60s — mira \$LOG" >&2
-            exit 1
-        fi
+    [[ -x "\$ELECTRON" ]] || { echo "Falta \$ELECTRON — reinstala con scripts/install.sh" >&2; exit 1; }
+    if corriendo && pgrep -f "emailai[-]electron" >/dev/null; then
+        echo "eMail-IA ya está corriendo"
+        exit 0
     fi
-    command -v xdg-open >/dev/null && xdg-open "\$URL" >/dev/null 2>&1 || true
+    cargar_oauth
+    cd "\$APP_DIR" || exit 1   # BD, weka-home y logs quedan dentro de ~/.eMailAI
+    setsid nohup "\$ELECTRON" --jar="\$JAR" --no-sandbox >> "\$LOG" 2>&1 &
+    echo \$! > "\$PID_FILE"
+    echo -n "Abriendo eMail-IA"
+    for _ in \$(seq 1 90); do
+        corriendo && break
+        echo -n "."; sleep 1
+    done
+    echo
+    if corriendo; then
+        echo "Listo (backend en \$PORT, log: \$LOG)"
+    else
+        echo "La ventana abre aunque el backend tarde; revisa \$LOG" >&2
+    fi
 }
 
 cmd_stop() {
-    # El patrón con [-] evita que pkill se mate a sí mismo o a procesos
-    # ajenos cuyo cmdline contenga el patrón (editores, greps, shells).
-    if [[ -f "\$PID_FILE" ]] && kill "\$(cat "\$PID_FILE")" 2>/dev/null; then
-        echo "eMail-IA detenido"
-    elif pkill -f -- "java .*emailai[-]backend\.jar" 2>/dev/null; then
-        echo "eMail-IA detenido"
-    else
-        echo "No había instancia corriendo"
-    fi
+    local algo=0
+    if [[ -f "\$PID_FILE" ]] && kill "\$(cat "\$PID_FILE")" 2>/dev/null; then algo=1; fi
+    pkill -f -- "emailai[-]electron" 2>/dev/null && algo=1
+    pkill -f -- "java .*emailai[-]backend\.jar" 2>/dev/null && algo=1
     rm -f "\$PID_FILE"
+    [[ \$algo -eq 1 ]] && echo "eMail-IA detenido" || echo "No había instancia corriendo"
 }
 
 cmd_status() {
-    if corriendo; then
-        echo "Corriendo en \$URL"
-    else
-        echo "Parado"
-        exit 1
-    fi
+    if corriendo; then echo "Corriendo (puerto \$PORT)"; else echo "Parado"; exit 1; fi
 }
 
 case "\${1:-start}" in
@@ -169,28 +171,50 @@ case "\${1:-start}" in
 esac
 EOF
 chmod +x "$BIN_DIR/emailai"
-msg "Lanzador instalado: $BIN_DIR/emailai"
+ok "Lanzador creado (comandos: start, stop, restart, status, log)"
 
-# --- 5) Icono + entrada de menú KDE -------------------------------------
+# ── Paso 5: icono + entrada de menú KDE ───────────────────────────────
+printf '\033[1m[5/6] Integración con el escritorio\033[0m\n'
 ICON_SRC="$ROOT/electron/assets/icon-256.png"
 ICON_DST="$HOME/.local/share/icons/hicolor/256x256/apps/emailai.png"
 mkdir -p "$(dirname "$ICON_DST")"
 cp -f "$ICON_SRC" "$ICON_DST"
+ok "Icono: $ICON_DST"
 
 DESKTOP="$HOME/.local/share/applications/emailai.desktop"
 cat > "$DESKTOP" <<EOF
 [Desktop Entry]
 Type=Application
 Name=eMail-IA
-Comment=Cliente de correo con IA — instalación local en ~/.eMailAI
+Comment=Cliente de correo con IA
 Exec=$BIN_DIR/emailai start
 Icon=emailai
 Terminal=false
 Categories=Network;Email;
-StartupWMClass=emailai
+StartupWMClass=eMail-IA
 EOF
 command -v desktop-file-validate >/dev/null && desktop-file-validate "$DESKTOP"
 command -v update-desktop-database >/dev/null && update-desktop-database "$(dirname "$DESKTOP")" 2>/dev/null || true
-msg "Menú KDE: entrada 'eMail-IA' creada"
+ok "Menú de aplicaciones: entrada 'eMail-IA'"
 
-msg "Instalación completada: ejecuta 'emailai start' (o el menú KDE)"
+# ── Paso 6: resumen ───────────────────────────────────────────────────
+printf '\033[1m[6/6] Comprobando instalación\033[0m\n'
+[[ -x "$ELECTRON_DST/emailai-electron" ]] && ok "Ejecutable Electron presente"
+[[ -f "$JAR_DST" ]] && ok "Backend Java presente"
+[[ -x "$BIN_DIR/emailai" ]] && ok "Lanzador en el PATH"
+[[ -f "$DESKTOP" ]] && ok "Entrada de menú válida"
+
+TOTAL="$(du -sh "$APP_DIR" | cut -f1)"
+banner "Instalación completada"
+printf '  Se ha instalado (%s en total):\n' "$TOTAL"
+printf '    • Wrapper Electron + backend → \033[1m%s\033[0m\n' "$APP_DIR"
+printf '    • Lanzador                     → \033[1m%s/emailai\033[0m\n' "$BIN_DIR"
+printf '    • Menú KDE                     → entrada “eMail-IA”\n\n'
+printf '  Para usarla:    emailai start   (o “eMail-IA” en el menú)\n'
+printf '  Datos de la app: %s/DB  (todo el flujo queda aquí)\n' "$APP_DIR"
+printf '  Desinstalar:    bash scripts/uninstall.sh\n'
+
+command -v notify-send >/dev/null && notify-send -i "$ICON_DST" \
+    "eMail-IA instalada" "Instalación completada en ~/.eMailAI ($TOTAL). Ejecuta 'emailai start' o úsala desde el menú."
+printf '\n'
+pass "Listo: ya puedes arrancar eMail-IA"
