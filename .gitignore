@@ -54,6 +54,9 @@ SecurityAudit.md
 .metadata/
 .vscode/
 *.iml
+.classpath
+.project
+.settings/
 # .idea/ se mantiene versionado (config IntelliJ compartida)
 
 # --- OS ---
