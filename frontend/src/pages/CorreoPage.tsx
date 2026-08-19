@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import api, { mensajeApi, cuentaApi } from '../api/client';
 import { useSync } from '../context/SyncContext';
 import { Spinner, EmptyState, ErrorState } from '../components/StateViews';
@@ -19,19 +20,26 @@ interface Mensaje {
 // SPAM / PHISHING / DESCONOCIDO las bloquean (los <img> remotos son web beacons que
 // confirman al remitente que abriste el correo). Al reclasificar (ej. marcar SPAM),
 // cambia selected.categoria y el iframe se re-renderiza sin imágenes -> desaparecen.
+// DOMPurify sanitiza ANTES de inyectar (capa extra sobre el sandbox del iframe):
+// elimina <script>, handlers on* y javascript: aunque el atributo sandbox falle.
 function htmlSegunCategoria(html: string, categoria?: string): string {
   if (!html) return '';
-  if (categoria === 'LEGITIMO') return html; // los legítimos cargan todo
+  const sane = DOMPurify.sanitize(html, {
+    WHOLE_DOCUMENT: true,               // conserva <head> (estilos del correo)
+    ADD_TAGS: ['link'],                 // hojas de estilo remotas del correo
+    ADD_ATTR: ['target'],
+  });
+  if (categoria === 'LEGITIMO') return sane; // los legítimos cargan todo
   // No legítimo: CSP img-src 'none' bloquea TODAS las imágenes (http, data URIs,
   // CSS background-image) a nivel navegador. Más robusto que quitar <img src> a mano,
   // que se dejaba las data: y los background-image (por eso seguían viéndose).
   const csp = '<meta http-equiv="Content-Security-Policy" content="img-src \'none\';">';
   try {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = new DOMParser().parseFromString(sane, 'text/html');
     doc.head.insertAdjacentHTML('afterbegin', csp);
     return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
   } catch {
-    return csp + html;
+    return csp + sane;
   }
 }
 
@@ -315,9 +323,11 @@ export default function CorreoPage() {
             <div className="flex-1 overflow-auto rounded-lg p-2"
               style={{ backgroundColor: 'var(--color-bg-card)' }}>
               {selected.html ? (
-                // allow-same-origin hace que carguen los <link>/estilos del correo;
-                // sin allow-scripts los scripts del correo no se ejecutan (sigue siendo seguro).
-                <iframe key={selected.id + ':' + (selected.categoria || 'x')} srcDoc={htmlSegunCategoria(selected.html, selected.categoria)} className="w-full h-full border-0" title="Cuerpo" sandbox="allow-same-origin" />
+                // Iframe totalmente aislado: sin allow-scripts (scripts del
+                // correo inertes) y SIN allow-same-origin (origen único opaco:
+                // el correo no puede tocar el localStorage de la app donde
+                // vive el JWT). DOMPurify + CSP añaden capas por si sandbox falla.
+                <iframe key={selected.id + ':' + (selected.categoria || 'x')} srcDoc={htmlSegunCategoria(selected.html, selected.categoria)} className="w-full h-full border-0" title="Cuerpo" sandbox="" />
               ) : (
                 <pre className="text-sm whitespace-pre-wrap font-sans" style={{ color: 'var(--color-text)' }}>
                   {selected.cuerpo}</pre>

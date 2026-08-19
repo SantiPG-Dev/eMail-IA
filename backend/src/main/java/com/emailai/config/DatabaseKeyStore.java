@@ -46,8 +46,28 @@ public final class DatabaseKeyStore {
         RANDOM.nextBytes(raw);
         try {
             Files.write(KEY_FILE, raw);
+            // Permisos restrictivos (owner-only): cipher.key cifra la BD entera
+            // y de él deriva la clave de las credenciales IMAP/OAuth guardadas.
+            try {
+                Files.setPosixFilePermissions(KEY_FILE, java.util.Set.of(
+                        java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                        java.nio.file.attribute.PosixFilePermission.OWNER_WRITE));
+            } catch (UnsupportedOperationException ignored) {
+                // Windows no soporta POSIX perms
+            }
         } catch (IOException e) {
             throw new IllegalStateException("No se pudo crear cipher.key: " + e.getMessage(), e);
+        }
+
+        // Endurecer también una clave preexistente creada con perms abiertos
+        try {
+            if (Files.exists(KEY_FILE)) {
+                Files.setPosixFilePermissions(KEY_FILE, java.util.Set.of(
+                        java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                        java.nio.file.attribute.PosixFilePermission.OWNER_WRITE));
+            }
+        } catch (UnsupportedOperationException | IOException ignored) {
+            // Windows o FS sin POSIX: no crítico
         }
 
         // Si la BD se regeneró (cipher.key nuevo), el config stale (con el hash

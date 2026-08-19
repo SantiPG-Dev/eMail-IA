@@ -67,9 +67,11 @@ ok "Backend instalado en $JAR_DST"
 # ── Paso 3: configuración OAuth ───────────────────────────────────────
 printf '\033[1m[3/6] Configuración OAuth\033[0m\n'
 OAUTH_DST="$APP_DIR/oauth-config.json"
+chmod 600 "$OAUTH_DST" 2>/dev/null || true  # contiene clientSecrets: owner-only
 if [[ ! -f "$OAUTH_DST" ]]; then
     if [[ -f "$ROOT/electron/oauth-config.json" ]]; then
         cp "$ROOT/electron/oauth-config.json" "$OAUTH_DST"
+        chmod 600 "$OAUTH_DST"
         ok "Copiado desde electron/oauth-config.json"
     else
         cat > "$OAUTH_DST" <<'EOF'

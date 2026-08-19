@@ -97,7 +97,10 @@ public class SpamIaService {
     }
 
     private Path modeloPath(String cuentaHash) {
-        return modelosDir.resolve("modelo_" + cuentaHash + ".model");
+        // cuentaHash es en la práctica el email en claro: sanitizar para que
+        // no pueda escapar de modelosDir (path traversal via "../" en el email)
+        String seguro = cuentaHash == null ? "" : cuentaHash.replaceAll("[^A-Za-z0-9@._-]", "_");
+        return modelosDir.resolve("modelo_" + seguro + ".model");
     }
 
     /** ¿Existe modelo entrenado para esta cuenta? */
