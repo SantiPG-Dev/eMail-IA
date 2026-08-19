@@ -25,16 +25,34 @@ const BACKEND_JAR = findJar();
 // Se leen desde electron/oauth-config.json (no commiteado a git).
 // Si el archivo no existe, se crea con un template vacío.
 // Estas credenciales se pasan al backend como argumentos Spring.
+// Ruta del oauth-config.json según contexto:
+// - Dev: electron/oauth-config.json (junto al código, no commiteado a git).
+// - Instalación con --jar=: junto al jar (~/.eMailAI/oauth-config.json, lo que
+//   copia scripts/install.sh). El asar es de solo lectura, NUNCA ahí dentro.
+// - Empaquetada sin --jar: userData (única ruta escribible garantizada).
+function oauthConfigPath(): string {
+  if (!app.isPackaged) return path.resolve(__dirname, '..', 'oauth-config.json');
+  const jarArg = process.argv.find(a => a.startsWith('--jar='));
+  if (jarArg) return path.join(path.dirname(jarArg.slice('--jar='.length)), 'oauth-config.json');
+  return path.join(app.getPath('userData'), 'oauth-config.json');
+}
+
+// Si el archivo no existe se crea un template vacío; si la ruta no es
+// escribible se devuelve {} sin tumbar el arranque del backend.
 function loadOAuthConfig(): Record<string, string> {
-  const configPath = path.resolve(__dirname, '..', 'oauth-config.json');
+  const configPath = oauthConfigPath();
   const template = {
     google: { clientId: '', clientSecret: '' },
     microsoft: { clientId: '', clientSecret: '' }
   };
 
   if (!fs.existsSync(configPath)) {
-    fs.writeFileSync(configPath, JSON.stringify(template, null, 2), 'utf-8');
-    console.log('[Electron] Creado electron/oauth-config.json — rellena tus credenciales OAuth');
+    try {
+      fs.writeFileSync(configPath, JSON.stringify(template, null, 2), 'utf-8');
+      console.log(`[Electron] Creado ${configPath} — rellena tus credenciales OAuth`);
+    } catch (e) {
+      console.warn(`[Electron] No se pudo crear ${configPath} (${(e as NodeJS.ErrnoException).code}); OAuth deshabilitado`);
+    }
     return {};
   }
 
@@ -107,12 +125,27 @@ function matarProcesosAnteriores() {
 // ── Spawn backend ────────────────────────────────────────────────
 function ensureFrontendBuilt(): Promise<void> {
   return new Promise((resolve) => {
+    // En instalación empaquetada (~/.eMailAI, --jar= o app empaquetada) el
+    // frontend está EMBEBIDO en el jar (BOOT-INF/classes/static): no hay nada
+    // que compilar. Solo tiene sentido construir en el checkout de desarrollo.
+    const jarArg = process.argv.find(a => a.startsWith('--jar='));
     const frontendDir = path.resolve(__dirname, '..', '..', 'frontend');
+    if (jarArg || app.isPackaged || !fs.existsSync(path.join(frontendDir, 'package.json'))) {
+      console.log('[Electron] Frontend embebido en el jar — no se compila');
+      resolve();
+      return;
+    }
+
     const indexPath = path.join(frontendDir, 'dist', 'index.html');
     if (fs.existsSync(indexPath)) { resolve(); return; }
 
     console.log('[Electron] Construyendo frontend React...');
     const pnpm = spawn('pnpm', ['build'], { cwd: frontendDir, stdio: 'pipe' });
+    // Sin este handler, "pnpm" ausente lanza ENOENT no capturado y tumba la app
+    pnpm.on('error', (err) => {
+      console.warn(`[Electron] No se pudo lanzar pnpm (${err.message}); el backend usa su fallback`);
+      resolve();
+    });
     pnpm.on('close', (code) => {
       if (code === 0) console.log('[Electron] Frontend construido');
       else console.warn(`[Electron] Frontend build fallo (codigo ${code}), usando fallback`);

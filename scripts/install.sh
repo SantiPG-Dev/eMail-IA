@@ -182,18 +182,23 @@ cp -f "$ICON_SRC" "$ICON_DST"
 ok "Icono: $ICON_DST"
 
 DESKTOP="$HOME/.local/share/applications/emailai.desktop"
+# Icono por ruta absoluta: la resolución por nombre (Icon=emailai) falla
+# a veces en KDE hasta refrescar cachés; la ruta directa siempre funciona.
 cat > "$DESKTOP" <<EOF
 [Desktop Entry]
 Type=Application
 Name=eMail-IA
 Comment=Cliente de correo con IA
 Exec=$BIN_DIR/emailai start
-Icon=emailai
+Icon=$ICON_DST
 Terminal=false
 Categories=Network;Email;
 StartupWMClass=eMail-IA
 EOF
 command -v desktop-file-validate >/dev/null && desktop-file-validate "$DESKTOP"
+# Refrescar cachés para que el menú vea la entrada y el icono de inmediato
+command -v kbuildsycoca6 >/dev/null && kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -t -f "$(dirname "$(dirname "$ICON_DST")")" >/dev/null 2>&1 || true
 command -v update-desktop-database >/dev/null && update-desktop-database "$(dirname "$DESKTOP")" 2>/dev/null || true
 ok "Menú de aplicaciones: entrada 'eMail-IA'"
 
