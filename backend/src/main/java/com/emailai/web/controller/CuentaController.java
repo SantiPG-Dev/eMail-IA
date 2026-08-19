@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import com.emailai.domain.entities.Cuenta;
 import com.emailai.security.CredentialService;
@@ -54,7 +55,7 @@ public class CuentaController {
     }
 
     @PostMapping
-    public ResponseEntity<CuentaResponse> crear(@RequestBody CuentaRequest req) {
+    public ResponseEntity<CuentaResponse> crear(@Valid @RequestBody CuentaRequest req) {
         Cuenta c = new Cuenta();
         c.setNombre(req.nombre());
         c.setEmail(req.email());          // cifrado en Fase 4

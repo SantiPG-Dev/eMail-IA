@@ -2,8 +2,11 @@ package com.emailai.service;
 
 import java.io.ObjectInputFilter;
 
-// Filtro de seguridad para deserialización de modelos Weka.
-// Solo permite clases de Weka, JDK y tipos primitivos.
+// Filtro de seguridad para deserialización de modelos Weka (JEP 290).
+// Allowlist estricta: clases de Weka + lo mínimo del JDK que Weka serializa
+// (colecciones,/lang,io,math,time,text y arrays). Se elimina el wildcard
+// "java.*"/"javax.*"/"sun.*" anterior, que abría la puerta a gadgets de
+// deserialización si alguien lograra escribir un .model malicioso.
 public class ModelFilter implements ObjectInputFilter {
     @Override
     public Status checkInput(FilterInfo info) {
@@ -12,11 +15,12 @@ public class ModelFilter implements ObjectInputFilter {
 
         String name = clazz.getName();
         if (name.startsWith("weka.")
-            || name.startsWith("java.")
-            || name.startsWith("javax.")
-            || name.startsWith("sun.")
-            || name.equals("[D") || name.equals("[F") || name.equals("[I")
-            || name.equals("[Ljava.lang.Object;")
+            || name.startsWith("java.util.")
+            || name.startsWith("java.lang.")
+            || name.startsWith("java.io.")
+            || name.startsWith("java.math.")
+            || name.startsWith("java.time.")
+            || name.startsWith("java.text.")
             || clazz.isArray()) {
             return Status.ALLOWED;
         }

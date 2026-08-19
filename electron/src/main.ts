@@ -81,6 +81,30 @@ function detectFrontendUrl(): Promise<string> {
   });
 }
 
+// ── Validación de URLs (navegación y openExternal) ───────────────
+// Solo http/https se delegan al navegador del sistema: shell.openExternal
+// con esquemas arbitrarios (file://, smb://...) es una práctica prohibida.
+function esUrlNavegable(u: string): boolean {
+  try {
+    const p = new URL(u);
+    return p.protocol === 'http:' || p.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+// Orígenes locales de confianza para ventanas hijas: la propia app (8420),
+// el callback OAuth (9876) y Vite dev (5173, solo sin empaquetar).
+function esOrigenLocalPermitido(u: string): boolean {
+  try {
+    const p = new URL(u);
+    const puertos = app.isPackaged ? ['8420', '9876'] : ['8420', '9876', '5173'];
+    return p.hostname === 'localhost' && puertos.includes(p.port);
+  } catch {
+    return false;
+  }
+}
+
 let mainWindow: BrowserWindow | null = null;
 let backendProcess: ChildProcess | null = null;
 let tray: Tray | null = null;
@@ -321,13 +345,30 @@ async function createWindow() {
     }, 800);
   });
 
-  // Abrir enlaces externos en el navegador del sistema (OAuth)
+  // Abrir enlaces externos en el navegador del sistema (OAuth).
+  // Whitelist estricta: solo http/https llegan al navegador del sistema
+  // (file://, smb://, javascript: etc. se bloquean); de localhost solo se
+  // permiten ventanas hijas desde los puertos de la propia app — cualquier
+  // otro proceso local podría servir una UI clónica que hereda el preload.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http://localhost')) {
+    if (esOrigenLocalPermitido(url)) {
       return { action: 'allow' };
     }
-    shell.openExternal(url);
+    if (esUrlNavegable(url)) {
+      shell.openExternal(url);
+    } else {
+      console.warn(`[Electron] Ventana/openExternal bloqueado (URL no permitida): ${url}`);
+    }
     return { action: 'deny' };
+  });
+
+  // La ventana principal solo navega dentro de la propia app (SPA); cualquier
+  // navegación top-level a un origen ajeno se bloquea.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url !== APP_URL && !esOrigenLocalPermitido(url)) {
+      console.warn(`[Electron] Navegación top-level bloqueada: ${url}`);
+      event.preventDefault();
+    }
   });
 
   mainWindow.on('closed', () => {
@@ -361,6 +402,29 @@ async function createWindow() {
 // ── IPC: purgar caché HTTP (anti-tracking al marcar SPAM) ─────────
 ipcMain.handle('cache:clear', async () => {
   try { await session.defaultSession.clearCache(); } catch { /* ignore */ }
+});
+
+// ── IPC: enlaces externos con whitelist http/https ────────────────
+// El preload expone openExternal para el flujo OAuth (URLs de Google/Microsoft);
+// cualquier otro esquema se rechaza (shell.openExternal arbitrario = RCE vía xdg-open).
+ipcMain.handle('shell:openExternal', async (_e, url: unknown) => {
+  if (typeof url !== 'string' || !esUrlNavegable(url)) {
+    throw new Error(`URL no permitida: ${String(url)}`);
+  }
+  await shell.openExternal(url);
+});
+
+// ── IPC: diálogos nativos de ficheros ─────────────────────────────
+ipcMain.handle('dialog:openFile', (_e, options: Electron.OpenDialogOptions) =>
+  dialog.showOpenDialog(options));
+ipcMain.handle('dialog:saveFile', (_e, options: Electron.SaveDialogOptions) =>
+  dialog.showSaveDialog(options));
+
+// ── IPC: notificaciones nativas ───────────────────────────────────
+// El preload sandboxed no puede instanciar Notification de electron.
+ipcMain.handle('notification:show', (_e, title: unknown, body: unknown) => {
+  if (typeof title !== 'string' || typeof body !== 'string') return;
+  new Notification({ title, body }).show();
 });
 
 app.whenReady().then(async () => {

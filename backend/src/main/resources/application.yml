@@ -26,6 +26,7 @@ spring:
 
 server:
   port: 8080
+  address: 127.0.0.1  # App de escritorio local: nunca exponer la API en la LAN
 
 # Configuración de la app
 emailai:

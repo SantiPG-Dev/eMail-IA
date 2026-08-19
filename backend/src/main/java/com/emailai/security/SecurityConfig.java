@@ -24,6 +24,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import com.emailai.repository.CuentaRepository;
 
 // Seguridad stateless con JWT Bearer.
 // Al ser app de escritorio local, CSRF está desactivado.
@@ -35,9 +36,11 @@ public class SecurityConfig {
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     private final JwtService jwtService;
+    private final CuentaRepository cuentaRepository;
 
-    public SecurityConfig(JwtService jwtService) {
+    public SecurityConfig(JwtService jwtService, CuentaRepository cuentaRepository) {
         this.jwtService = jwtService;
+        this.cuentaRepository = cuentaRepository;
     }
 
     @Bean
@@ -54,8 +57,15 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/cuentas").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/cuentas").permitAll()
                 .requestMatchers("/", "/index.html", "/assets/**", "/src/**", "/*.png", "/*.svg", "/*.ico").permitAll()
+                // Rutas SPA (WebConfig hace forward a index.html); el contenido
+                // sensible siempre va por /api/** con JWT
+                .requestMatchers("/login", "/correo", "/calendario", "/contactos",
+                        "/tareas", "/config", "/chat-ia").permitAll()
+                .requestMatchers("/error").permitAll()
                 .requestMatchers("/api/**").authenticated()
-                .anyRequest().permitAll()
+                // Denegar por defecto: cualquier endpoint nuevo nace protegido,
+                // no expuesto (antes era permitAll por defecto)
+                .anyRequest().denyAll()
             )
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) -> {
@@ -79,12 +89,33 @@ public class SecurityConfig {
                 HttpServletRequest req = (HttpServletRequest) request;
                 String path = req.getRequestURI();
 
+                // Anti DNS-rebinding: un dominio externo que resuelva a
+                // 127.0.0.1 enviaría Host: evil.com. Solo se aceptan hosts
+                // locales (con puerto opcional); resto → 403.
+                String host = req.getHeader("Host");
+                if (host != null && !host.isBlank()
+                        && !host.matches("^(localhost|127\\.0\\.0\\.1|\\[::1\\])(:\\d+)?$")) {
+                    HttpServletResponse bad = (HttpServletResponse) response;
+                    bad.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    bad.setContentType("application/json");
+                    bad.getWriter().write("{\"error\":\"Host no permitido\"}");
+                    return;
+                }
+
                 if (!path.startsWith("/api/")) {
                     chain.doFilter(request, response);
                     return;
                 }
                 if (path.startsWith("/api/auth/") || path.equals("/api/auth")
-                        || path.equals("/api/status") || path.equals("/api/cuentas")) {
+                        || path.equals("/api/status")
+                        // GET /api/cuentas es público: la página de login
+                        // necesita listar las cuentas. POST /api/cuentas solo
+                        // es público en MODO SETUP (cero cuentas existentes);
+                        // después exige JWT para evitar que un proceso local
+                        // cree cuentas con servidor IMAP controlado.
+                        || (path.equals("/api/cuentas")
+                                && (!"POST".equals(req.getMethod())
+                                        || cuentaRepository.count() == 0))) {
                     chain.doFilter(request, response);
                     return;
                 }
