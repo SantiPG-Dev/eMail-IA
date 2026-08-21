@@ -1,13 +1,17 @@
-import { app, BrowserWindow, shell, dialog, Tray, Menu, Notification, nativeImage, session, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, dialog, Tray, Menu, Notification, nativeImage, session, ipcMain, protocol } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { spawn, execSync, ChildProcess } from 'child_process';
 import * as http from 'http';
 
 // ── Config ──────────────────────────────────────────────────────
-// El backend Spring Boot se ejecuta como proceso hijo en el puerto 8420.
-// Electron detecta si Vite dev está corriendo (puerto 5173) y usa esa URL,
-// o si no, sirve el build estático desde el backend embeebido.
+// Sin puertos fijos: el backend arranca con --server.port=0 (puerto efímero
+// asignado por el SO en 127.0.0.1) y publica puerto+pid en un "ready file".
+// El renderer no habla HTTP con el backend: carga app://local/ (protocolo
+// propio de Electron) y el proceso main hace de proxy hacia 127.0.0.1:<efímero>.
+// En dev, si Vite (5173) está corriendo, se usa Vite y el backend (8080) lo
+// lanza el desarrollador aparte — el proxy de Vite ya apunta ahí.
 
 process.env.ELECTRON_ENABLE_STACK_DUMPING = 'false';
 // Silenciar los logs internos de Chromium que ensucian la consola en desarrollo
@@ -15,12 +19,29 @@ process.env.ELECTRON_ENABLE_STACK_DUMPING = 'false';
 // log-level=3 => solo mensajes FATAL. No afecta a la app.
 app.commandLine.appendSwitch('log-level', '3');
 
-const BACKEND_PORT = 8420;
-const HEALTH_URL = `http://localhost:${BACKEND_PORT}/health`;
 const DEV_FRONTEND = 'http://localhost:5173';
-let APP_URL = `http://localhost:${BACKEND_PORT}`;
+const APP_ORIGIN = 'app://local';
+let APP_URL = `${APP_ORIGIN}/`;
+let backendPort: number | null = null;
 const BACKEND_JAR = findJar();
 const JAVA_BIN = findJava();
+const READY_FILE = resolveReadyFile();
+
+// El protocolo app:// es el origen del renderer: standard (URLs relativas),
+// secure (localStorage, service workers), fetch/stream (API y adjuntos).
+// Debe registrarse antes de app.ready().
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, codeCache: true } },
+]);
+
+// Ready file junto al jar (--jar=, instalación ~/.eMailAI), en userData
+// (empaquetado) o en tmp (dev sin empaquetar).
+function resolveReadyFile(): string {
+  const jarArg = process.argv.find(a => a.startsWith('--jar='));
+  if (jarArg) return path.join(path.dirname(jarArg.slice('--jar='.length)), 'backend.ready');
+  if (app.isPackaged) return path.join(app.getPath('userData'), 'backend.ready');
+  return path.join(os.tmpdir(), `emailai-backend-${process.pid}.ready`);
+}
 
 // ── Credenciales OAuth ──────────────────────────────────────────
 // Se leen desde electron/oauth-config.json (no commiteado a git).
@@ -71,14 +92,17 @@ function loadOAuthConfig(): Record<string, string> {
   }
 }
 
-function detectFrontendUrl(): Promise<string> {
+// Dev: ¿está Vite corriendo? (5173). Si sí, la UI viene de Vite y el backend
+// (8080) lo lanza el desarrollador aparte — el proxy de Vite ya apunta ahí.
+function detectVite(): Promise<string | null> {
+  if (app.isPackaged) return Promise.resolve(null);
   return new Promise((resolve) => {
     const req = http.get(DEV_FRONTEND, (res) => {
       res.resume();
-      resolve(res.statusCode === 200 ? DEV_FRONTEND : `http://localhost:${BACKEND_PORT}`);
+      resolve(res.statusCode === 200 ? DEV_FRONTEND : null);
     });
-    req.on('error', () => resolve(`http://localhost:${BACKEND_PORT}`));
-    req.setTimeout(1000, () => { req.destroy(); resolve(`http://localhost:${BACKEND_PORT}`); });
+    req.on('error', () => resolve(null));
+    req.setTimeout(1000, () => { req.destroy(); resolve(null); });
   });
 }
 
@@ -94,13 +118,14 @@ function esUrlNavegable(u: string): boolean {
   }
 }
 
-// Orígenes locales de confianza para ventanas hijas: la propia app (8420),
+// Orígenes locales de confianza para ventanas hijas: la propia app (app://local),
 // el callback OAuth (9876) y Vite dev (5173, solo sin empaquetar).
 function esOrigenLocalPermitido(u: string): boolean {
   try {
     const p = new URL(u);
-    const puertos = app.isPackaged ? ['8420', '9876'] : ['8420', '9876', '5173'];
-    return p.hostname === 'localhost' && puertos.includes(p.port);
+    if (p.protocol === 'app:' && p.host === 'local') return true;
+    const puertos = app.isPackaged ? ['9876'] : ['9876', '5173'];
+    return (p.hostname === 'localhost' || p.hostname === '127.0.0.1') && puertos.includes(p.port);
   } catch {
     return false;
   }
@@ -146,10 +171,8 @@ function findJar(): string | null {
 // ── Limpiar procesos anteriores ───────────────────────────────
 function matarProcesosAnteriores() {
   try {
-    const dbPath = path.resolve(__dirname, '..', '..', 'backend', 'DB', 'emailai.mv.db');
-    // Matar procesos que tienen el archivo de BD abierto
-    execSync(`fuser -k ${dbPath} 2>/dev/null; true`, { stdio: 'ignore' });
-    // Matar procesos java/maven del backend
+    // Matar procesos java/maven del backend (un JVM huérfano con la BD H2
+    // bloqueada impediría arrancar el nuevo)
     execSync(
       "pkill -9 -f 'spring-boot:run' 2>/dev/null; " +
       "pkill -9 -f 'EmailAiApplication' 2>/dev/null; " +
@@ -160,6 +183,94 @@ function matarProcesosAnteriores() {
     console.log('[Electron] Procesos anteriores eliminados');
   } catch {
     // Si no hay procesos, ignorar
+  }
+}
+
+// ── Espera del ready file ─────────────────────────────────────────
+// El backend escribe {"port":N,"pid":M} cuando Tomcat está listo. Poll corto
+// del archivo (el evento solo se emite con el servidor YA sirviendo, no hace
+// falta health check HTTP). El pid descarta archivos stale de un kill -9.
+function readReadyFile(): { port: number; pid: number } | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(READY_FILE, 'utf-8'));
+    if (typeof raw.port === 'number' && typeof raw.pid === 'number') return raw;
+  } catch {
+    // Aún no existe o está a medio escribir
+  }
+  return null;
+}
+
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+function waitForBackend(timeoutMs: number): Promise<number> {
+  const deadline = Date.now() + timeoutMs;
+  return new Promise((resolve, reject) => {
+    const tick = () => {
+      const info = readReadyFile();
+      if (info && pidAlive(info.pid)) {
+        resolve(info.port);
+        return;
+      }
+      if (Date.now() > deadline) {
+        reject(new Error(`Timeout esperando al backend (ready file: ${READY_FILE})`));
+        return;
+      }
+      setTimeout(tick, 150);
+    };
+    tick();
+  });
+}
+
+// ── Proxy app:// → backend ────────────────────────────────────────
+// Cada petición del renderer a app://local/<ruta> se reenvía al backend en
+// 127.0.0.1:<puerto efímero>. Streaming (adjuntos), Authorization y
+// Content-Disposition pasan tal cual.
+const HOP_BY_HOP = new Set([
+  'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
+  'te', 'trailer', 'transfer-encoding', 'upgrade', 'host',
+  // net.fetch ya decodifica la compresión: reenviarlos corrompería el cuerpo
+  'content-length', 'content-encoding',
+]);
+
+async function proxyToBackend(request: Request): Promise<Response> {
+  if (backendPort === null) {
+    return new Response('Backend no disponible todavía', { status: 503 });
+  }
+  const u = new URL(request.url);
+  const target = `http://127.0.0.1:${backendPort}${u.pathname}${u.search}`;
+  const headers = new Headers();
+  request.headers.forEach((value, key) => {
+    const k = key.toLowerCase();
+    // origin/referer del esquema custom app:// los rechaza el CorsFilter del
+    // backend (403): el proxy es el boundary, al backend no le hace falta
+    if (!HOP_BY_HOP.has(k) && k !== 'origin' && k !== 'referer') headers.set(key, value);
+  });
+  const init: RequestInit & { duplex?: 'half' } = { method: request.method, headers };
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    init.body = request.body;
+    init.duplex = 'half';
+  }
+  try {
+    // fetch de Node (undici), NO net.fetch: el network service de Chromium
+    // rechaza (net::ERR_FAILED) peticiones salientes del protocol handler
+    // con Referer/Origin del esquema custom app://
+    const res = await fetch(target, init);
+    const outHeaders = new Headers();
+    res.headers.forEach((value, key) => {
+      if (!HOP_BY_HOP.has(key.toLowerCase())) outHeaders.set(key, value);
+    });
+    console.log(`[Proxy] ${request.method} ${u.pathname} → ${res.status} ct=${res.headers.get('content-type') ?? '(none)'}`);
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers: outHeaders });
+  } catch (e) {
+    console.error(`[Electron] Proxy ${request.method} ${u.pathname} → error:`, e);
+    return new Response('Backend no disponible', { status: 502 });
   }
 }
 
@@ -197,6 +308,9 @@ function ensureFrontendBuilt(): Promise<void> {
 
 function startBackend(): Promise<void> {
   return new Promise((resolve, reject) => {
+    // Ready file de un kill -9 anterior: fuera antes de arrancar
+    try { fs.rmSync(READY_FILE, { force: true }); } catch { /* ignore */ }
+
     if (BACKEND_JAR) {
       // data-dir: relativo ("DB") solo cuando un wrapper controla el cwd
       // (dev desde electron/ o instalación con --jar= desde ~/.eMailAI).
@@ -207,12 +321,13 @@ function startBackend(): Promise<void> {
         ? path.join(app.getPath('userData'), 'DB')
         : 'DB';
       console.log(`[Electron] Iniciando backend: ${JAVA_BIN} -jar ${BACKEND_JAR}`);
-      console.log(`[Electron] data-dir=${dataDir} (isPackaged=${app.isPackaged}, cwd=${process.cwd()})`);
+      console.log(`[Electron] data-dir=${dataDir}, ready-file=${READY_FILE} (isPackaged=${app.isPackaged})`);
       const oauthEnv = loadOAuthConfig();
       backendProcess = spawn(JAVA_BIN, [
         '-jar', BACKEND_JAR,
-        `--server.port=${BACKEND_PORT}`,
+        '--server.port=0',
         `--emailai.data-dir=${dataDir}`,
+        `--emailai.ready-file=${READY_FILE}`,
       ], {
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, ...oauthEnv },
@@ -224,7 +339,7 @@ function startBackend(): Promise<void> {
       backendProcess = spawn('mvn', ['spring-boot:run'], {
         cwd: backendDir,
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, ...oauthEnv, SERVER_PORT: String(BACKEND_PORT) },
+        env: { ...process.env, ...oauthEnv, SERVER_PORT: '0', EMAILAI_READYFILE: READY_FILE },
       });
     }
 
@@ -249,40 +364,14 @@ function startBackend(): Promise<void> {
       backendProcess = null;
     });
 
-    // Health check polling
-    pollHealth(resolve, reject, 0);
-  });
-}
-
-function pollHealth(resolve: () => void, reject: (err: Error) => void, attempt: number) {
-  let done = false;
-
-  const retry = () => {
-    if (done) return;
-    if (attempt >= 30) {
-      done = true;
-      reject(new Error('Timeout esperando al backend'));
-      return;
-    }
-    setTimeout(() => pollHealth(resolve, reject, attempt + 1), 1000);
-  };
-
-  const req = http.get(HEALTH_URL, (res) => {
-    if (done) return;
-    if (res.statusCode === 200) {
-      done = true;
-      console.log('[Electron] Backend listo');
-      resolve();
-    } else {
-      retry();
-    }
-    res.resume();
-  });
-
-  req.on('error', retry);
-  req.setTimeout(3000, () => {
-    req.destroy();
-    retry();
+    // El backend publica puerto real en el ready file (server.port=0)
+    waitForBackend(90_000)
+      .then((port) => {
+        backendPort = port;
+        console.log(`[Electron] Backend listo en puerto efímero ${port}`);
+        resolve();
+      })
+      .catch(reject);
   });
 }
 
@@ -360,6 +449,13 @@ async function createWindow() {
   );
 
   mainWindow.loadURL(APP_URL);
+
+  // Visibilidad de errores del renderer en el log del main (diagnóstico E2E)
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) =>
+    console.error(`[Electron] did-fail-load ${code} ${desc} ${url}`));
+  mainWindow.webContents.on('console-message', (_e, level, message) => {
+    if (level >= 2) console.warn(`[Renderer] ${message}`);
+  });
 
   // Esperar a que React termine y luego hacer transición
   mainWindow.webContents.on('did-finish-load', () => {
@@ -456,22 +552,45 @@ ipcMain.handle('notification:show', (_e, title: unknown, body: unknown) => {
   new Notification({ title, body }).show();
 });
 
-app.whenReady().then(async () => {
-  try {
-    // Construir frontend si no existe (lo sirve el backend desde frontend/dist/)
-    matarProcesosAnteriores();
-    await ensureFrontendBuilt();
-    await startBackend();
-    // Detectar si Vite dev server esta corriendo (desarrollo)
-    APP_URL = await detectFrontendUrl();
-    console.log(`[Electron] Abriendo ${APP_URL}`);
-    createWindow();
-  } catch (err) {
-    console.error('[Electron] Error al iniciar:', err);
-    dialog.showErrorBox('Error', `No se pudo iniciar el backend: ${err}`);
-    app.quit();
-  }
-});
+// ── Instancia única ──────────────────────────────────────────────
+// Con puertos efímeros dos instancias NO chocan por red, pero sí por la BD H2
+// (file lock). El segundo lanzamiento activa la ventana de la primera y muere.
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+
+  app.whenReady().then(async () => {
+    try {
+      // El renderer vive en app://local/; el main lo proxya al backend
+      protocol.handle('app', proxyToBackend);
+
+      // Dev con Vite: UI desde 5173 y backend (8080) externo. Empaquetado o
+      // dev sin Vite: backend hijo en puerto efímero + app://local/
+      const viteUrl = await detectVite();
+      if (viteUrl) {
+        APP_URL = viteUrl;
+        console.log(`[Electron] Dev: UI en ${viteUrl} (backend externo en 8080 vía proxy Vite)`);
+      } else {
+        matarProcesosAnteriores();
+        await ensureFrontendBuilt();
+        await startBackend();
+      }
+      console.log(`[Electron] Abriendo ${APP_URL}`);
+      createWindow();
+    } catch (err) {
+      console.error('[Electron] Error al iniciar:', err);
+      dialog.showErrorBox('Error', `No se pudo iniciar el backend: ${err}`);
+      app.quit();
+    }
+  });
+}
 
 app.on('window-all-closed', () => {
   stopBackend();

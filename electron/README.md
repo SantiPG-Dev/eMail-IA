@@ -6,32 +6,47 @@ Wrapper **Electron** que envuelve la app de escritorio.
 
 ```
 Electron (main process)
-├─ spawn: java -jar backend.jar --server.port=8420
-├─ health-check: poll http://localhost:8420/health
-├─ BrowserWindow → http://localhost:8420 (frontend React servido por backend)
+├─ spawn: java -jar backend.jar --server.port=0 --emailai.ready-file=...
+│    (puerto efímero asignado por el SO en 127.0.0.1 — sin puertos fijos)
+├─ espera el ready file {"port":N,"pid":M} que escribe el backend al estar listo
+├─ protocolo app:// (protocol.handle): el renderer carga app://local/ y el
+│  main hace de proxy hacia 127.0.0.1:<efímero> (Authorization, adjuntos...)
+├─ BrowserWindow → app://local/ (frontend React servido por el backend vía proxy)
+├─ instancia única (requestSingleInstanceLock): evita dos JVM sobre la misma BD H2
 ├─ tray icon + notificaciones
-└─ on-quit → kill proceso backend
+└─ on-quit → kill proceso backend (el backend borra su ready file al salir)
 ```
+
+Puerto fijo restante: **9876** (callback OAuth loopback, solo durante el flujo
+de alta de cuentas Google/Microsoft). Si los clientes OAuth están registrados
+como "Desktop/App instalada", se puede cambiar `OAuthService.CALLBACK_PORT`
+a 0 y construir el `redirect_uri` con el puerto real.
 
 ## Requisitos
 
-- Java 21+ (para el backend JAR)
+- Java 21+ (para el backend JAR; el AppImage/deb/rpm empaqueta su propio JRE)
 - Node.js 22+
 
 ## Desarrollo
 
+Flujo completo (Electron + Vite + backend):
+
 ```bash
-# 1. Construir el backend JAR
-cd ../backend
-mvn clean package -DskipTests
+# 1. Backend en 8080 (terminal 1)
+cd backend && mvn spring-boot:run
 
-# 2. Compilar el Electron
-cd ../electron
-npm install
-npm run build       # Compila TypeScript → dist/
+# 2. Vite en 5173 (terminal 2) — su proxy /api → 8080
+cd frontend && pnpm dev
 
-# 3. Ejecutar (busca el JAR en backend/target/)
-npm start
+# 3. Electron (terminal 3) — detecta Vite y no lanza backend propio
+cd electron && npm run dev
+```
+
+Electron solo (UI empaquetada en el jar, sin Vite):
+
+```bash
+cd backend && mvn clean package -DskipTests
+cd ../electron && npm run dev    # lanza el jar con puerto efímero + app://
 ```
 
 ## Estructura

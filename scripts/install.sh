@@ -23,7 +23,6 @@ JAR_SRC="$ROOT/backend/target/emailai-backend-1.0.0.jar"
 JAR_DST="$APP_DIR/emailai-backend.jar"
 ELECTRON_SRC="$ROOT/electron/release/linux-unpacked"
 ELECTRON_DST="$APP_DIR/app"
-PORT=8420
 
 ok()   { printf '  \033[1;32m✔\033[0m %s\n' "$*"; }
 pass() { printf '\033[1;32m✔ %s\033[0m\n' "$*"; }
@@ -91,14 +90,15 @@ printf '\033[1m[4/6] Instalando lanzador en %s/emailai\033[0m\n' "$BIN_DIR"
 cat > "$BIN_DIR/emailai" <<EOF
 #!/usr/bin/env bash
 # eMail-IA — lanzador de la instalación local (~/.eMailAI)
+# Sin puertos: el backend arranca en un puerto efímero elegido por el SO y
+# Electron (protocolo interno app://) se comunica con él; aquí solo se gestiona
+# el proceso.
 set -u
 APP_DIR="\$HOME/.eMailAI"
 ELECTRON="\$APP_DIR/app/emailai-electron"
 JAR="\$APP_DIR/emailai-backend.jar"
 PID_FILE="\$APP_DIR/emailai.pid"
 LOG="\$APP_DIR/emailai.log"
-PORT=$PORT
-HEALTH="http://localhost:\$PORT/health"
 
 cargar_oauth() {
     local cfg="\$APP_DIR/oauth-config.json"
@@ -124,12 +124,15 @@ PY
 }
 
 corriendo() {
-    curl -sf "\$HEALTH" >/dev/null 2>&1
+    if [[ -f "\$PID_FILE" ]] && kill -0 "\$(cat "\$PID_FILE")" 2>/dev/null; then
+        return 0
+    fi
+    pgrep -f "emailai[-]electron.*--jar=" >/dev/null 2>&1
 }
 
 cmd_start() {
     [[ -x "\$ELECTRON" ]] || { echo "Falta \$ELECTRON — reinstala con scripts/install.sh" >&2; exit 1; }
-    if corriendo && pgrep -f "emailai[-]electron" >/dev/null; then
+    if corriendo; then
         echo "eMail-IA ya está corriendo"
         exit 0
     fi
@@ -138,29 +141,30 @@ cmd_start() {
     setsid nohup "\$ELECTRON" --jar="\$JAR" --no-sandbox >> "\$LOG" 2>&1 &
     echo \$! > "\$PID_FILE"
     echo -n "Abriendo eMail-IA"
-    for _ in \$(seq 1 90); do
-        corriendo && break
+    for _ in \$(seq 1 30); do
+        corriendo || break
         echo -n "."; sleep 1
     done
     echo
     if corriendo; then
-        echo "Listo (backend en \$PORT, log: \$LOG)"
+        echo "Listo (log: \$LOG)"
     else
-        echo "La ventana abre aunque el backend tarde; revisa \$LOG" >&2
+        echo "El proceso terminó pronto; revisa \$LOG" >&2
+        exit 1
     fi
 }
 
 cmd_stop() {
     local algo=0
     if [[ -f "\$PID_FILE" ]] && kill "\$(cat "\$PID_FILE")" 2>/dev/null; then algo=1; fi
-    pkill -f -- "emailai[-]electron" 2>/dev/null && algo=1
+    pkill -f -- "emailai[-]electron.*--jar=" 2>/dev/null && algo=1
     pkill -f -- "java .*emailai[-]backend\.jar" 2>/dev/null && algo=1
     rm -f "\$PID_FILE"
     [[ \$algo -eq 1 ]] && echo "eMail-IA detenido" || echo "No había instancia corriendo"
 }
 
 cmd_status() {
-    if corriendo; then echo "Corriendo (puerto \$PORT)"; else echo "Parado"; exit 1; fi
+    if corriendo; then echo "Corriendo"; else echo "Parado"; exit 1; fi
 }
 
 case "\${1:-start}" in

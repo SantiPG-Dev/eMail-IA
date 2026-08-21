@@ -148,12 +148,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // Solo orígenes locales exactos: backend (8420, sirve el build de
-        // producción y el wrapper Electron) y Vite dev (5173).
+        // Solo Vite dev (5173): en producción el renderer carga app://local/ y
+        // el proceso main de Electron hace de proxy → nunca hay origen cruzado.
         // file://* ELIMINADO: permitía que cualquier HTML local abierto por
         // el usuario hiciera requests autenticados al backend.
         config.setAllowedOrigins(List.of(
-                "http://localhost:8420", "http://127.0.0.1:8420",
                 "http://localhost:5173", "http://127.0.0.1:5173"));
         config.addAllowedMethod("*");
         config.addAllowedHeader("*");
