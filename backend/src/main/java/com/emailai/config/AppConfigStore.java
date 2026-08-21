@@ -18,7 +18,7 @@ import jakarta.annotation.PostConstruct;
 @Component
 public class AppConfigStore {
 
-    private static final Path CONFIG_DIR  = Path.of("config");
+    private static final Path CONFIG_DIR  = DataDir.config();
     private static final Path CONFIG_FILE = CONFIG_DIR.resolve("preferences.properties");
 
     private final Properties props = new Properties();

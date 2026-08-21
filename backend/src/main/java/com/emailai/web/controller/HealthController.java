@@ -26,7 +26,7 @@ import com.emailai.service.SyncSchedulerService;
 public class HealthController {
 
     private static final Logger log = LoggerFactory.getLogger(HealthController.class);
-    private static final Path MODELOS_DIR = Path.of("DB", "ia");
+    private static final Path MODELOS_DIR = com.emailai.config.DataDir.of("ia");
 
     private final SyncSchedulerService syncScheduler;
     private final AiService aiService;

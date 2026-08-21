@@ -24,6 +24,7 @@ electron/node_modules/
 # --- Electron builder ---
 electron/release/
 electron-builder-cache/
+electron/jre/
 
 # --- Archivos de datos locales (H2 cifrada, modelos Weka, JWT key) ---
 *.mv.db

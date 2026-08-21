@@ -12,8 +12,7 @@ import java.util.Base64;
 // Si el archivo no existe, se genera una nueva clave automáticamente.
 public final class DatabaseKeyStore {
 
-    private static final Path DB_DIR = Path.of("DB");
-    private static final Path KEY_FILE = DB_DIR.resolve("cipher.key");
+    private static final Path KEY_FILE = DataDir.of("cipher.key");
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private static String cachedPassword;
@@ -26,7 +25,7 @@ public final class DatabaseKeyStore {
         if (cachedPassword != null) return cachedPassword;
 
         try {
-            Files.createDirectories(DB_DIR);
+            Files.createDirectories(DataDir.root());
         } catch (IOException e) {
             throw new IllegalStateException("No se pudo crear el directorio DB: " + e.getMessage(), e);
         }
@@ -72,7 +71,7 @@ public final class DatabaseKeyStore {
 
         // Si la BD se regeneró (cipher.key nuevo), el config stale (con el hash
         // de contraseña maestra anterior) ya no sirve — borrarlo para forzar setup.
-        Path staleConfig = Path.of("config", "preferences.properties");
+        Path staleConfig = DataDir.config("preferences.properties");
         try {
             if (Files.exists(staleConfig)) {
                 Files.delete(staleConfig);

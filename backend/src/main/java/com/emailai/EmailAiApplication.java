@@ -17,8 +17,23 @@ import weka.core.Environment;
 public class EmailAiApplication {
 
     public static void main(String[] args) {
+        fijarDataDir(args);
         redirigirWekaHome();
         SpringApplication.run(EmailAiApplication.class, args);
+    }
+
+    /**
+     * Copia --emailai.data-dir=... a System property antes de arrancar nada,
+     * para que DataDir (estático, sin Spring) resuelva la misma ruta que la
+     * propiedad de Spring. Sin esto, el backend empaquetado escribiría en el
+     * cwd del lanzador (AppImage) en vez de en el data-dir del wrapper.
+     */
+    private static void fijarDataDir(String[] args) {
+        for (String a : args) {
+            if (a.startsWith("--emailai.data-dir=")) {
+                System.setProperty("emailai.data-dir", a.substring("--emailai.data-dir=".length()));
+            }
+        }
     }
 
     /**
@@ -30,7 +45,7 @@ public class EmailAiApplication {
      */
     private static void redirigirWekaHome() {
         try {
-            Path wekaHome = Path.of("DB", "weka-home").toAbsolutePath();
+            Path wekaHome = com.emailai.config.DataDir.of("weka-home");
             Files.createDirectories(wekaHome);
             Environment env = Environment.getSystemWide();
             env.addVariableSystemWide("WEKA_HOME", wekaHome.toString());
