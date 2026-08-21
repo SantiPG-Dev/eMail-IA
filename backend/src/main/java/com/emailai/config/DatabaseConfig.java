@@ -1,7 +1,5 @@
 package com.emailai.config;
 
-import java.nio.file.Path;
-
 import javax.sql.DataSource;
 
 import org.springframework.boot.jdbc.DataSourceBuilder;
@@ -23,7 +21,7 @@ public class DatabaseConfig {
     @Bean
     public DataSource dataSource() {
         String filePassword = DatabaseKeyStore.getFilePassword();
-        String dbPath = Path.of("DB", "emailai").toAbsolutePath().toString().replace("\\", "/");
+        String dbPath = DataDir.of("emailai").toString().replace("\\", "/");
         String url = "jdbc:h2:file:" + dbPath + DB_PARAMS;
         // H2 CIPHER: "filePassword userPassword" → userPassword vacío es "sa"
         String password = filePassword + " sa";

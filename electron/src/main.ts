@@ -20,6 +20,7 @@ const HEALTH_URL = `http://localhost:${BACKEND_PORT}/health`;
 const DEV_FRONTEND = 'http://localhost:5173';
 let APP_URL = `http://localhost:${BACKEND_PORT}`;
 const BACKEND_JAR = findJar();
+const JAVA_BIN = findJava();
 
 // ── Credenciales OAuth ──────────────────────────────────────────
 // Se leen desde electron/oauth-config.json (no commiteado a git).
@@ -109,6 +110,22 @@ let mainWindow: BrowserWindow | null = null;
 let backendProcess: ChildProcess | null = null;
 let tray: Tray | null = null;
 
+// ── Buscar el ejecutable de Java ────────────────────────────────
+// 1) Argumento --java=
+// 2) JRE empaquetado con jlink (resources/jre/bin/java) — AppImage/deb/rpm
+// 3) PATH del sistema (desarrollo)
+function findJava(): string {
+  const javaArg = process.argv.find(a => a.startsWith('--java='));
+  if (javaArg) return javaArg.slice('--java='.length);
+
+  if (process.platform !== 'win32') {
+    const bundled = path.join(process.resourcesPath || '', 'jre', 'bin', 'java');
+    if (fs.existsSync(bundled)) return bundled;
+  }
+
+  return 'java';
+}
+
 // ── Buscar el JAR del backend ────────────────────────────────────
 function findJar(): string | null {
   // 1) Argumento --jar
@@ -181,12 +198,21 @@ function ensureFrontendBuilt(): Promise<void> {
 function startBackend(): Promise<void> {
   return new Promise((resolve, reject) => {
     if (BACKEND_JAR) {
-      console.log(`[Electron] Iniciando backend: java -jar ${BACKEND_JAR}`);
+      // data-dir: relativo ("DB") solo cuando un wrapper controla el cwd
+      // (dev desde electron/ o instalación con --jar= desde ~/.eMailAI).
+      // Empaquetado sin --jar (AppImage/deb/rpm) el cwd es el del lanzador
+      // → ruta absoluta en userData para no regar la BD por ahí.
+      const jarArg = process.argv.find(a => a.startsWith('--jar='));
+      const dataDir = (!jarArg && app.isPackaged)
+        ? path.join(app.getPath('userData'), 'DB')
+        : 'DB';
+      console.log(`[Electron] Iniciando backend: ${JAVA_BIN} -jar ${BACKEND_JAR}`);
+      console.log(`[Electron] data-dir=${dataDir} (isPackaged=${app.isPackaged}, cwd=${process.cwd()})`);
       const oauthEnv = loadOAuthConfig();
-      backendProcess = spawn('java', [
+      backendProcess = spawn(JAVA_BIN, [
         '-jar', BACKEND_JAR,
         `--server.port=${BACKEND_PORT}`,
-        '--emailai.data-dir=DB',
+        `--emailai.data-dir=${dataDir}`,
       ], {
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, ...oauthEnv },
@@ -212,7 +238,10 @@ function startBackend(): Promise<void> {
 
     backendProcess.on('error', (err) => {
       console.error('[Electron] Error al iniciar backend:', err);
-      reject(err);
+      const enoent = (err as NodeJS.ErrnoException).code === 'ENOENT';
+      reject(enoent
+        ? new Error(`No se encontró "${JAVA_BIN}". Instala Java 21 o empaqueta el JRE (build-jre.sh).`)
+        : err);
     });
 
     backendProcess.on('exit', (code) => {

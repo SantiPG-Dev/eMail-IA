@@ -9,14 +9,18 @@ directories:
 files:
   - dist/**/*
   - assets/**/*
+  - splash.html
 
 icon: assets/icon-256.png
 
-# Sin JRE empaquetado: la app asume Java 21 en el PATH del sistema.
-# Para distribuir sin depender de Java, montar un JRE con jlink y descomentar jre/.
+# JRE dedicado montado con jlink (build-jre.sh) → sin dependencia del Java
+# del sistema. Si electron/jre/ no existe, compilarlo antes de empaquetar
+# (npm run dist:linux lo hace automáticamente).
 extraResources:
   - from: ../backend/target/emailai-backend-1.0.0.jar
     to: backend.jar
+  - from: jre
+    to: jre
 
 mac:
   category: public.app-category.productivity

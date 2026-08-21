@@ -55,7 +55,7 @@ public class SpamIaService {
     }
 
     public SpamIaService() throws IOException {
-        this.modelosDir = Path.of("DB", "ia");
+        this.modelosDir = com.emailai.config.DataDir.of("ia");
         if (!Files.exists(modelosDir)) {
             Files.createDirectories(modelosDir);
         }
