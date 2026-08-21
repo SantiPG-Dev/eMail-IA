@@ -6,9 +6,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // Backend de dev: mvn spring-boot:run en backend/ (8080 por defecto)
     proxy: {
-      '/api': 'http://localhost:8080',
-      '/health': 'http://localhost:8080',
+      '/api': process.env.EMAILAI_DEV_BACKEND_URL || 'http://localhost:8080',
+      '/health': process.env.EMAILAI_DEV_BACKEND_URL || 'http://localhost:8080',
     },
   },
   build: {
