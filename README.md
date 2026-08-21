@@ -66,12 +66,13 @@ eMail-IA/
 ## 📦 Cómo ejecutar
 
 ```bash
-# Desarrollo
+# Desarrollo (3 terminales)
 cd backend && mvn spring-boot:run      # API en localhost:8080
 cd frontend && pnpm dev                # Vite :5173 → proxy :8080
+cd electron && npm run dev             # detecta Vite y abre la ventana
 
-# Desktop (Electron)
-cd electron && pnpm start              # Lanza backend + abre ventana
+# Desktop (Electron) sin Vite: lanza el jar con puerto efímero + app://
+cd electron && npm run dev
 ```
 
 ---
@@ -82,7 +83,7 @@ Pipeline unificado (backend + frontend + electron TS):
 
 ```bash
 ./scripts/build-package.sh --skip-tests    # JAR 1.0.0 + frontend dist + electron dist
-cd electron && npx electron-builder build --linux   # AppImage + .deb
+cd electron && npm run dist:linux          # JRE jlink + AppImage + .deb (autosuficientes)
              && bash build-rpm.sh                  # .rpm (spec propio, rpmbuild nativo)
 ```
 

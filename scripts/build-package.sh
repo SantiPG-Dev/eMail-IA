@@ -36,4 +36,4 @@ if ! $SKIP_TESTS; then
 fi
 
 echo ""
-echo "Build OK. Para empaquetar: cd electron && npx electron-builder build"
+echo "Build OK. Para empaquetar: cd electron && npm run dist:linux (JRE jlink + AppImage + deb)"
