@@ -24,9 +24,12 @@ extraResources:
 
 mac:
   category: public.app-category.productivity
+  # Solo arm64 (Apple Silicon): el JRE jlink se genera en el runner y no
+  # puede cross-compilar. dmg x64 necesitaría un runner Intel (macos-13)
+  # con su propio JRE — pendiente si hay demanda.
   target:
     - target: dmg
-      arch: [x64, arm64]
+      arch: [arm64]
   hardenedRuntime: true
   artifactName: ${name}-${version}-${arch}.${ext}
 
@@ -38,7 +41,7 @@ linux:
       arch: [x64]
     - target: deb
       arch: [x64]
-  # El rpm se monta vía build-rpm.sh + emailai-electron.spec propio.
+  # El rpm se monta vía lanzadores/linux/deb-rpm/build-rpm.sh + spec propio.
   # fpm 1.9.3 (el que trae) se rompe con rpmbuild moderno (bug builddir/BUILDROOT:
   # reporta todos los ficheros como "File not found"). Con spec a mano se evita.
   artifactName: ${name}-${version}-${arch}.${ext}

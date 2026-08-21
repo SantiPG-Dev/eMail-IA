@@ -18,12 +18,11 @@ Requires:       libXtst
 Requires:       alsa-lib
 Requires:       at-spi2-core
 Requires:       xdg-utils
-Requires:       java-21-openjdk
 
 %description
 eMail-IA Desktop App — Electron wrapper around the eMail-IA Java backend.
-Bundled: Electron 33 runtime, app.asar, backend.jar.
-Requires Java 21 on PATH at runtime (JRE not bundled).
+Bundled: Electron 33 runtime, app.asar, backend.jar and a jlink JRE 21
+(resources/jre) — no system Java required.
 
 # Paquete solo de binarios. %install copia el linux-unpacked precompilado
 # directamente al buildroot — evita el bug de anidamiento builddir/BUILDROOT

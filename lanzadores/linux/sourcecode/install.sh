@@ -12,11 +12,11 @@
 #   ~/.local/share/applications/         entrada de menú KDE
 #   ~/.local/share/icons/hicolor/        icono
 #
-# Uso:          bash scripts/install.sh     (desde la raíz del repo)
-# Desinstalar:  bash scripts/uninstall.sh
+# Uso:          bash lanzadores/linux/sourcecode/install.sh
+# Desinstalar:  bash lanzadores/linux/sourcecode/uninstall.sh
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"   # raíz del repo
 APP_DIR="$HOME/.eMailAI"
 BIN_DIR="$HOME/.local/bin"
 JAR_SRC="$ROOT/backend/target/emailai-backend-1.0.0.jar"
@@ -131,7 +131,7 @@ corriendo() {
 }
 
 cmd_start() {
-    [[ -x "\$ELECTRON" ]] || { echo "Falta \$ELECTRON — reinstala con scripts/install.sh" >&2; exit 1; }
+    [[ -x "\$ELECTRON" ]] || { echo "Falta \$ELECTRON — reinstala con lanzadores/linux/sourcecode/install.sh" >&2; exit 1; }
     if corriendo; then
         echo "eMail-IA ya está corriendo"
         exit 0
@@ -223,7 +223,7 @@ printf '    • Lanzador                     → \033[1m%s/emailai\033[0m\n' "$B
 printf '    • Menú KDE                     → entrada “eMail-IA”\n\n'
 printf '  Para usarla:    emailai start   (o “eMail-IA” en el menú)\n'
 printf '  Datos de la app: %s/DB  (todo el flujo queda aquí)\n' "$APP_DIR"
-printf '  Desinstalar:    bash scripts/uninstall.sh\n'
+printf '  Desinstalar:    bash lanzadores/linux/sourcecode/uninstall.sh\n'
 
 command -v notify-send >/dev/null && notify-send -i "$ICON_DST" \
     "eMail-IA instalada" "Instalación completada en ~/.eMailAI ($TOTAL). Ejecuta 'emailai start' o úsala desde el menú."

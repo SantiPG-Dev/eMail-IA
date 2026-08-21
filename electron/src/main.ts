@@ -137,16 +137,15 @@ let tray: Tray | null = null;
 
 // ── Buscar el ejecutable de Java ────────────────────────────────
 // 1) Argumento --java=
-// 2) JRE empaquetado con jlink (resources/jre/bin/java) — AppImage/deb/rpm
+// 2) JRE empaquetado con jlink (resources/jre/bin/java[.exe]) — AppImage/deb/rpm/dmg/nsis
 // 3) PATH del sistema (desarrollo)
 function findJava(): string {
   const javaArg = process.argv.find(a => a.startsWith('--java='));
   if (javaArg) return javaArg.slice('--java='.length);
 
-  if (process.platform !== 'win32') {
-    const bundled = path.join(process.resourcesPath || '', 'jre', 'bin', 'java');
-    if (fs.existsSync(bundled)) return bundled;
-  }
+  const javaBin = process.platform === 'win32' ? 'java.exe' : 'java';
+  const bundled = path.join(process.resourcesPath || '', 'jre', 'bin', javaBin);
+  if (fs.existsSync(bundled)) return bundled;
 
   return 'java';
 }

@@ -77,25 +77,31 @@ cd electron && npm run dev
 
 ---
 
-## 📦 Empaquetado 1.0.0 (Linux / Fedora)
+## 📦 Empaquetado 1.0.0 (multiplataforma)
 
-Pipeline unificado (backend + frontend + electron TS):
+Todos los artefactos son **autosuficientes**: Electron + backend.jar + JRE 21
+(jlink) — sin Java en el sistema. Ver [`lanzadores/README.md`](lanzadores/README.md)
+para la matriz completa (Linux AppImage/deb/rpm/fuente, Windows NSIS, macOS DMG
+— estos dos últimos vía GitHub Actions).
+
+Pipeline Linux (backend + frontend + electron TS):
 
 ```bash
-./scripts/build-package.sh --skip-tests    # JAR 1.0.0 + frontend dist + electron dist
+bash lanzadores/linux/sourcecode/build-package.sh --skip-tests   # JAR 1.0.0 + frontend dist + electron dist
 cd electron && npm run dist:linux          # JRE jlink + AppImage + .deb (autosuficientes)
-             && bash build-rpm.sh                  # .rpm (spec propio, rpmbuild nativo)
+bash ../lanzadores/linux/deb-rpm/build-rpm.sh   # .rpm (spec propio, rpmbuild nativo)
 ```
 
 Artefactos en `electron/release/`:
 
-| Artefacto | Tamaño | Uso |
-|---|---|---|
-| `emailai-electron-1.0.0-x86_64.AppImage` | ~181 MB | **Recomendado** — `chmod +x` y ejecutar. Universal, sin instalar. |
-| `rpm/RPMS/x86_64/emailai-electron-1.0.0-1.fc44.x86_64.rpm` | ~153 MB | Fedora: `sudo dnf install …rpm` (resuelve `java-21-openjdk` + deps Electron). |
-| `emailai-electron-1.0.0-amd64.deb` | ~147 MB | Debian/Ubuntu (requiere `libxcrypt-compat` en sistemas nuevos). |
+| Artefacto | Uso |
+|---|---|
+| `emailai-electron-1.0.0-x86_64.AppImage` | **Recomendado** — `chmod +x` y ejecutar. Universal, sin instalar. |
+| `emailai-electron-1.0.0-amd64.deb` (~191 MB) | Debian/Ubuntu: `sudo apt install ./…deb` |
+| `rpm/RPMS/x86_64/*.rpm` | Fedora/RHEL: `sudo dnf install …rpm` |
 
-El backend JAR (`emailai-backend-1.0.0.jar`, 85 MB) se embebe en `resources/backend.jar` dentro de cada artefacto. Requiere Java 21 en el PATH en tiempo de ejecución.
+El backend JAR (`emailai-backend-1.0.0.jar`) y el JRE jlink (~69 MB) se embeben
+en `resources/` dentro de cada artefacto.
 
 ---
 
