@@ -2,8 +2,8 @@
 
 **Cliente de correo de escritorio con IA que cuida tu privacidad.**
 
-> App independiente (no web) — filtro spam que aprende de ti, asistente IA, calendario y tareas. Todo local y cifrado.
-> **Estado:** **Release 1.0.0 empaquetada en Fedora 44** (AppImage + RPM + deb). Desarrollo en rama `development`.
+> App de escritorio (no web) — filtro spam que aprende de ti, asistente IA, calendario y tareas. Todo local y cifrado.
+> **Estado:** **Release 1.0.0** con instaladores multiplataforma: Linux (AppImage/deb/rpm/fuente), Windows (NSIS) y macOS (DMG arm64), estos dos últimos vía GitHub Actions. Desarrollo en rama `development`.
 
 ---
 
@@ -15,11 +15,12 @@ eMail-IA está migrando de JavaFX a **Spring Boot + React + Electron**. El repos
 eMail-IA/
 ├── backend/     Spring Boot 3.4 + Java 21 (REST API, correo, Weka, IA, OAuth)
 ├── frontend/    React 19 + Vite + TypeScript + Tailwind (UI idéntica al JavaFX)
-├── electron/    Electron (shell de escritorio, empaqueta backend + frontend)
+├── electron/    Electron (shell de escritorio, empaqueta backend + frontend + JRE)
+├── lanzadores/  Instaladores y scripts de empaquetado multiplataforma
 ├── legacy/      Código JavaFX original (referencia visual y lógica)
 │   ├── emailAI/     App JavaFX completa (~12k líneas)
 │   └── README.md    Documentación del proyecto original
-└── .github/     CI/CD
+└── .github/     CI/CD (ci.yml: tests; release.yml: instaladores multiplataforma)
 ```
 
 ### Stack
@@ -33,13 +34,18 @@ eMail-IA/
 | Correo | Jakarta Mail (IMAP/SMTP/XOAUTH2) |
 | Spam IA | Weka (Naive Bayes, 100% local) |
 | Asistente IA | LangChain4j → LM Studio / OpenAI |
-| OAuth2 | Google + Microsoft (callback localhost) |
+| OAuth2 | Google + Microsoft (loopback RFC 8252) |
 | Seguridad | AES-256-GCM, PBKDF2 600k, BCrypt |
 
 ### Decisiones de diseño
 
 - **H2 cifrada** (no PostgreSQL): app desktop single-user, datos locales que no salen del equipo.
-- **Electron sidecar**: lanza el backend Spring Boot como proceso hijo y sirve el frontend React.
+- **Electron sidecar sin puertos fijos**: el backend arranca en un puerto efímero
+  (asignado por el SO en 127.0.0.1) y lo publica en un ready file; el renderer
+  carga `app://local/` (protocolo interno de Electron) y el proceso main hace de
+  proxy. Cero conflictos de puertos y API inaccesible desde la LAN.
+- **Instaladores autosuficientes**: cada artefacto embebe un JRE 21 (jlink,
+  ~69 MB) — el usuario no instala Java.
 - **Weka en Java**: el filtro spam es Java-only; el backend se mantiene en Spring Boot/Java.
 - **Mismo look & feel**: la UI React replica exactamente el JavaFX original (paleta slate+cyan, 16 temas).
 
@@ -52,7 +58,7 @@ eMail-IA/
 | F0 | Scaffolding monorepo | ✅ |
 | F1 | Backend Spring Boot base | ✅ |
 | F2 | Dominio (JPA + repos + servicios) | ✅ |
-| F3 | REST API + WebSocket | ✅ |
+| F3 | REST API + JWT stateless | ✅ |
 | F4 | Seguridad (OAuth2, JWT persistente, login IMAP) | ✅ |
 | F5 | Tests backend | ⏳ |
 | F6 | Frontend base (React + Tailwind + 16 temas) | ✅ |
@@ -74,6 +80,27 @@ cd electron && npm run dev             # detecta Vite y abre la ventana
 # Desktop (Electron) sin Vite: lanza el jar con puerto efímero + app://
 cd electron && npm run dev
 ```
+
+---
+
+## 📥 Instalación
+
+La matriz completa está en [`lanzadores/README.md`](lanzadores/README.md). Resumen:
+
+| Sistema | Qué usar |
+|---|---|
+| Cualquier Linux | `*.AppImage` — `chmod +x` y ejecutar, sin instalación |
+| Debian/Ubuntu | `sudo apt install ./emailai-electron-*.deb` |
+| Fedora/RHEL | `sudo dnf install ./emailai-electron-*.rpm` |
+| Linux sin root / desde código | `bash lanzadores/linux/sourcecode/install.sh` |
+| Windows 10/11 | `*-setup.exe` (NSIS) |
+| macOS Apple Silicon | `*.dmg` (sin Developer ID: clic derecho → Abrir la primera vez) |
+
+Descargas: página de **Releases** del repo (el workflow `release.yml` publica
+AppImage, deb, rpm, exe y dmg con sus SHA256 en cada tag `v*`).
+
+Los datos del usuario viven siempre en `~/.config/emailai-electron/` (BD H2
+cifrada, config, `oauth-config.json`) — desinstalar la app no los borra.
 
 ---
 
