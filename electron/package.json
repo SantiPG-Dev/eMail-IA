@@ -12,7 +12,7 @@
     "dist": "bash build-jre.sh && npx tsc && electron-builder",
     "dist:linux": "bash build-jre.sh && npx tsc && electron-builder --linux",
     "dist:dir": "npx tsc && electron-builder --dir",
-    "dist:rpm": "bash build-jre.sh && bash build-rpm.sh"
+    "dist:rpm": "bash build-jre.sh && bash ../lanzadores/linux/deb-rpm/build-rpm.sh"
   },
   "devDependencies": {
     "electron": "^33.0.0",

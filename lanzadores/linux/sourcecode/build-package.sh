@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Build & Package script para eMail-IA
-# Uso: ./scripts/build-package.sh [--skip-tests]
+# Uso: bash lanzadores/linux/sourcecode/build-package.sh [--skip-tests]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"   # raíz del repo
 SKIP_TESTS=false
 [[ "${1:-}" == "--skip-tests" ]] && SKIP_TESTS=true
 
