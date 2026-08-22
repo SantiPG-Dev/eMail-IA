@@ -72,7 +72,9 @@ public class MensajeService {
 
     @Transactional(readOnly = true)
     public Mensaje buscarPorId(Long id) {
-        return repo.findById(id)
+        // Con adjuntos inicializados: los controllers serializan la colección
+        // y con open-in-view=false una colección lazy lanza LazyInitialization
+        return repo.findByIdConAdjuntos(id)
                 .orElseThrow(() -> new NotFoundException("Mensaje", id));
     }
 
