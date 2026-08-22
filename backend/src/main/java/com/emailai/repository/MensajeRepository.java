@@ -27,6 +27,13 @@ public interface MensajeRepository extends JpaRepository<Mensaje, Long> {
     /** Cuenta mensajes de una cuenta+carpeta (para paginación). */
     long countByCuentaHashAndCarpetaImap(String cuentaHash, String carpetaImap);
 
+    /** Busca por id inicializando adjuntos: la respuesta al controller serializa
+     *  la colección y con open-in-view=false una lazy sin sesión lanza
+     *  LazyInitializationException (rotaba clasificar LEGITIMO/SPAM y el detalle). */
+    @EntityGraph(attributePaths = "adjuntos")
+    @Query("SELECT m FROM Mensaje m WHERE m.id = :id")
+    Optional<Mensaje> findByIdConAdjuntos(@Param("id") Long id);
+
     /** Busca un mensaje por su UID único (cuenta+carpeta+uid). */
     Optional<Mensaje> findByUidAndCuentaHashAndCarpetaImap(
             String uid, String cuentaHash, String carpetaImap);
@@ -38,6 +45,7 @@ public interface MensajeRepository extends JpaRepository<Mensaje, Long> {
             @Param("carpetaImap") String carpetaImap);
 
     /** Busca mensajes por asunto o remitente (filtro de bandeja). */
+    @EntityGraph(attributePaths = "adjuntos")
     @Query("SELECT m FROM Mensaje m WHERE m.cuentaHash = :cuentaHash " +
            "AND m.carpetaImap = :carpetaImap " +
            "AND (LOWER(m.asunto) LIKE LOWER(CONCAT('%', :filtro, '%')) " +
