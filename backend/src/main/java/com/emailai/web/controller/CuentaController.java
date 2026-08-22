@@ -15,6 +15,7 @@ import com.emailai.security.CredentialService;
 import com.emailai.service.CredencialesMailService;
 import com.emailai.service.CredencialesMailService.Credenciales;
 import com.emailai.service.CuentaService;
+import com.emailai.service.EventoSyncService;
 import com.emailai.service.MailService;
 import com.emailai.web.dto.CuentaRequest;
 import com.emailai.web.dto.CuentaResponse;
@@ -30,14 +31,17 @@ public class CuentaController {
     private final MailService mailService;
     private final CredentialService credentialService;
     private final CredencialesMailService credencialesMailService;
+    private final EventoSyncService eventoSyncService;
 
     public CuentaController(CuentaService cuentaService, MailService mailService,
                             CredentialService credentialService,
-                            CredencialesMailService credencialesMailService) {
+                            CredencialesMailService credencialesMailService,
+                            EventoSyncService eventoSyncService) {
         this.cuentaService = cuentaService;
         this.mailService = mailService;
         this.credentialService = credentialService;
         this.credencialesMailService = credencialesMailService;
+        this.eventoSyncService = eventoSyncService;
     }
 
     // El listado es público (sin JWT) porque la página de login necesita mostrar
@@ -98,6 +102,12 @@ public class CuentaController {
             }
             var resultado = mailService.sincronizarTodo(servidor, cred.user(), cred.secret(), c.getEmail(),
                     limite, tipoConexion, cred.esOAuth());
+            // Avisar por SSE: toda vista abierta (esta u otra página) recarga
+            eventoSyncService.publicarSyncTerminado(
+                    c.getEmail(),
+                    resultado.stream().mapToInt(r -> r.descargados()).sum(),
+                    resultado.stream().mapToInt(r -> r.totalServer()).sum(),
+                    resultado.stream().mapToInt(r -> r.noLeidos()).sum());
             return ResponseEntity.ok(resultado);
         } catch (com.emailai.common.NotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)

@@ -32,16 +32,19 @@ public class SyncSchedulerService {
     private final CredentialService credentialService;
     private final SecureSessionManager sessionManager;
     private final CredencialesMailService credencialesMailService;
+    private final EventoSyncService eventoSyncService;
 
     public SyncSchedulerService(MailService mailService, CuentaService cuentaService,
                                 CredentialService credentialService,
                                 SecureSessionManager sessionManager,
-                                CredencialesMailService credencialesMailService) {
+                                CredencialesMailService credencialesMailService,
+                                EventoSyncService eventoSyncService) {
         this.mailService = mailService;
         this.cuentaService = cuentaService;
         this.credentialService = credentialService;
         this.sessionManager = sessionManager;
         this.credencialesMailService = credencialesMailService;
+        this.eventoSyncService = eventoSyncService;
     }
 
     /** Devuelve el estado actual del scheduler. */
@@ -103,6 +106,7 @@ public class SyncSchedulerService {
                 300, tipoConexion);
         log.info("Sincronizadas {} carpetas para {} ({})", resultados.size(),
                 cuenta.getEmail(), tipoConexion);
+        notificarSync(cuenta.getEmail(), resultados);
     }
 
     private void syncOAuth(Cuenta cuenta) throws Exception {
@@ -119,5 +123,15 @@ public class SyncSchedulerService {
         var resultados = mailService.sincronizarTodo(servidor, cred.user(), cred.secret(),
                 cuenta.getEmail(), 300, "IMAP", true);
         log.info("Sincronizadas {} carpetas OAuth para {}", resultados.size(), cuenta.getEmail());
+        notificarSync(cuenta.getEmail(), resultados);
+    }
+
+    /** Agrega los resultados de las carpetas y avisa por SSE a la vista. */
+    private void notificarSync(String email, List<MailService.SyncResult> resultados) {
+        eventoSyncService.publicarSyncTerminado(
+                email,
+                resultados.stream().mapToInt(MailService.SyncResult::descargados).sum(),
+                resultados.stream().mapToInt(MailService.SyncResult::totalServer).sum(),
+                resultados.stream().mapToInt(MailService.SyncResult::noLeidos).sum());
     }
 }

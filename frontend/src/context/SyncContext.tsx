@@ -1,8 +1,10 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
 import api, { cuentaApi, mensajeApi } from '../api/client';
+import { conectarEventos, type SyncTerminadoEvento } from '../api/sse';
 
-// Estado global de sincronización: polling de backend, trigger manual, y
-// refreshKey que se incrementa tras cada sync para que las vistas recarguen.
+// Estado global de sincronización: sync manual al abrir la app, y push vía
+// SSE (api/eventos): el backend avisa al terminar cualquier sync (manual o
+// del scheduler de 5 min) → refreshKey++ y las vistas recargan solas.
 interface SyncState {
   syncing: boolean;
   progress: number;
@@ -21,9 +23,12 @@ interface SyncContextType extends SyncState {
 
 const SyncContext = createContext<SyncContextType | null>(null);
 
-const MAX = 50;
-const STEP = 50;
-const CUENTA_KEY = 'emailai_sync_limite';
+function textoSync(ev: SyncTerminadoEvento): string {
+  const base = `📬 ${ev.totalServer} (${ev.noLeidos} sin leer)`;
+  return ev.descargados > 0
+    ? `📨 +${ev.descargados} · ${base}`
+    : `${base} · ${new Date().toLocaleTimeString()}`;
+}
 
 export function SyncProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SyncState>({
@@ -37,6 +42,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     refreshKey: 0,
   });
   const syncingRef = useRef(false);
+  // Refs de conexión SSE (evitan stale closures en callbacks estables)
+  const sseConectadoRef = useRef(false);
+  const sseVistoRef = useRef(false);
 
   const refreshMessages = useCallback(async (): Promise<number> => {
     try {
@@ -50,6 +58,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     } catch { return 0; }
   }, []);
 
+  // Sync manual (botón) y de arranque: 1ª cuenta. El refresco de la vista lo
+  // hace el evento SSE sync-terminado que publica el backend; si el SSE está
+  // caído, refrescamos aquí como fallback.
   const triggerSync = useCallback(async () => {
     if (syncingRef.current) return;
     syncingRef.current = true;
@@ -71,10 +82,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const totalServer = resultados.reduce((sum: number, r: any) => sum + (r.totalServer || 0), 0);
       const noLeidos = resultados.reduce((sum: number, r: any) => sum + (r.noLeidos || 0), 0);
 
-      await refreshMessages();
+      if (!sseConectadoRef.current) await refreshMessages();
       setState(s => ({
         ...s, syncing: false,
-        statusText: `📨 +${totalDescargados} · 📬 ${totalServer} (${noLeidos} sin leer)`,
+        statusText: textoSync({ cuenta: c.email, descargados: totalDescargados, totalServer, noLeidos }),
         lastSync: new Date().toISOString(),
       }));
     } catch (e: any) {
@@ -85,65 +96,43 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
   }, [refreshMessages]);
 
-  // Auto-sync silencioso cada 60s
+  // Suscripción SSE: aquí llega el aviso cuando el backend termina cualquier
+  // sync (scheduler o manual, desde esta u otra vista) y también tras una
+  // reconexión se refresca por si se perdieron eventos mientras caída.
   useEffect(() => {
-    const syncStep = async () => {
-      if (syncingRef.current) return;
+    const desconectar = conectarEventos({
+      onConexionCambiada: (conectado) => {
+        const antes = sseConectadoRef.current;
+        sseConectadoRef.current = conectado;
+        // Catch-up solo en reconexiones (no en la 1ª conexión: init ya carga)
+        if (conectado && sseVistoRef.current && !antes) refreshMessages();
+        sseVistoRef.current = true;
+      },
+      onSyncTerminado: (ev) => {
+        setState(s => ({ ...s, statusText: textoSync(ev), lastSync: new Date().toISOString() }));
+        refreshMessages();
+      },
+    });
+    return desconectar;
+  }, [refreshMessages]);
 
+  // Arranque: cargar estado local (BD) y sincronizar una vez. Sin polling:
+  // las actualizaciones posteriores llegan por SSE.
+  useEffect(() => {
+    const init = async () => {
       try {
         const cuentas = await cuentaApi.list();
-        if (cuentas.data.length === 0) return;
-        const c = cuentas.data[0];
-
-        setState(s => ({ ...s, syncing: true, accountEmail: c.email }));
-
-        try {
-          const syncRes = await api.post(`/api/cuentas/${c.id}/sync?limite=${MAX}`);
-          const resultados = syncRes.data || [];
-          const totalDescargados = resultados.reduce((sum: number, r: any) => sum + (r.descargados || 0), 0);
-          const totalServer = resultados.reduce((sum: number, r: any) => sum + (r.totalServer || 0), 0);
-          const noLeidos = resultados.reduce((sum: number, r: any) => sum + (r.noLeidos || 0), 0);
-
+        if (cuentas.data.length > 0) {
+          setState(s => ({ ...s, accountEmail: cuentas.data[0].email }));
           await refreshMessages();
-
-          const ahora = new Date().toLocaleTimeString();
-          setState(s => ({
-            ...s, syncing: false, progress: 0,
-            statusText: totalDescargados > 0
-              ? `📨 +${totalDescargados} · 📬 ${totalServer} (${noLeidos} sin leer)`
-              : `📬 ${totalServer} (${noLeidos} sin leer) · ${ahora}`,
-            lastSync: new Date().toISOString(),
-          }));
-        } catch (e: any) {
-          const errMsg = e?.response?.data?.message || e?.message || 'Error IMAP';
-          setState(s => ({
-            ...s, syncing: false, progress: 0,
-            statusText: `⚠️ ${errMsg}`,
-          }));
+          triggerSync();
         }
       } catch {
-        // Error inesperado
+        // Backend aún no disponible (p.ej. arrancando): el SSE reintentará
       }
-    };
-
-    // Cargar estado inicial
-    const init = async () => {
-      const cuentas = await cuentaApi.list();
-      if (cuentas.data.length > 0) {
-        setState(s => ({ ...s, accountEmail: cuentas.data[0].email }));
-        await refreshMessages();
-      }
-      // Estado inicial según haya cuentas o no
-      if (cuentas.data.length > 0) {
-        setState(s => ({ ...s, statusText: `${s.totalMessages} mensajes` }));
-      }
-      syncStep();
     };
     init();
-
-    const interval = setInterval(syncStep, 60000);
-    return () => clearInterval(interval);
-  }, [refreshMessages]);
+  }, [refreshMessages, triggerSync]);
 
   return (
     <SyncContext.Provider value={{ ...state, triggerSync, refreshMessages }}>
