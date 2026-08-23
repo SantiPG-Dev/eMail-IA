@@ -46,6 +46,7 @@ public class TareaService {
         t.setEstado(datos.getEstado());
         t.setEtiquetas(datos.getEtiquetas());
         t.setPrioridad(datos.getPrioridad() != null ? datos.getPrioridad() : "MEDIA");
+        t.setMensajeId(datos.getMensajeId());
         return repo.save(t);
     }
 

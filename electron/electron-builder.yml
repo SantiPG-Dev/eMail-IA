@@ -17,7 +17,7 @@ icon: assets/icon-256.png
 # del sistema. Si electron/jre/ no existe, compilarlo antes de empaquetar
 # (npm run dist:linux lo hace automáticamente).
 extraResources:
-  - from: ../backend/target/emailai-backend-1.1.0.jar
+  - from: ../backend/target/emailai-backend-1.2.0.jar
     to: backend.jar
   - from: jre
     to: jre

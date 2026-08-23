@@ -5,6 +5,10 @@ import api, { mensajeApi, cuentaApi } from '../api/client';
 import { useSync } from '../context/SyncContext';
 import { Spinner, EmptyState, ErrorState } from '../components/StateViews';
 import ComposePage from './ComposePage';
+import ContextMenu from '../components/ContextMenu';
+import EventoDialog from '../components/EventoDialog';
+import TareaDialog from '../components/TareaDialog';
+import { detectarFechaHora } from '../utils/fechas';
 
 interface Adjunto {
   id: number; nombre: string; mimeType?: string; tamanoBytes?: number;
@@ -82,6 +86,39 @@ export default function CorreoPage() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<'nuevo' | 'responder' | 'reenviar'>('nuevo');
   const [composeTo, setComposeTo] = useState('');
+
+  // Menú contextual (botón derecho) sobre un correo → crear evento/tarea
+  const [menu, setMenu] = useState<{ x: number; y: number; mensaje: Mensaje } | null>(null);
+  const [eventoOpen, setEventoOpen] = useState(false);
+  const [eventoPrefill, setEventoPrefill] = useState<{ titulo: string; detalle: string; hora?: string; mensajeId: number } | undefined>();
+  const [eventoFecha, setEventoFecha] = useState<string | undefined>();
+  const [tareaOpen, setTareaOpen] = useState(false);
+  const [tareaPrefill, setTareaPrefill] = useState<{ titulo: string; descripcion: string; fechaVencimiento?: string; mensajeId: number } | undefined>();
+
+  // Prefijado desde correo: asunto → título, remitente+fragmento → detalle,
+  // fecha/hora detectadas en asunto+cuerpo (español) con fallback a la fecha del correo
+  const abrirEventoDesdeCorreo = (m: Mensaje) => {
+    const det = detectarFechaHora(`${m.asunto || ''} ${m.cuerpo || ''}`);
+    setEventoFecha(det?.fecha || m.fechaRecepcion?.slice(0, 10) || new Date().toISOString().slice(0, 10));
+    setEventoPrefill({
+      titulo: m.asunto || '(sin asunto)',
+      detalle: `De: ${m.remitente || '?'}\n\n${(m.cuerpo || '').slice(0, 500)}`,
+      hora: det?.hora || undefined,
+      mensajeId: m.id,
+    });
+    setEventoOpen(true);
+  };
+
+  const abrirTareaDesdeCorreo = (m: Mensaje) => {
+    const det = detectarFechaHora(`${m.asunto || ''} ${m.cuerpo || ''}`);
+    setTareaPrefill({
+      titulo: m.asunto || '(sin asunto)',
+      descripcion: `De: ${m.remitente || '?'}\n\n${(m.cuerpo || '').slice(0, 500)}`,
+      fechaVencimiento: det?.fecha || m.fechaRecepcion?.slice(0, 10) || undefined,
+      mensajeId: m.id,
+    });
+    setTareaOpen(true);
+  };
 
   // Leer carpeta seleccionada desde query param (?carpeta=INBOX) pasado por el Layout
   const [searchParams] = useSearchParams();
@@ -243,6 +280,10 @@ export default function CorreoPage() {
               hint={hasAccounts ? 'Pulsa ↕ para sincronizar tu correo' : 'Añade una cuenta en Configuración'} />
           ) : mensajes.map(m => (
             <div key={m.id} onClick={() => setSelected(m)}
+              onContextMenu={e => {
+                e.preventDefault();
+                setMenu({ x: e.clientX, y: e.clientY, mensaje: m });
+              }}
               className="px-2.5 py-1.5 rounded-lg cursor-pointer text-xs"
               style={{
                 border: categoriaBorder(m.categoria),
@@ -385,6 +426,30 @@ export default function CorreoPage() {
           </div>
         )}
       </div>
+
+      {/* Menú contextual: crear evento/tarea desde el correo */}
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={[
+            { icon: '📅', label: 'Añadir evento al calendario', onClick: () => abrirEventoDesdeCorreo(menu.mensaje) },
+            { icon: '✅', label: 'Añadir tarea', onClick: () => abrirTareaDesdeCorreo(menu.mensaje) },
+          ]}
+        />
+      )}
+      <EventoDialog
+        open={eventoOpen}
+        fecha={eventoFecha}
+        prefill={eventoPrefill}
+        onClose={() => setEventoOpen(false)}
+        onSaved={() => {}} />
+      <TareaDialog
+        open={tareaOpen}
+        prefill={tareaPrefill}
+        onClose={() => setTareaOpen(false)}
+        onSaved={() => {}} />
     </div>
   );
 }

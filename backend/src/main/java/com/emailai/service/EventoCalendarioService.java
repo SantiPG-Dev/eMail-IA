@@ -49,6 +49,19 @@ public class EventoCalendarioService {
         return repo.save(evento);
     }
 
+    public EventoCalendario actualizar(Integer id, EventoCalendario datos) {
+        EventoCalendario e = buscarPorId(id);
+        e.setFecha(datos.getFecha());
+        e.setHora(datos.getHora());
+        e.setTodoElDia(datos.isTodoElDia());
+        e.setFechaFin(datos.getFechaFin());
+        e.setHoraFin(datos.getHoraFin());
+        e.setTitulo(datos.getTitulo());
+        e.setDetalle(datos.getDetalle());
+        e.setMensajeId(datos.getMensajeId());
+        return repo.save(e);
+    }
+
     public void eliminar(Integer id) {
         repo.delete(buscarPorId(id));
     }

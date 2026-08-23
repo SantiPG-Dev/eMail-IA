@@ -7,15 +7,11 @@ backend/target/
 *.class
 *.jar
 !backend/**/*.jar
-*.war
 
 # --- Node.js / Frontend / Electron ---
 node_modules/
 frontend/dist/
-frontend/node_modules/
 electron/dist/
-electron/out/
-electron/node_modules/
 *.tsbuildinfo
 
 # --- Vite ---
@@ -23,7 +19,6 @@ electron/node_modules/
 
 # --- Electron builder ---
 electron/release/
-electron-builder-cache/
 electron/jre/
 
 # --- Archivos de datos locales (H2 cifrada, modelos Weka, JWT key) ---
@@ -33,18 +28,12 @@ electron/jre/
 
 # --- Secretos (OAuth credentials, no commitear) ---
 electron/oauth-config.json
-*.env.local
-emailAI.db
 *.model
 DB/
-.eMailAI/
 
 # --- Logs ---
 *.log
 logs/
-
-# --- Security audit (no se commitea) ---
-SecurityAudit.md
 
 # --- Entorno ---
 .env
@@ -52,7 +41,6 @@ SecurityAudit.md
 .env.*.local
 
 # --- IDE ---
-.metadata/
 .vscode/
 *.iml
 .classpath
@@ -65,16 +53,14 @@ SecurityAudit.md
 Thumbs.db
 desktop.ini
 frontend/pnpm-workspace.yaml
-electron/node_modules
-electron/dist
+
 # Config runtime (anclado: un "config/" a secas ignoraba el paquete fuente
 # backend/src/main/java/com/emailai/config)
 /config/
 backend/config/
 
 # ------ Mis cosas --------
-ToDo.md
-CHECKLIST-1.0.md
+Review ToDo.md
 
 # Backups de BD creados al resetear para testing
 DB.backup-*/

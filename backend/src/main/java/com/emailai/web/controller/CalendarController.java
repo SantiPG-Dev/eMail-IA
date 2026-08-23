@@ -47,12 +47,27 @@ public class CalendarController {
     @PostMapping
     public ResponseEntity<EventoResponse> crear(@RequestBody EventoRequest req) {
         EventoCalendario e = new EventoCalendario();
+        aplicarRequest(e, req);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(eventoService.guardar(e)));
+    }
+
+    @PutMapping("/{id}")
+    public EventoResponse actualizar(@PathVariable Integer id, @RequestBody EventoRequest req) {
+        EventoCalendario e = new EventoCalendario();
+        aplicarRequest(e, req);
+        return toResponse(eventoService.actualizar(id, e));
+    }
+
+    private void aplicarRequest(EventoCalendario e, EventoRequest req) {
         e.setFecha(req.fecha());
         e.setHora(req.hora());
+        e.setTodoElDia(Boolean.TRUE.equals(req.todoElDia()));
+        e.setFechaFin(req.fechaFin());
+        e.setHoraFin(req.horaFin());
         e.setTitulo(req.titulo());
         e.setDetalle(req.detalle());
         e.setOrigen(req.origen() != null ? req.origen() : "local");
-        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(eventoService.guardar(e)));
+        e.setMensajeId(req.mensajeId());
     }
 
     @DeleteMapping("/{id}")
@@ -63,6 +78,7 @@ public class CalendarController {
 
     private EventoResponse toResponse(EventoCalendario e) {
         return new EventoResponse(e.getId(), e.getFecha(), e.getHora(),
-                e.getTitulo(), e.getDetalle(), e.getOrigen());
+                e.isTodoElDia(), e.getFechaFin(), e.getHoraFin(),
+                e.getTitulo(), e.getDetalle(), e.getOrigen(), e.getMensajeId());
     }
 }
