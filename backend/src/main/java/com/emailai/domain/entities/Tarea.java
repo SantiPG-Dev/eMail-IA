@@ -30,6 +30,9 @@ public class Tarea {
     @Column(length = 10)
     private String prioridad = "MEDIA";           // ALTA | MEDIA | BAJA
 
+    @Column(name = "mensaje_id")
+    private Integer mensajeId;                    // correo de origen (opcional)
+
     public Tarea() {}
 
     public Integer getId() { return id; }
@@ -46,4 +49,6 @@ public class Tarea {
     public void setEtiquetas(String etiquetas) { this.etiquetas = etiquetas; }
     public String getPrioridad() { return prioridad; }
     public void setPrioridad(String prioridad) { this.prioridad = prioridad; }
+    public Integer getMensajeId() { return mensajeId; }
+    public void setMensajeId(Integer mensajeId) { this.mensajeId = mensajeId; }
 }

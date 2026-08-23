@@ -1,5 +1,5 @@
 Name:           emailai-electron
-Version:        1.1.0
+Version:        1.2.0
 Release:        1%{?dist}
 Summary:        eMail-IA Desktop App (Electron wrapper)
 License:        Proprietary

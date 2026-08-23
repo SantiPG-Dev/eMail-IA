@@ -1,62 +1,110 @@
 import { useState } from 'react';
 import { eventoApi } from '../api/client';
 
+export interface Evento {
+  id: number; fecha: string; hora: string | null;
+  todoElDia: boolean; fechaFin: string | null; horaFin: string | null;
+  titulo: string; detalle: string | null; origen: string; mensajeId: number | null;
+}
+
 // Diálogo para crear/editar eventos del calendario.
+// Modo edición si llega `evento`; si no, creación (con prefijados del correo).
 interface EventoDialogProps {
   open: boolean;
-  fecha?: string;
+  fecha?: string;                 // fecha inicial al crear
+  evento?: Evento | null;         // evento a editar
+  prefill?: { titulo?: string; detalle?: string; hora?: string; mensajeId?: number };
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function EventoDialog({ open, fecha, onClose, onSaved }: EventoDialogProps) {
-  const [titulo, setTitulo] = useState('');
-  const [detalle, setDetalle] = useState('');
-  const [hora, setHora] = useState('');
+export default function EventoDialog({ open, fecha, evento, prefill, onClose, onSaved }: EventoDialogProps) {
+  const [titulo, setTitulo] = useState(evento?.titulo ?? prefill?.titulo ?? '');
+  const [detalle, setDetalle] = useState(evento?.detalle ?? prefill?.detalle ?? '');
+  const [fechaIni, setFechaIni] = useState(evento?.fecha ?? fecha ?? new Date().toISOString().slice(0, 10));
+  const [hora, setHora] = useState(evento?.hora ?? prefill?.hora ?? '');
+  const [todoElDia, setTodoElDia] = useState(evento?.todoElDia ?? false);
+  const [fechaFin, setFechaFin] = useState(evento?.fechaFin ?? '');
+  const [horaFin, setHoraFin] = useState(evento?.horaFin ?? '');
   const [status, setStatus] = useState('');
 
   if (!open) return null;
 
   const guardar = async () => {
     if (!titulo.trim()) { setStatus('El título es obligatorio'); return; }
+    const data = {
+      fecha: fechaIni,
+      hora: todoElDia ? null : (hora || null),
+      todoElDia,
+      fechaFin: fechaFin || null,
+      horaFin: todoElDia ? null : (horaFin || null),
+      titulo: titulo.trim(),
+      detalle: detalle.trim() || null,
+      origen: evento?.origen ?? 'local',
+      mensajeId: evento?.mensajeId ?? prefill?.mensajeId ?? null,
+    };
     try {
-      await eventoApi.create({
-        fecha: fecha || new Date().toISOString().slice(0, 10),
-        hora: hora || null,
-        titulo: titulo.trim(),
-        detalle: detalle.trim() || null,
-        origen: 'local',
-      });
+      if (evento) await eventoApi.update(evento.id, data);
+      else await eventoApi.create(data);
       setStatus('Evento guardado');
-      setTitulo(''); setDetalle(''); setHora('');
       onSaved();
-      setTimeout(() => onClose(), 500);
+      setTimeout(() => onClose(), 400);
     } catch { setStatus('Error al guardar'); }
+  };
+
+  const input = 'w-full px-2 py-1.5 text-sm rounded-lg border outline-none';
+  const inputStyle = {
+    backgroundColor: 'var(--color-bg)', color: 'var(--color-text)',
+    borderColor: 'var(--color-border)',
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-[420px] rounded-xl p-5 shadow-2xl" style={{ backgroundColor: 'var(--color-bg-card)' }}>
+      <div className="w-[440px] rounded-xl p-5 shadow-2xl" style={{ backgroundColor: 'var(--color-bg-card)' }}>
         <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--color-text)' }}>
-          {fecha ? `Nuevo evento - ${fecha}` : 'Nuevo evento'}</h3>
+          {evento ? 'Editar evento' : `Nuevo evento${fechaIni ? ` - ${fechaIni}` : ''}`}</h3>
         <div className="space-y-3">
           <div>
             <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Título *</label>
-            <input value={titulo} onChange={e => setTitulo(e.target.value)}
-              className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-              style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+            <input value={titulo} onChange={e => setTitulo(e.target.value)} className={input} style={inputStyle} />
           </div>
-          <div>
-            <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Hora</label>
-            <input value={hora} onChange={e => setHora(e.target.value)} placeholder="HH:mm"
-              className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
-              style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="todo-el-dia" checked={todoElDia}
+              onChange={e => setTodoElDia(e.target.checked)} className="cursor-pointer" />
+            <label htmlFor="todo-el-dia" className="text-xs font-bold cursor-pointer"
+              style={{ color: 'var(--color-text)' }}>Todo el día</label>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Fecha *</label>
+              <input type="date" value={fechaIni} onChange={e => setFechaIni(e.target.value)}
+                className={input} style={inputStyle} />
+            </div>
+            {!todoElDia && (
+              <div>
+                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Hora</label>
+                <input type="time" value={hora} onChange={e => setHora(e.target.value)}
+                  className={input} style={inputStyle} />
+              </div>
+            )}
+            <div>
+              <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
+                Fecha fin</label>
+              <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
+                className={input} style={inputStyle} />
+            </div>
+            {!todoElDia && (
+              <div>
+                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Hora fin</label>
+                <input type="time" value={horaFin} onChange={e => setHoraFin(e.target.value)}
+                  className={input} style={inputStyle} />
+              </div>
+            )}
           </div>
           <div>
             <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Detalle</label>
             <textarea value={detalle} onChange={e => setDetalle(e.target.value)} rows={4}
-              className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none resize-none"
-              style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+              className={input + ' resize-none'} style={inputStyle} />
           </div>
           {status && (
             <p className="text-xs" style={{ color: status.includes('Error') ? '#ef4444' : '#22c55e' }}>{status}</p>

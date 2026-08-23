@@ -77,6 +77,9 @@ public class IcsService {
             com.emailai.domain.entities.EventoCalendario e = new com.emailai.domain.entities.EventoCalendario();
             e.setFecha(evento.fecha().toString());
             e.setHora(evento.hora() != null ? evento.hora().toString() : null);
+            e.setTodoElDia(evento.todoElDia());
+            e.setFechaFin(evento.fechaFin() != null ? evento.fechaFin().toString() : null);
+            e.setHoraFin(evento.horaFin() != null ? evento.horaFin().toString() : null);
             e.setTitulo(evento.titulo());
             e.setDetalle(evento.detalle());
             e.setOrigen("ics");
@@ -87,23 +90,25 @@ public class IcsService {
     }
 
     private EventoICS parsearEvento(String eventoTexto) {
-        String dtStart = extraerCampo(eventoTexto, "DTSTART:");
-        String dtEnd = extraerCampo(eventoTexto, "DTEND:");
+        String dtStart = extraerCampo(eventoTexto, "DTSTART(?:;[^:]*)?:");
+        String dtEnd = extraerCampo(eventoTexto, "DTEND(?:;[^:]*)?:");
         String summary = extraerCampo(eventoTexto, "SUMMARY:");
         String description = extraerCampo(eventoTexto, "DESCRIPTION:");
 
         if (dtStart == null || summary == null) return null;
 
         try {
+            boolean todoElDia = dtStart.length() == 8;              // solo yyyyMMdd => todo el día
             LocalDate fecha = parsearFecha(dtStart);
-            LocalTime hora = parsearHora(dtStart);
+            LocalTime hora = todoElDia ? null : parsearHora(dtStart);
+            LocalDate fechaFin = null;
+            LocalTime horaFin = null;
             String detalle = description != null ? description : "";
             if (dtEnd != null) {
-                LocalDate fechaFin = parsearFecha(dtEnd);
-                LocalTime horaFin = parsearHora(dtEnd);
-                detalle += "\n(Fin: " + fechaFin + " " + horaFin + ")";
+                fechaFin = parsearFecha(dtEnd);
+                horaFin = dtEnd.length() > 8 ? parsearHora(dtEnd) : null;
             }
-            return new EventoICS(fecha, hora, summary, detalle);
+            return new EventoICS(fecha, hora, todoElDia, fechaFin, horaFin, summary, detalle);
         } catch (Exception e) {
             return null;
         }
@@ -139,24 +144,33 @@ public class IcsService {
             throw new IOException("No hay eventos para exportar");
         }
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(rutaArchivo))) {
-            writer.write("BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//EmailAI//Calendario//EN\nCALSCALE:GREGORIAN\n");
-            for (var evento : eventos) {
-                writer.write("BEGIN:VEVENT\n");
-                writer.write("UID:" + evento.getId() + "@emailai\n");
-                String dtStart = formatearFechaICS(LocalDate.parse(evento.getFecha()),
-                        evento.getHora() != null ? LocalTime.parse(evento.getHora()) : null);
-                writer.write("DTSTART:" + dtStart + "\n");
-                writer.write("DTEND:" + dtStart.replaceAll("(\\d{6})", "010000") + "\n");
-                writer.write("DTSTAMP:" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")) + "\n");
-                writer.write("SUMMARY:" + escapeTextoICS(evento.getTitulo()) + "\n");
-                if (evento.getDetalle() != null && !evento.getDetalle().isBlank()) {
-                    writer.write("DESCRIPTION:" + escapeTextoICS(evento.getDetalle()) + "\n");
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(rutaArchivo))) {
+                writer.write("BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//EmailAI//Calendario//EN\nCALSCALE:GREGORIAN\n");
+                for (var evento : eventos) {
+                    writer.write("BEGIN:VEVENT\n");
+                    writer.write("UID:" + evento.getId() + "@emailai\n");
+                    LocalDate fecha = LocalDate.parse(evento.getFecha());
+                    LocalTime hora = evento.getHora() != null ? LocalTime.parse(evento.getHora()) : null;
+                    if (evento.isTodoElDia() || hora == null) {
+                        // Todo el día (o sin hora): valor DATE, DTEND exclusivo => +1 día
+                        writer.write("DTSTART;VALUE=DATE:" + fecha.format(DATE_FORMAT) + "\n");
+                        writer.write("DTEND;VALUE=DATE:" + fecha.plusDays(1).format(DATE_FORMAT) + "\n");
+                    } else {
+                        writer.write("DTSTART:" + formatearFechaICS(fecha, hora) + "\n");
+                        LocalDate fechaFin = evento.getFechaFin() != null ? LocalDate.parse(evento.getFechaFin()) : fecha;
+                        LocalTime horaFin = evento.getHoraFin() != null ? LocalTime.parse(evento.getHoraFin())
+                                : hora.plusHours(1);
+                        writer.write("DTEND:" + formatearFechaICS(fechaFin, horaFin) + "\n");
+                    }
+                    writer.write("DTSTAMP:" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")) + "\n");
+                    writer.write("SUMMARY:" + escapeTextoICS(evento.getTitulo()) + "\n");
+                    if (evento.getDetalle() != null && !evento.getDetalle().isBlank()) {
+                        writer.write("DESCRIPTION:" + escapeTextoICS(evento.getDetalle()) + "\n");
+                    }
+                    writer.write("END:VEVENT\n");
                 }
-                writer.write("END:VEVENT\n");
+                writer.write("END:VCALENDAR\n");
             }
-            writer.write("END:VCALENDAR\n");
-        }
     }
 
     private String formatearFechaICS(LocalDate fecha, LocalTime hora) {
@@ -180,5 +194,6 @@ public class IcsService {
     }
 
     /** Resultado de parsear un evento ICS (equivalente al record Evento del legacy). */
-    public record EventoICS(LocalDate fecha, LocalTime hora, String titulo, String detalle) {}
+    public record EventoICS(LocalDate fecha, LocalTime hora, boolean todoElDia,
+                            LocalDate fechaFin, LocalTime horaFin, String titulo, String detalle) {}
 }

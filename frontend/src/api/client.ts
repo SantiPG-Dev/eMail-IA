@@ -55,6 +55,7 @@ export const eventoApi = {
   list: () => api.get('/api/calendario'),
   listByDate: (fecha: string) => api.get(`/api/calendario/fecha/${fecha}`),
   create: (data: any) => api.post('/api/calendario', data),
+  update: (id: number, data: any) => api.put(`/api/calendario/${id}`, data),
   delete: (id: number) => api.delete(`/api/calendario/${id}`),
   datesWithEvents: () => api.get('/api/calendario/fechas-con-eventos'),
 };

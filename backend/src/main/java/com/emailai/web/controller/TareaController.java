@@ -43,6 +43,7 @@ public class TareaController {
         t.setEstado(req.estado() != null ? req.estado() : "pendiente");
         t.setEtiquetas(req.etiquetas());
         t.setPrioridad(req.prioridad() != null ? req.prioridad() : "MEDIA");
+        t.setMensajeId(req.mensajeId());
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(tareaService.guardar(t)));
     }
 
@@ -55,6 +56,7 @@ public class TareaController {
         t.setEstado(req.estado());
         t.setEtiquetas(req.etiquetas());
         t.setPrioridad(req.prioridad());
+        t.setMensajeId(req.mensajeId());
         return toResponse(tareaService.actualizar(id, t));
     }
 
@@ -66,6 +68,7 @@ public class TareaController {
 
     private TareaResponse toResponse(Tarea t) {
         return new TareaResponse(t.getId(), t.getTitulo(), t.getDescripcion(),
-                t.getFechaVencimiento(), t.getEstado(), t.getEtiquetas(), t.getPrioridad());
+                t.getFechaVencimiento(), t.getEstado(), t.getEtiquetas(), t.getPrioridad(),
+                t.getMensajeId());
     }
 }
