@@ -156,6 +156,7 @@ export default function CalendarioPage() {
 
       {/* Diálogo crear/editar evento */}
       <EventoDialog
+        key={editando?.id ?? 'nuevo'}
         open={dialogOpen}
         fecha={selectedDate || undefined}
         evento={editando}

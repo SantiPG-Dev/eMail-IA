@@ -26,6 +26,9 @@ interface Mensaje {
 // cambia selected.categoria y el iframe se re-renderiza sin imágenes -> desaparecen.
 // DOMPurify sanitiza ANTES de inyectar (capa extra sobre el sandbox del iframe):
 // elimina <script>, handlers on* y javascript: aunque el atributo sandbox falle.
+// Todos los enlaces se reescriben a target=_blank: el sandbox del iframe (sin
+// allow-top-navigation) bloquearía la navegación interna, y así el click llega al
+// setWindowOpenHandler de Electron -> shell.openExternal (navegador del sistema).
 function htmlSegunCategoria(html: string, categoria?: string): string {
   if (!html) return '';
   const sane = DOMPurify.sanitize(html, {
@@ -33,18 +36,25 @@ function htmlSegunCategoria(html: string, categoria?: string): string {
     ADD_TAGS: ['link'],                 // hojas de estilo remotas del correo
     ADD_ATTR: ['target'],
   });
-  if (categoria === 'LEGITIMO') return sane; // los legítimos cargan todo
+  let doc: Document;
+  try {
+    doc = new DOMParser().parseFromString(sane, 'text/html');
+  } catch {
+    return sane;
+  }
+  doc.querySelectorAll('a[href]').forEach(a => {
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noreferrer noopener');
+  });
+  if (categoria === 'LEGITIMO') {           // los legítimos cargan todo
+    return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+  }
   // No legítimo: CSP img-src 'none' bloquea TODAS las imágenes (http, data URIs,
   // CSS background-image) a nivel navegador. Más robusto que quitar <img src> a mano,
   // que se dejaba las data: y los background-image (por eso seguían viéndose).
-  const csp = '<meta http-equiv="Content-Security-Policy" content="img-src \'none\';">';
-  try {
-    const doc = new DOMParser().parseFromString(sane, 'text/html');
-    doc.head.insertAdjacentHTML('afterbegin', csp);
-    return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
-  } catch {
-    return csp + sane;
-  }
+  doc.head.insertAdjacentHTML('afterbegin',
+    '<meta http-equiv="Content-Security-Policy" content="img-src \'none\';">');
+  return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
 }
 
 function formatBytes(n?: number): string {
@@ -368,7 +378,7 @@ export default function CorreoPage() {
                 // correo inertes) y SIN allow-same-origin (origen único opaco:
                 // el correo no puede tocar el localStorage de la app donde
                 // vive el JWT). DOMPurify + CSP añaden capas por si sandbox falla.
-                <iframe key={selected.id + ':' + (selected.categoria || 'x')} srcDoc={htmlSegunCategoria(selected.html, selected.categoria)} className="w-full h-full border-0" title="Cuerpo" sandbox="" />
+                <iframe key={selected.id + ':' + (selected.categoria || 'x')} srcDoc={htmlSegunCategoria(selected.html, selected.categoria)} className="w-full h-full border-0" title="Cuerpo" sandbox="allow-popups allow-popups-to-escape-sandbox" />
               ) : (
                 <pre className="text-sm whitespace-pre-wrap font-sans" style={{ color: 'var(--color-text)' }}>
                   {selected.cuerpo}</pre>
