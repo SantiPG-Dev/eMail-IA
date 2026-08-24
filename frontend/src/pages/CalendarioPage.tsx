@@ -73,13 +73,12 @@ export default function CalendarioPage() {
   const [vista, setVista] = useState<Vista>('mes');
   // Fecha de referencia para las vistas Semana/Día
   const [refDate, setRefDate] = useState(() => toIso(new Date()));
-  const { data: events, loading, error, reload } = useAsync<string[]>(
-    () => eventoApi.datesWithEvents().then(r => r.data || []), [month, year]
-  );
-  // Lista completa para semana/día/agenda (se recarga al navegar)
+  // Drag & drop de eventos entre días del mes
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [dropDate, setDropDate] = useState<string | null>(null);
+  // Lista completa para semana/día/agenda y chips arrastrables del mes
   const { data: todos, loading: loadingTodos, error: errorTodos, reload: reloadTodos } = useAsync<Evento[]>(
-    () => vista === 'mes' ? Promise.resolve([]) : eventoApi.list().then(r => r.data || []),
-    [vista, refDate]
+    () => eventoApi.list().then(r => r.data || []), []
   );
 
   // Día seleccionado → panel lateral con sus eventos
@@ -91,8 +90,6 @@ export default function CalendarioPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editando, setEditando] = useState<Evento | null>(null);
-
-  const eventList = events ?? [];
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -107,11 +104,27 @@ export default function CalendarioPage() {
 
   const fechaStr = (d: number) => `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 
-  const trasGuardar = () => { reload(); reloadDia(); reloadTodos(); };
+  const trasGuardar = () => { reloadDia(); reloadTodos(); };
 
   const borrarEvento = async (id: number) => {
     if (!window.confirm('¿Borrar el evento?')) return;
     await eventoApi.delete(id);
+    trasGuardar();
+  };
+
+  // Arrastre entre días del mes: desplaza fecha (+ fechaFin) el delta de días
+  const moverEvento = async (id: number, nuevaFecha: string) => {
+    const ev = (todos ?? []).find(e => e.id === id);
+    if (!ev || ev.fecha === nuevaFecha) return;
+    const delta = Math.round(
+      (new Date(nuevaFecha + 'T12:00:00').getTime() - new Date(ev.fecha + 'T12:00:00').getTime()) / 86400000);
+    await eventoApi.update(id, {
+      ...ev,
+      fecha: nuevaFecha,
+      fechaFin: ev.fechaFin ? addDays(ev.fechaFin, delta) : null,
+    });
+    setDropDate(null);
+    setDragId(null);
     trasGuardar();
   };
 
@@ -285,10 +298,10 @@ export default function CalendarioPage() {
                 style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>+ Añadir en este día</button>
             </div>
           )
-        ) : loading ? (
+        ) : loadingTodos ? (
           <Spinner label="Cargando calendario..." />
-        ) : error ? (
-          <ErrorState message={error} onRetry={reload} />
+        ) : errorTodos ? (
+          <ErrorState message={errorTodos} onRetry={reloadTodos} />
         ) : (
           <div className="grid grid-cols-7 gap-px">
             {DAYS.map(d => (
@@ -298,20 +311,59 @@ export default function CalendarioPage() {
             {cells.map((d, i) => {
               const fs = d ? fechaStr(d) : '';
               const isToday = fs === todayStr;
-              const hasEvents = eventList.includes(fs);
               const isSelected = fs === selectedDate;
+              const evs = d ? eventosDelDia(todos ?? [], fs).slice(0, 3) : [];
+              const isDropTarget = dropDate === fs;
               return (
                 <div key={i} onClick={() => { if (d) setSelectedDate(fs); }}
+                  onDragOver={e => { if (d && dragId) { e.preventDefault(); setDropDate(fs); } }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    const id = Number(e.dataTransfer.getData('text/evento-id'));
+                    if (d && id) moverEvento(id, fs);
+                  }}
+                  onDragLeave={() => setDropDate(null)}
                   className="min-h-[80px] p-1 text-sm rounded transition-colors cursor-pointer"
                   style={{
                     backgroundColor: d ? (isToday ? '#1a3a5c' : 'var(--color-bg-card)') : 'transparent',
                     border: isSelected ? '2px solid var(--color-accent)'
                       : isToday ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
                     color: d ? 'var(--color-text)' : 'transparent',
+                    outline: isDropTarget ? '2px dashed var(--color-accent)' : 'none',
                   }}>
-                  {d && <span className="font-bold text-xs">{d}</span>}
-                  {hasEvents && <div className="w-1.5 h-1.5 rounded-full mt-1"
-                    style={{ backgroundColor: 'var(--color-accent)' }} />}
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs">{d}</span>
+                    {evs.length > 0 && (
+                      <span className="text-[9px]" style={{ color: 'var(--color-text-secondary)' }}>
+                        {eventosDelDia(todos ?? [], fs).length}</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-0.5 mt-0.5">
+                    {evs.map(ev => (
+                      <div key={ev.id} draggable
+                        onDragStart={e => {
+                          e.dataTransfer.setData('text/evento-id', String(ev.id));
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDragId(ev.id);
+                        }}
+                        onDragEnd={() => { setDragId(null); setDropDate(null); }}
+                        className="truncate rounded px-1 py-0.5 text-[9px] leading-tight cursor-grab active:cursor-grabbing"
+                        style={{
+                          backgroundColor: 'var(--color-bg-elevated)',
+                          borderLeft: '3px solid ' + (ev.origen === 'ics' ? '#a78bfa' : 'var(--color-accent)'),
+                          color: 'var(--color-text)',
+                          opacity: dragId === ev.id ? 0.4 : 1,
+                        }}
+                        title={`${ev.titulo}${ev.hora ? ` (${ev.hora})` : ev.todoElDia ? ' (todo el día)' : ''}`}>
+                        {ev.todoElDia ? '' : (ev.hora ? ev.hora + ' ' : '')}{ev.titulo}
+                      </div>
+                    ))}
+                    {eventosDelDia(todos ?? [], fs).length > 3 && (
+                      <span className="text-[9px] px-1" style={{ color: 'var(--color-text-secondary)' }}>
+                        +{eventosDelDia(todos ?? [], fs).length - 3} más
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}
