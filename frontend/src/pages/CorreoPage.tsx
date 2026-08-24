@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import api, { mensajeApi, cuentaApi } from '../api/client';
@@ -96,6 +96,38 @@ export default function CorreoPage() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<'nuevo' | 'responder' | 'reenviar'>('nuevo');
   const [composeTo, setComposeTo] = useState('');
+  const [feedback, setFeedback] = useState('');
+
+  // Conservar la posición de la lista al reclasificar/sincronizar: se ancla el
+  // primer mensaje visible y se restaura tras el reload. Si el usuario está al
+  // principio (scrollTop ~0) NO hay ancla → la lista queda arriba y los correos
+  // nuevos descargados quedan a la vista.
+  const listRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<{ mid: number; offset: number } | null>(null);
+
+  const salvarAncla = () => {
+    const c = listRef.current;
+    if (!c || c.scrollTop < 8) { anchorRef.current = null; return; }
+    const cTop = c.getBoundingClientRect().top;
+    const items = Array.from(c.querySelectorAll('[data-mid]')) as HTMLElement[];
+    const primero = items.find(h => h.getBoundingClientRect().bottom > cTop + 1);
+    anchorRef.current = primero
+      ? { mid: Number(primero.dataset.mid), offset: primero.getBoundingClientRect().top - cTop }
+      : null;
+  };
+
+  // Restaurar el ancla cuando la lista vuelve a pintarse
+  useEffect(() => {
+    const c = listRef.current;
+    const a = anchorRef.current;
+    if (!c || !a || loadingMensajes) return;
+    anchorRef.current = null;
+    const el = c.querySelector(`[data-mid="${a.mid}"]`) as HTMLElement | null;
+    if (el) {
+      c.scrollTop = c.scrollTop
+        + (el.getBoundingClientRect().top - c.getBoundingClientRect().top) - a.offset;
+    }
+  }, [mensajes, loadingMensajes]);
 
   // Menú contextual (botón derecho) sobre un correo → crear evento/tarea
   const [menu, setMenu] = useState<{ x: number; y: number; mensaje: Mensaje } | null>(null);
@@ -134,7 +166,8 @@ export default function CorreoPage() {
   const [searchParams] = useSearchParams();
   const carpetaImap = searchParams.get('carpeta') || 'INBOX';
 
-  const cargarMensajes = useCallback(async (carpeta?: string) => {
+  const cargarMensajes = useCallback(async (carpeta?: string, preservarScroll = false) => {
+    if (preservarScroll) salvarAncla(); else anchorRef.current = null;
     setLoadingMensajes(true);
     setErrorMensajes(null);
     try {
@@ -161,14 +194,15 @@ export default function CorreoPage() {
     cargarMensajes(carpetaImap);
   }, [carpetaImap, cargarMensajes]);
 
-  // Recargar mensajes cuando SyncContext completa un sync
+  // Recargar mensajes cuando SyncContext completa un sync (preservando posición:
+  // solo salta arriba si el usuario ya estaba arriba → ve los nuevos)
   useEffect(() => {
-    if (refreshKey > 0) cargarMensajes(carpetaImap);
+    if (refreshKey > 0) cargarMensajes(carpetaImap, true);
   }, [refreshKey, cargarMensajes, carpetaImap]);
 
   const sincronizar = async () => {
     await triggerSync();
-    await cargarMensajes(carpetaImap);
+    await cargarMensajes(carpetaImap, true);
   };
 
   const handleSearch = async () => {
@@ -279,7 +313,11 @@ export default function CorreoPage() {
           </p>
         )}
 
-        <div className="flex-1 overflow-y-auto space-y-1">
+        {feedback && (
+          <p className="text-xs font-medium" style={{ color: 'var(--color-accent)' }}>{feedback}</p>
+        )}
+
+        <div ref={listRef} className="flex-1 overflow-y-auto space-y-1">
           {loadingMensajes ? (
             <Spinner label="Cargando mensajes..." />
           ) : errorMensajes ? (
@@ -289,7 +327,7 @@ export default function CorreoPage() {
               title={hasAccounts ? 'Bandeja vacía' : 'Sin cuenta configurada'}
               hint={hasAccounts ? 'Pulsa ↕ para sincronizar tu correo' : 'Añade una cuenta en Configuración'} />
           ) : mensajes.map(m => (
-            <div key={m.id} onClick={() => setSelected(m)}
+            <div key={m.id} data-mid={m.id} onClick={() => setSelected(m)}
               onContextMenu={e => {
                 e.preventDefault();
                 setMenu({ x: e.clientX, y: e.clientY, mensaje: m });
@@ -406,8 +444,12 @@ export default function CorreoPage() {
                   try {
                     const res = await mensajeApi.classify(selected.id, 'SPAM');
                     setSelected(res.data);
+                    if (res.data.reclasificados != null) {
+                      setFeedback(`Remitente marcado como SPAM — ${res.data.reclasificados} correo(s) reclasificados`);
+                      setTimeout(() => setFeedback(''), 4000);
+                    }
                     window.electronAPI?.clearCache(); // purge del caché HTTP (anti-tracking)
-                    await cargarMensajes(carpetaImap);
+                    await cargarMensajes(carpetaImap, true);
                   } catch (e: any) {
                     setErrorMensajes(e?.response?.data?.error || e?.message || 'No se pudo clasificar');
                   }
@@ -419,7 +461,11 @@ export default function CorreoPage() {
                   try {
                     const res = await mensajeApi.classify(selected.id, 'LEGITIMO');
                     setSelected(res.data);
-                    await cargarMensajes(carpetaImap);
+                    if (res.data.reclasificados != null) {
+                      setFeedback(`Remitente marcado como LEGÍTIMO — ${res.data.reclasificados} correo(s) reclasificados`);
+                      setTimeout(() => setFeedback(''), 4000);
+                    }
+                    await cargarMensajes(carpetaImap, true);
                   } catch (e: any) {
                     setErrorMensajes(e?.response?.data?.error || e?.message || 'No se pudo clasificar');
                   }

@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.emailai.domain.entities.RemitenteConfiable;
 import com.emailai.repository.RemitenteConfiableRepository;
 
-// Lista blanca: remitentes que el filtro spam nunca marca.
+// Clasificación por remitente: LEGITIMO (lista blanca original) o SPAM/PHISHING.
 @Service
 @Transactional
 public class RemitenteConfiableService {
@@ -30,13 +30,29 @@ public class RemitenteConfiableService {
 
     @Transactional(readOnly = true)
     public boolean esConfiable(String remitente) {
-        return repo.existsByRemitente(remitente);
+        return repo.findByRemitente(remitente)
+                .map(r -> "LEGITIMO".equals(r.getCategoria()))
+                .orElse(false);
+    }
+
+    /** Categoría manual del remitente (vacio si no está clasificado). */
+    @Transactional(readOnly = true)
+    public java.util.Optional<String> categoriaDe(String remitente) {
+        return repo.findByRemitente(remitente).map(RemitenteConfiable::getCategoria);
     }
 
     public void agregar(String remitente) {
-        if (!repo.existsByRemitente(remitente)) {
-            repo.save(new RemitenteConfiable(remitente));
-        }
+        agregar(remitente, "LEGITIMO");
+    }
+
+    /** Upsert: si el remitente ya existía, actualiza su categoría. */
+    public void agregar(String remitente, String categoria) {
+        RemitenteConfiable r = repo.findByRemitente(remitente).orElseGet(() -> {
+            RemitenteConfiable nuevo = new RemitenteConfiable(remitente);
+            return repo.save(nuevo);
+        });
+        r.setCategoria(categoria);
+        repo.save(r);
     }
 
     public void eliminar(String remitente) {
