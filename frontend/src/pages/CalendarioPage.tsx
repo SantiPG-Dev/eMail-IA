@@ -3,11 +3,36 @@ import { eventoApi } from '../api/client';
 import EventoDialog, { Evento } from '../components/EventoDialog';
 import { useAsync } from '../hooks/useAsync';
 import { Spinner, ErrorState, EmptyState } from '../components/StateViews';
-import { proximosEventos, diaAgenda, etiquetaFecha } from '../utils/fechas';
+import { proximosEventos, diaAgenda, etiquetaFecha, compararEventos, toIso } from '../utils/fechas';
 
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                 'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+const VISTAS = [
+  { key: 'mes', label: 'Mes' },
+  { key: 'semana', label: 'Semana' },
+  { key: 'dia', label: 'Día' },
+  { key: 'agenda', label: 'Agenda' },
+] as const;
+type Vista = typeof VISTAS[number]['key'];
+
+const addDays = (fechaIso: string, n: number) => {
+  const d = new Date(fechaIso + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return toIso(d);
+};
+
+// Lunes de la semana de `fechaIso`
+const mondayOf = (fechaIso: string) => {
+  const d = new Date(fechaIso + 'T12:00:00');
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return toIso(d);
+};
+
+// Eventos vigentes un día concreto (incluye multi-día que lo abarcan)
+const eventosDelDia = (evs: Evento[], dia: string) =>
+  evs.filter(e => e.fecha <= dia && dia <= (e.fechaFin || e.fecha)).sort(compararEventos);
 
 // Fila de evento reutilizada por el panel del día y la vista agenda.
 function EventoRow({ ev, onEdit, onDelete }: { ev: Evento; onEdit: () => void; onDelete: () => void }) {
@@ -39,19 +64,22 @@ function EventoRow({ ev, onEdit, onDelete }: { ev: Evento; onEdit: () => void; o
   );
 }
 
-// Calendario mensual + panel lateral del día (estilo Evolution) con
-// vista Agenda de próximos eventos. Los días con eventos se marcan.
+// Calendario con vistas Mes/Semana/Día/Agenda (estilo Evolution) y panel
+// lateral del día seleccionado en vista Mes. Los días con eventos se marcan.
 export default function CalendarioPage() {
   const [today] = useState(() => new Date());
   const [month, setMonth] = useState(today.getMonth());
   const [year, setYear] = useState(today.getFullYear());
-  const [vista, setVista] = useState<'mes' | 'agenda'>('mes');
+  const [vista, setVista] = useState<Vista>('mes');
+  // Fecha de referencia para las vistas Semana/Día
+  const [refDate, setRefDate] = useState(() => toIso(new Date()));
   const { data: events, loading, error, reload } = useAsync<string[]>(
     () => eventoApi.datesWithEvents().then(r => r.data || []), [month, year]
   );
-  const { data: agenda, loading: loadingAgenda, error: errorAgenda, reload: reloadAgenda } = useAsync<Evento[]>(
-    () => vista === 'agenda' ? eventoApi.list().then(r => r.data || []) : Promise.resolve([]),
-    [vista]
+  // Lista completa para semana/día/agenda (se recarga al navegar)
+  const { data: todos, loading: loadingTodos, error: errorTodos, reload: reloadTodos } = useAsync<Evento[]>(
+    () => vista === 'mes' ? Promise.resolve([]) : eventoApi.list().then(r => r.data || []),
+    [vista, refDate]
   );
 
   // Día seleccionado → panel lateral con sus eventos
@@ -79,7 +107,7 @@ export default function CalendarioPage() {
 
   const fechaStr = (d: number) => `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 
-  const trasGuardar = () => { reload(); reloadDia(); reloadAgenda(); };
+  const trasGuardar = () => { reload(); reloadDia(); reloadTodos(); };
 
   const borrarEvento = async (id: number) => {
     if (!window.confirm('¿Borrar el evento?')) return;
@@ -88,13 +116,16 @@ export default function CalendarioPage() {
   };
 
   // Agrupa la agenda plana por día (multi-día vigentes cuelgan de Hoy)
-  const agendaGrupos = proximosEventos(agenda ?? [], todayStr).reduce<{ dia: string; evs: Evento[] }[]>((acc, ev) => {
+  const agendaGrupos = proximosEventos(todos ?? [], todayStr).reduce<{ dia: string; evs: Evento[] }[]>((acc, ev) => {
     const dia = diaAgenda(ev, todayStr);
     const last = acc[acc.length - 1];
     if (last && last.dia === dia) last.evs.push(ev);
     else acc.push({ dia, evs: [ev] });
     return acc;
   }, []);
+
+  const weekStart = mondayOf(refDate);
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   return (
     <div className="p-4 h-full overflow-auto flex gap-4" style={{ backgroundColor: 'var(--color-bg)' }}>
@@ -111,17 +142,46 @@ export default function CalendarioPage() {
                 style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)' }}>▶</button>
             </>
           )}
+          {vista === 'semana' && (
+            <>
+              <button onClick={() => setRefDate(addDays(weekStart, -7))} className="px-3 py-1 text-sm rounded-lg transition-colors"
+                style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)' }}>◀</button>
+              <h2 className="text-lg font-bold whitespace-nowrap" style={{ color: 'var(--color-text)' }}>
+                {(() => {
+                  const mIni = new Date(weekStart + 'T12:00:00').getMonth();
+                  const mFin = new Date(weekDays[6] + 'T12:00:00').getMonth();
+                  return mIni === mFin
+                    ? `${weekStart.slice(8)} – ${weekDays[6].slice(8)} de ${MONTHS[mFin]}`
+                    : `${weekStart.slice(8)} de ${MONTHS[mIni]} – ${weekDays[6].slice(8)} de ${MONTHS[mFin]}`;
+                })()}
+              </h2>
+              <button onClick={() => setRefDate(addDays(weekStart, 7))} className="px-3 py-1 text-sm rounded-lg transition-colors"
+                style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)' }}>▶</button>
+            </>
+          )}
+          {vista === 'dia' && (
+            <>
+              <button onClick={() => setRefDate(addDays(refDate, -1))} className="px-3 py-1 text-sm rounded-lg transition-colors"
+                style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)' }}>◀</button>
+              <h2 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>
+                {etiquetaFecha(refDate, today)}</h2>
+              <button onClick={() => setRefDate(addDays(refDate, 1))} className="px-3 py-1 text-sm rounded-lg transition-colors"
+                style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)' }}>▶</button>
+              <button onClick={() => setRefDate(todayStr)} className="px-3 py-1 text-xs rounded-lg"
+                style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>Hoy</button>
+            </>
+          )}
           {vista === 'agenda' && (
             <h2 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>Próximos eventos</h2>
           )}
           <div className="flex gap-1">
-            {(['mes', 'agenda'] as const).map(v => (
-              <button key={v} onClick={() => setVista(v)}
+            {VISTAS.map(v => (
+              <button key={v.key} onClick={() => setVista(v.key)}
                 className="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
                 style={{
-                  backgroundColor: vista === v ? 'var(--color-accent)' : 'var(--color-bg-card)',
-                  color: vista === v ? '#0F172A' : 'var(--color-text)',
-                }}>{v === 'mes' ? 'Mes' : 'Agenda'}</button>
+                  backgroundColor: vista === v.key ? 'var(--color-accent)' : 'var(--color-bg-card)',
+                  color: vista === v.key ? '#0F172A' : 'var(--color-text)',
+                }}>{v.label}</button>
             ))}
           </div>
           <div className="flex-1" />
@@ -131,10 +191,10 @@ export default function CalendarioPage() {
         </div>
 
         {vista === 'agenda' ? (
-          loadingAgenda ? (
+          loadingTodos ? (
             <Spinner label="Cargando agenda..." />
-          ) : errorAgenda ? (
-            <ErrorState message={errorAgenda} onRetry={reloadAgenda} />
+          ) : errorTodos ? (
+            <ErrorState message={errorTodos} onRetry={reloadTodos} />
           ) : agendaGrupos.length === 0 ? (
             <EmptyState icon="📆" title="Sin eventos próximos" hint="Haz clic en '+ Nuevo evento'" />
           ) : (
@@ -154,6 +214,75 @@ export default function CalendarioPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )
+        ) : vista === 'semana' ? (
+          loadingTodos ? (
+            <Spinner label="Cargando semana..." />
+          ) : errorTodos ? (
+            <ErrorState message={errorTodos} onRetry={reloadTodos} />
+          ) : (
+            <div className="grid grid-cols-7 gap-2">
+              {weekDays.map(dia => {
+                const evs = eventosDelDia(todos ?? [], dia);
+                const esHoy = dia === todayStr;
+                return (
+                  <div key={dia} className="flex flex-col gap-1.5 min-w-0">
+                    <button onClick={() => { setRefDate(dia); setVista('dia'); }}
+                      className="text-center rounded-lg py-1 cursor-pointer transition-colors"
+                      style={{
+                        backgroundColor: esHoy ? '#1a3a5c' : 'var(--color-bg-card)',
+                        color: 'var(--color-text)',
+                        outline: esHoy ? '2px solid var(--color-accent)' : 'none',
+                      }}>
+                      <span className="text-[10px] font-bold uppercase block"
+                        style={{ color: 'var(--color-text-secondary)' }}>
+                        {DAYS[new Date(dia + 'T12:00:00').getDay()]}
+                      </span>
+                      <span className="text-sm font-bold">{Number(dia.slice(8))}</span>
+                    </button>
+                    <div className="flex flex-col gap-1 min-h-[60px]">
+                      {evs.map(ev => (
+                        <button key={ev.id}
+                          onClick={() => { setEditando(ev); setDialogOpen(true); }}
+                          className="text-left rounded-lg px-1.5 py-1 text-[11px] leading-tight truncate"
+                          style={{
+                            backgroundColor: 'var(--color-bg-card)',
+                            borderLeft: '3px solid ' + (ev.origen === 'ics' ? '#a78bfa' : 'var(--color-accent)'),
+                            color: 'var(--color-text)',
+                          }}
+                          title={`${ev.todoElDia ? 'Todo el día' : (ev.hora || '--:--')} — ${ev.titulo}`}>
+                          <span className="font-bold" style={{ color: 'var(--color-accent)' }}>
+                            {ev.todoElDia ? '' : (ev.hora ? ev.hora + ' ' : '')}
+                          </span>
+                          {ev.titulo}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : vista === 'dia' ? (
+          loadingTodos ? (
+            <Spinner label="Cargando día..." />
+          ) : errorTodos ? (
+            <ErrorState message={errorTodos} onRetry={reloadTodos} />
+          ) : (
+            <div className="max-w-xl space-y-1">
+              {eventosDelDia(todos ?? [], refDate).length === 0 ? (
+                <EmptyState icon="📆" title="Sin eventos" hint="Haz clic en '+ Nuevo evento'" />
+              ) : (
+                eventosDelDia(todos ?? [], refDate).map(ev => (
+                  <EventoRow key={ev.id} ev={ev}
+                    onEdit={() => { setEditando(ev); setDialogOpen(true); }}
+                    onDelete={() => borrarEvento(ev.id)} />
+                ))
+              )}
+              <button onClick={() => { setEditando(null); setDialogOpen(true); }}
+                className="w-full px-3 py-1.5 text-xs font-bold rounded-pill"
+                style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>+ Añadir en este día</button>
             </div>
           )
         ) : loading ? (
@@ -190,14 +319,17 @@ export default function CalendarioPage() {
         )}
       </div>
 
-      {/* Panel del día */}
-      {selectedDate && (
+      {/* Panel del día (solo en vista Mes) */}
+      {selectedDate && vista === 'mes' && (
         <div className="w-[300px] shrink-0 rounded-xl p-3 flex flex-col gap-2 self-start max-h-full"
           style={{ backgroundColor: 'var(--color-bg-card)' }}>
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold flex-1" style={{ color: 'var(--color-text)' }}>
               {selectedDate === todayStr ? 'Hoy' : ''}
             </h3>
+            <button onClick={() => { setRefDate(selectedDate); setVista('dia'); }}
+              className="text-xs px-1.5 rounded"
+              style={{ color: 'var(--color-accent)' }}>Ver día</button>
             <button onClick={() => setSelectedDate('')}
               className="text-xs px-1.5 rounded"
               style={{ color: 'var(--color-text-secondary)' }}>✕</button>
@@ -225,7 +357,7 @@ export default function CalendarioPage() {
       <EventoDialog
         key={editando?.id ?? 'nuevo'}
         open={dialogOpen}
-        fecha={selectedDate || undefined}
+        fecha={vista === 'dia' ? refDate : selectedDate || undefined}
         evento={editando}
         onClose={() => { setDialogOpen(false); setEditando(null); }}
         onSaved={trasGuardar} />

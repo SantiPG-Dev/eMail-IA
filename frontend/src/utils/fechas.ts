@@ -9,6 +9,9 @@ const DIAS = ['domingo','lunes','martes','miercoles','miércoles','jueves','vier
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+/** Date → 'yyyy-MM-dd' (fecha local, sin desfase UTC). */
+export const toIso = iso;
+
 export interface FechaDetectada {
   fecha: string;   // yyyy-MM-dd
   hora: string | null; // HH:mm
@@ -91,6 +94,12 @@ export function diaAgenda(e: EventoAgenda, hoy: string): string {
   return e.fecha < hoy ? hoy : e.fecha;
 }
 
+// Orden natural de eventos dentro de un día: todo-el-día primero, luego hora.
+export function compararEventos(a: EventoAgenda, b: EventoAgenda): number {
+  return Number(b.todoElDia ?? false) - Number(a.todoElDia ?? false)
+      || (a.hora ?? '99:99').localeCompare(b.hora ?? '99:99');
+}
+
 // Eventos de hoy en adelante (incluye los que empezaron antes pero
 // aún no terminan), ordenados por día, todo-el-día primero y luego hora.
 export function proximosEventos<T extends EventoAgenda>(eventos: T[], hoy: string, limite = 50): T[] {
@@ -98,18 +107,15 @@ export function proximosEventos<T extends EventoAgenda>(eventos: T[], hoy: strin
     .filter(e => (e.fechaFin || e.fecha) >= hoy)
     .sort((a, b) =>
       diaAgenda(a, hoy).localeCompare(diaAgenda(b, hoy))
-      || Number(b.todoElDia ?? false) - Number(a.todoElDia ?? false)
-      || (a.hora ?? '99:99').localeCompare(b.hora ?? '99:99'))
+      || compararEventos(a, b))
     .slice(0, limite);
 }
 
 // "Hoy" | "Mañana" | "martes, 25 de agosto"
 export function etiquetaFecha(fecha: string, hoy: Date = new Date()): string {
-  const iso = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  if (fecha === iso(hoy)) return 'Hoy';
+  if (fecha === toIso(hoy)) return 'Hoy';
   const manana = new Date(hoy); manana.setDate(hoy.getDate() + 1);
-  if (fecha === iso(manana)) return 'Mañana';
+  if (fecha === toIso(manana)) return 'Mañana';
   const d = new Date(fecha + 'T12:00:00');
   return `${DIAS_CAP[d.getDay()]}, ${d.getDate()} de ${MESES_CAP[d.getMonth()]}`;
 }
