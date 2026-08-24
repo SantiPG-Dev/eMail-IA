@@ -2,11 +2,7 @@ import { useState } from 'react';
 import { tareaApi } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { Spinner, EmptyState, ErrorState } from '../components/StateViews';
-
-interface Tarea {
-  id: number; titulo: string; descripcion: string;
-  fechaVencimiento: string; estado: string; prioridad: string;
-}
+import TareaDialog, { Tarea } from '../components/TareaDialog';
 
 // Gestión de tareas con filtros por periodo (hoy/semana/mes) y sincronización Todoist.
 const FILTROS = [
@@ -26,6 +22,8 @@ export default function TareasPage() {
   );
   const [filter, setFilter] = useState('all');
   const [titulo, setTitulo] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editando, setEditando] = useState<Tarea | null>(null);
 
   const add = async () => {
     if (!titulo.trim()) return;
@@ -105,8 +103,14 @@ export default function TareasPage() {
                 <input type="checkbox" checked={t.estado === 'completada'}
                   onChange={() => toggleEstado(t)}
                   className="cursor-pointer" />
-                <span className={`flex-1 ${t.estado === 'completada' ? 'line-through' : ''}`}
-                  style={{ color: 'var(--color-text)' }}>{t.titulo}</span>
+                <span className={`flex-1 cursor-pointer ${t.estado === 'completada' ? 'line-through' : ''}`}
+                  style={{ color: 'var(--color-text)' }}
+                  title="Clic para editar"
+                  onClick={() => { setEditando(t); setDialogOpen(true); }}>{t.titulo}</span>
+                <button
+                  onClick={() => { setEditando(t); setDialogOpen(true); }}
+                  className="text-xs px-1.5 py-0.5 rounded"
+                  style={{ color: 'var(--color-text-secondary)' }}>✏️</button>
                 <span className="text-xs px-1.5 py-0.5 rounded font-bold"
                   style={{ backgroundColor: prio.bg, color: prio.bg === '#ffca28' ? '#111' : 'white' }}>
                   {prio.label}</span>
@@ -119,6 +123,13 @@ export default function TareasPage() {
           })}
         </div>
       )}
+
+      <TareaDialog
+        key={editando?.id ?? 'nueva'}
+        open={dialogOpen}
+        tarea={editando}
+        onClose={() => { setDialogOpen(false); setEditando(null); }}
+        onSaved={reload} />
     </div>
   );
 }
