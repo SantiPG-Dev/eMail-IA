@@ -1,9 +1,15 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
+import { createRequire } from 'node:module';
 import react from '@vitejs/plugin-react';
+
+const pkg = createRequire(import.meta.url)('./package.json');
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   server: {
     port: 5173,
     // Backend de dev: mvn spring-boot:run en backend/ (8080 por defecto)

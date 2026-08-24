@@ -14,11 +14,21 @@
     }
     .container { text-align: center; animation: pulse 0.8s ease-out; }
     img { width: 180px; height: 180px; border-radius: 32px; }
+    .version {
+      position: fixed; bottom: 10px; left: 0; right: 0;
+      margin: 0; text-align: center;
+      font-size: 11px; color: #94A3B8;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <img src="./assets/icon-512.png" alt="eMail-IA" />
   </div>
+  <p class="version" id="version"></p>
+  <script>
+    const v = new URLSearchParams(location.search).get('v');
+    if (v) document.getElementById('version').textContent = 'v' + v;
+  </script>
 </body>
 </html>

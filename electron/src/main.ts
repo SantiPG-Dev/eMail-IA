@@ -402,7 +402,7 @@ function showSplash() {
   });
 
   // Cargar splash HTML desde archivo
-  splash.loadURL('file://' + path.resolve(__dirname, '..', 'splash.html'));
+  splash.loadURL('file://' + path.resolve(__dirname, '..', 'splash.html') + '?v=' + app.getVersion());
 
   return splash;
 }

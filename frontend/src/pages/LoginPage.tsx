@@ -276,6 +276,11 @@ export default function LoginPage() {
         )}
       </div>
 
+      <p className="absolute bottom-3 left-0 right-0 text-center text-[11px]"
+        style={{ color: 'var(--color-text-muted)' }}>
+        v{__APP_VERSION__}
+      </p>
+
       <AccountSetupModal open={showSetupModal} onClose={handleAccountSaved} />
     </div>
   );
