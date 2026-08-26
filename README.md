@@ -17,9 +17,6 @@ eMail-IA/
 ├── frontend/    React 19 + Vite + TypeScript + Tailwind (UI idéntica al JavaFX)
 ├── electron/    Electron (shell de escritorio, empaqueta backend + frontend + JRE)
 ├── lanzadores/  Instaladores y scripts de empaquetado multiplataforma
-├── legacy/      Código JavaFX original (referencia visual y lógica)
-│   ├── emailAI/     App JavaFX completa (~12k líneas)
-│   └── README.md    Documentación del proyecto original
 └── .github/     CI/CD (ci.yml: tests; release.yml: instaladores multiplataforma)
 ```
 
@@ -135,8 +132,7 @@ en `resources/` dentro de cada artefacto.
 ## 📚 Más información
 
 - [Plan de migración completo](planes/emailia-migracion-electron.md) (vault Obsidian)
-- [Documentación del proyecto original](legacy/README.md) (JavaFX)
-- [Código legacy](legacy/emailAI/) (referencia visual y lógica de negocio)
+- Proyecto original en JavaFX (PFC): repositorio separado `PFC - eMail-IA`
 
 ---
 

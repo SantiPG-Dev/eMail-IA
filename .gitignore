@@ -42,11 +42,11 @@ logs/
 
 # --- IDE ---
 .vscode/
+.idea/
 *.iml
 .classpath
 .project
 .settings/
-# .idea/ se mantiene versionado (config IntelliJ compartida)
 
 # --- OS ---
 .DS_Store
