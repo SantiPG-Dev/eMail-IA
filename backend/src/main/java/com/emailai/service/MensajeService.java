@@ -65,6 +65,12 @@ public class MensajeService {
         return repo.countByCuentaHashAndCarpetaImap(cuentaHash, carpetaImap);
     }
 
+    /** Mensajes de un remitente en una cuenta, para el rescan al clasificarlo. */
+    @Transactional(readOnly = true)
+    public List<Mensaje> listarPorRemitente(String cuentaHash, String remitente) {
+        return repo.findByCuentaHashAndRemitente(cuentaHash, remitente);
+    }
+
     @Transactional(readOnly = true)
     public List<Mensaje> buscar(String cuentaHash, String carpetaImap, String filtro) {
         return repo.buscarEnBandeja(cuentaHash, carpetaImap, filtro);

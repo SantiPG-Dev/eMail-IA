@@ -38,6 +38,10 @@ public interface MensajeRepository extends JpaRepository<Mensaje, Long> {
     Optional<Mensaje> findByUidAndCuentaHashAndCarpetaImap(
             String uid, String cuentaHash, String carpetaImap);
 
+    /** Todos los mensajes de un remitente en una cuenta (rescan al clasificar remitente). */
+    @EntityGraph(attributePaths = "adjuntos")
+    List<Mensaje> findByCuentaHashAndRemitente(String cuentaHash, String remitente);
+
     /** Obtiene todos los UIDs existentes para una cuenta+carpeta. */
     @Query("SELECT m.uid FROM Mensaje m WHERE m.cuentaHash = :cuentaHash AND m.carpetaImap = :carpetaImap")
     java.util.Set<String> findUidsByCuentaHashAndCarpetaImap(

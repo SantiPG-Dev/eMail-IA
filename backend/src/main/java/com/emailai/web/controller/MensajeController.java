@@ -93,17 +93,29 @@ public class MensajeController {
             @PathVariable Long id,
             @RequestParam(required = false) String categoria) {
         Mensaje m = mensajeService.buscarPorId(id);
+        int reclasificados = 0;
 
         if (categoria != null && !categoria.isBlank()) {
-            // Feedback del usuario: forzar categoría + entrenar Weka
-            m = mailService.forzarCategoria(m, categoria);
+            // Feedback del usuario: forzar categoría + marcar remitente +
+            // rescan de sus correos + entrenar Weka
+            var res = mailService.forzarCategoria(m, categoria);
+            m = res.mensaje();
+            reclasificados = res.reclasificados();
         } else {
             // Clasificación automática con Weka
             m = mailService.clasificarMensaje(m);
         }
 
         mensajeService.guardarOActualizar(m);
-        return toResponse(m);
+        MensajeResponse resp = toResponse(m);
+        if (reclasificados > 0) {
+            resp = new MensajeResponse(resp.id(), resp.uid(), resp.cuentaHash(),
+                    resp.carpetaImap(), resp.remitente(), resp.destinatarios(),
+                    resp.cc(), resp.cco(), resp.asunto(), resp.cuerpo(), resp.html(),
+                    resp.categoria(), resp.prioridad(), resp.fechaRecepcion(),
+                    resp.adjuntos(), reclasificados);
+        }
+        return resp;
     }
 
     @PostMapping("/{id}/resumen")

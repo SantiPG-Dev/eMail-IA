@@ -2,8 +2,8 @@ package com.emailai.domain.entities;
 
 import jakarta.persistence.*;
 
-// Lista blanca: remitentes que el filtro spam nunca va a marcar.
-// Útil para boletines, notificaciones bancarias, etc.
+// Clasificación por remitente: LEGITIMO (nunca spam), SPAM o PHISHING.
+// Al forzar una categoría sobre un correo se marca a su remitente aquí.
 @Entity
 @Table(name = "remitentes_confiables")
 public class RemitenteConfiable {
@@ -15,6 +15,9 @@ public class RemitenteConfiable {
     @Column(nullable = false, unique = true, length = 255)
     private String remitente;
 
+    @Column(nullable = false)
+    private String categoria = "LEGITIMO";
+
     public RemitenteConfiable() {}
 
     public RemitenteConfiable(String remitente) {
@@ -25,4 +28,6 @@ public class RemitenteConfiable {
     public void setId(Integer id) { this.id = id; }
     public String getRemitente() { return remitente; }
     public void setRemitente(String remitente) { this.remitente = remitente; }
+    public String getCategoria() { return categoria; }
+    public void setCategoria(String categoria) { this.categoria = categoria; }
 }

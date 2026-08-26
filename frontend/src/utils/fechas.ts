@@ -9,6 +9,9 @@ const DIAS = ['domingo','lunes','martes','miercoles','miércoles','jueves','vier
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+/** Date → 'yyyy-MM-dd' (fecha local, sin desfase UTC). */
+export const toIso = iso;
+
 export interface FechaDetectada {
   fecha: string;   // yyyy-MM-dd
   hora: string | null; // HH:mm
@@ -77,3 +80,46 @@ function detectarHora(t: string): string | null {
   const m = t.match(/(?:\ba\s+las\s+|\ba\s+l\b|\bhoras?\s+|\b)?([01]?\d|2[0-3]):([0-5]\d)\s*(?:h|hrs|horas)?\b/);
   return m ? `${m[1].padStart(2, '0')}:${m[2]}` : null;
 }
+
+// ── Vista agenda (próximos eventos) ──────────────────────────────
+
+export interface EventoAgenda {
+  fecha: string; fechaFin?: string | null; hora?: string | null;
+  todoElDia?: boolean;
+}
+
+// Día bajo el que se muestra el evento en la agenda: los multi-día que
+// empezaron antes pero siguen vigentes se cuelgan de "Hoy".
+export function diaAgenda(e: EventoAgenda, hoy: string): string {
+  return e.fecha < hoy ? hoy : e.fecha;
+}
+
+// Orden natural de eventos dentro de un día: todo-el-día primero, luego hora.
+export function compararEventos(a: EventoAgenda, b: EventoAgenda): number {
+  return Number(b.todoElDia ?? false) - Number(a.todoElDia ?? false)
+      || (a.hora ?? '99:99').localeCompare(b.hora ?? '99:99');
+}
+
+// Eventos de hoy en adelante (incluye los que empezaron antes pero
+// aún no terminan), ordenados por día, todo-el-día primero y luego hora.
+export function proximosEventos<T extends EventoAgenda>(eventos: T[], hoy: string, limite = 50): T[] {
+  return eventos
+    .filter(e => (e.fechaFin || e.fecha) >= hoy)
+    .sort((a, b) =>
+      diaAgenda(a, hoy).localeCompare(diaAgenda(b, hoy))
+      || compararEventos(a, b))
+    .slice(0, limite);
+}
+
+// "Hoy" | "Mañana" | "martes, 25 de agosto"
+export function etiquetaFecha(fecha: string, hoy: Date = new Date()): string {
+  if (fecha === toIso(hoy)) return 'Hoy';
+  const manana = new Date(hoy); manana.setDate(hoy.getDate() + 1);
+  if (fecha === toIso(manana)) return 'Mañana';
+  const d = new Date(fecha + 'T12:00:00');
+  return `${DIAS_CAP[d.getDay()]}, ${d.getDate()} de ${MESES_CAP[d.getMonth()]}`;
+}
+
+const DIAS_CAP = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const MESES_CAP = ['enero','febrero','marzo','abril','mayo','junio',
+  'julio','agosto','septiembre','octubre','noviembre','diciembre'];
