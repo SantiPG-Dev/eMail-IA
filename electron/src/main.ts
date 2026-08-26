@@ -35,12 +35,17 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 // Ready file junto al jar (--jar=, instalación ~/.eMailAI), en userData
-// (empaquetado) o en tmp (dev sin empaquetar).
+// (empaquetado) o en tmp (dev sin empaquetar). En dev se usa un subdirectorio
+// privado 0700 por usuario (tmpdir es mundial-leíble: cualquier proceso local
+// podría sembrar un ready file en la raíz y desviar el tráfico al backend).
 function resolveReadyFile(): string {
   const jarArg = process.argv.find(a => a.startsWith('--jar='));
   if (jarArg) return path.join(path.dirname(jarArg.slice('--jar='.length)), 'backend.ready');
   if (app.isPackaged) return path.join(app.getPath('userData'), 'backend.ready');
-  return path.join(os.tmpdir(), `emailai-backend-${process.pid}.ready`);
+  const dir = path.join(os.tmpdir(), `emailai-dev-${os.userInfo().uid}`);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try { fs.chmodSync(dir, 0o700); } catch { /* Windows/FS sin chmod */ }
+  return path.join(dir, `backend-${process.pid}.ready`);
 }
 
 // ── Credenciales OAuth ──────────────────────────────────────────
@@ -71,12 +76,18 @@ function loadOAuthConfig(): Record<string, string> {
   if (!fs.existsSync(configPath)) {
     try {
       fs.writeFileSync(configPath, JSON.stringify(template, null, 2), 'utf-8');
-      console.log(`[Electron] Creado ${configPath} — rellena tus credenciales OAuth`);
+      // El template se rellena con el clientSecret de Google/Microsoft:
+      // jamás legible por otros usuarios locales (umask 022 dejaría 0644)
+      fs.chmodSync(configPath, 0o600);
+      console.log(`[Electron] Creado ${configPath} (0600) — rellena tus credenciales OAuth`);
     } catch (e) {
       console.warn(`[Electron] No se pudo crear ${configPath} (${(e as NodeJS.ErrnoException).code}); OAuth deshabilitado`);
     }
     return {};
   }
+
+  // Retro-corrección: versiones anteriores lo dejaban en 0644
+  try { fs.chmodSync(configPath, 0o600); } catch { /* FS sin chmod */ }
 
   try {
     const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
@@ -169,17 +180,33 @@ function findJar(): string | null {
 
 // ── Limpiar procesos anteriores ───────────────────────────────
 function matarProcesosAnteriores() {
+  // 1) Kill exacto por PID: el ready file stale del arranque anterior señala
+  //    al JVM huérfano que mantiene el file lock de H2 (kill -9 del Electron
+  //    deja al backend vivo). Cero riesgo de tocar procesos ajenos.
+  const stale = readReadyFile();
+  if (stale && pidAlive(stale.pid)) {
+    try {
+      process.kill(stale.pid, 'SIGKILL');
+      console.log(`[Electron] Backend anterior (pid ${stale.pid}) eliminado`);
+    } catch (e) {
+      console.warn(`[Electron] No se pudo matar el pid ${stale.pid}:`, e);
+    }
+  }
+
+  // 2) Fallback por nombre: SOLO patrones exclusivos de esta app. Nunca
+  //    'spring-boot:run' (mataría backends de otros proyectos del usuario).
+    //    Los corchetes evitan que el patrón coincida con la propia cmdline del
+    //    wrapper sh -c que ejecuta este pkill gotcha que ya mordió una vez:
+    //    'emailai-backend-[0-9]' casa con "emailai-backend-1.2.0.jar" pero no
+    //    consigo mismo; '[.]' exige un punto real en "com.emailai...".
   try {
-    // Matar procesos java/maven del backend (un JVM huérfano con la BD H2
-    // bloqueada impediría arrancar el nuevo)
     execSync(
-      "pkill -9 -f 'spring-boot:run' 2>/dev/null; " +
-      "pkill -9 -f 'EmailAiApplication' 2>/dev/null; " +
-      "pkill -9 -f 'emailai-backend' 2>/dev/null; " +
+      "pkill -9 -f 'emailai-backend-[0-9]' 2>/dev/null; " +
+      "pkill -9 -f 'com[.]emailai[.]EmailAiApplication' 2>/dev/null; " +
       "true",
       { stdio: 'ignore' }
     );
-    console.log('[Electron] Procesos anteriores eliminados');
+    console.log('[Electron] Barrido de procesos anteriores hecho');
   } catch {
     // Si no hay procesos, ignorar
   }
@@ -238,6 +265,27 @@ const HOP_BY_HOP = new Set([
   'content-length', 'content-encoding',
 ]);
 
+// ── Content-Security-Policy del documento principal ──────────────
+// Antes solo existía la CSP per-correo (meta dentro del srcdoc); el documento
+// principal iba sin CSP y una XSS en cualquier lib quedaba sin restricción
+// (auditoría 2026-08-26). Ojo al diseño de img-src: el iframe del correo es
+// srcdoc y HEREDA esta CSP — los correos LEGITIMO cargan imágenes http/https,
+// y en no-LEGITIMO el meta img-src 'none' del iframe sigue mandando (las CSP
+// se cruzan: gana la más estricta). Vite prod no genera scripts inline.
+// frame-src incluye about: por el srcdoc; blob: por adjuntos embebidos.
+const CSP = {
+  prod: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+      + "img-src 'self' data: blob: http: https:; font-src 'self' data:; "
+      + "connect-src 'self'; media-src 'self' blob:; frame-src 'self' blob: about:; "
+      + "object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  // Dev con Vite (5173): React-refresh inyecta <script> inline y HMR necesita
+  // ws: — relajación solo en desarrollo, nunca en empaquetado.
+  dev: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+      + "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; "
+      + "font-src 'self' data:; connect-src 'self' ws:; media-src 'self' blob:; "
+      + "frame-src 'self' blob: about:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+};
+
 async function proxyToBackend(request: Request): Promise<Response> {
   if (backendPort === null) {
     return new Response('Backend no disponible todavía', { status: 503 });
@@ -265,6 +313,12 @@ async function proxyToBackend(request: Request): Promise<Response> {
     res.headers.forEach((value, key) => {
       if (!HOP_BY_HOP.has(key.toLowerCase())) outHeaders.set(key, value);
     });
+    // CSP del documento principal: todo lo que sirve el backend (SPA embebida
+    // incluida) pasa por aquí en empaquetado. En respuestas no-HTML la ignora
+    // el navegador, así que inyectarla siempre es seguro.
+    if (!outHeaders.has('content-security-policy')) {
+      outHeaders.set('Content-Security-Policy', CSP.prod);
+    }
     console.log(`[Proxy] ${request.method} ${u.pathname} → ${res.status} ct=${res.headers.get('content-type') ?? '(none)'}`);
     return new Response(res.body, { status: res.status, statusText: res.statusText, headers: outHeaders });
   } catch (e) {
@@ -575,6 +629,19 @@ if (!gotTheLock) {
       const viteUrl = await detectVite();
       if (viteUrl) {
         APP_URL = viteUrl;
+        // La UI de Vite no pasa por el proxy app://: misma CSP pero relajada
+        // para dev (scripts inline de react-refresh + ws: de HMR)
+        session.defaultSession.webRequest.onHeadersReceived(
+          { urls: [`${DEV_FRONTEND}/*`] },
+          (details: any, callback: any) => {
+            callback({
+              responseHeaders: {
+                ...details.responseHeaders,
+                'Content-Security-Policy': [CSP.dev],
+              },
+            });
+          }
+        );
         console.log(`[Electron] Dev: UI en ${viteUrl} (backend externo en 8080 vía proxy Vite)`);
       } else {
         matarProcesosAnteriores();

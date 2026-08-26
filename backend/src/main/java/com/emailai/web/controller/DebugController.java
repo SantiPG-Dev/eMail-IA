@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.emailai.domain.entities.Cuenta;
 import com.emailai.security.CredentialService;
+import com.emailai.security.PrivacyUtil;
 import com.emailai.repository.MensajeRepository;
 import com.emailai.service.CuentaService;
 
@@ -16,6 +17,10 @@ import jakarta.mail.Store;
 
 // Endpoints de depuración solo disponibles cuando emailai.debug.enabled=true.
 // Por defecto el bean no se registra: nada de debug en producción.
+//
+// Seguridad: NUNCA devolver e.getMessage() de exceptions de mail — Jakarta Mail
+// incluye host/usuario/password en mensajes de autenticación (auditoría
+// 2026-08-26). Solo el nombre de la clase + mensaje fijo seguro.
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
         name = "emailai.debug.enabled", havingValue = "true", matchIfMissing = false)
 @RestController
@@ -33,6 +38,11 @@ public class DebugController {
         this.credentialService = credentialService;
     }
 
+    /** Mensaje de error seguro: clase + pista fija, sin el mensaje crudo. */
+    private static String errorSeguro(Exception e, String pista) {
+        return e.getClass().getSimpleName() + " — " + pista;
+    }
+
     @GetMapping("/mensajes")
     public Map<String, Object> contarMensajes() {
         try {
@@ -41,18 +51,18 @@ public class DebugController {
                 try {
                     return Map.of(
                         "id", String.valueOf(m.getId()),
-                        "asunto", m.getAsunto() != null ? m.getAsunto() : "(sin asunto)",
-                        "remitente", m.getRemitente() != null ? m.getRemitente() : "(sin remitente)",
+                        "asunto", PrivacyUtil.sanitize(m.getAsunto() != null ? m.getAsunto() : "(sin asunto)"),
+                        "remitente", m.getRemitente() != null ? PrivacyUtil.maskEmail(m.getRemitente()) : "(sin remitente)",
                         "cuentaHash", m.getCuentaHash() != null ? m.getCuentaHash() : "(sin cuenta)",
                         "categoria", m.getCategoria() != null ? m.getCategoria() : "DESCONOCIDO"
                     );
                 } catch (Exception ex) {
-                    return Map.of("id", String.valueOf(m.getId()), "error", ex.getMessage());
+                    return Map.of("id", String.valueOf(m.getId()), "error", ex.getClass().getSimpleName());
                 }
             }).toList() : java.util.List.of();
             return Map.of("totalEnBD", total, "ok", true, "mensajes", muestra);
         } catch (Exception e) {
-            return Map.of("ok", false, "error", e.getClass().getSimpleName() + ": " + e.getMessage());
+            return Map.of("ok", false, "error", errorSeguro(e, "consulta de mensajes"));
         }
     }
 
@@ -97,10 +107,10 @@ public class DebugController {
 
             return Map.of(
                 "ok", true, "servidor", host,
-                "usuario", user, "carpetas", carpetas
+                "usuario", PrivacyUtil.maskEmail(user), "carpetas", carpetas
             );
         } catch (Exception e) {
-            return Map.of("ok", false, "error", e.getClass().getSimpleName() + ": " + e.getMessage());
+            return Map.of("ok", false, "error", errorSeguro(e, "fallo de conexión IMAP (revisa host/usuario/password)"));
         }
     }
 }
