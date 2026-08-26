@@ -39,13 +39,14 @@ public class CredentialService {
 
     public String cifrar(String textoPlano) {
         if (textoPlano == null || textoPlano.isBlank()) return textoPlano;
+        byte[] plano = textoPlano.getBytes(StandardCharsets.UTF_8);
         try {
             byte[] iv = new byte[LONGITUD_IV];
             java.security.SecureRandom.getInstanceStrong().nextBytes(iv);
 
             Cipher cipher = Cipher.getInstance(ALGORITMO);
             cipher.init(Cipher.ENCRYPT_MODE, clave(), new GCMParameterSpec(LONGITUD_TAG, iv));
-            byte[] cifrado = cipher.doFinal(textoPlano.getBytes(StandardCharsets.UTF_8));
+            byte[] cifrado = cipher.doFinal(plano);
 
             byte[] resultado = new byte[iv.length + cifrado.length];
             System.arraycopy(iv, 0, resultado, 0, iv.length);
@@ -54,6 +55,10 @@ public class CredentialService {
             return PREFIJO + Base64.getEncoder().encodeToString(resultado);
         } catch (Exception e) {
             throw new SecurityException("Error al cifrar credencial", e);
+        } finally {
+            // La password deja de existir como bytes tan pronto como sea posible
+            // (el String original es inmutable, esto es lo único zero-eareable)
+            Arrays.fill(plano, (byte) 0);
         }
     }
 
@@ -71,7 +76,12 @@ public class CredentialService {
 
             Cipher cipher = Cipher.getInstance(ALGORITMO);
             cipher.init(Cipher.DECRYPT_MODE, clave(), new GCMParameterSpec(LONGITUD_TAG, iv));
-            return new String(cipher.doFinal(cuerpo), StandardCharsets.UTF_8);
+            byte[] claro = cipher.doFinal(cuerpo);
+            try {
+                return new String(claro, StandardCharsets.UTF_8);
+            } finally {
+                Arrays.fill(claro, (byte) 0);
+            }
         } catch (Exception e) {
             throw new SecurityException("Error al descifrar credencial", e);
         }
@@ -97,6 +107,9 @@ public class CredentialService {
                 System.arraycopy(SAL_DERIVACION, 0, entrada, material.length, SAL_DERIVACION.length);
                 byte[] claveBytes = MessageDigest.getInstance("SHA-256").digest(entrada);
                 claveCacheada = new SecretKeySpec(claveBytes, "AES");
+                // El material de origen ya no hace falta en memoria
+                Arrays.fill(material, (byte) 0);
+                Arrays.fill(entrada, (byte) 0);
                 return claveCacheada;
             } catch (Exception e) {
                 throw new IllegalStateException(
