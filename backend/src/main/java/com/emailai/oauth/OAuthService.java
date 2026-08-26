@@ -1,6 +1,8 @@
 package com.emailai.oauth;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.concurrent.CancellationException;
@@ -245,11 +247,12 @@ public class OAuthService {
                                        String redirectUri, String code, String proveedor) {
         try {
             RestClient rc = restClientConTimeout();
-            String body = "grant_type=authorization_code"
-                    + "&code=" + code
-                    + "&redirect_uri=" + redirectUri
-                    + "&client_id=" + clientId
-                    + "&client_secret=" + clientSecret;
+            String body = formBody(
+                    "grant_type", "authorization_code",
+                    "code", code,
+                    "redirect_uri", redirectUri,
+                    "client_id", clientId,
+                    "client_secret", clientSecret);
 
             String response = rc.post()
                     .uri(tokenUrl)
@@ -274,9 +277,29 @@ public class OAuthService {
     }
 
     /**
+     * Body application/x-www-form-urlencoded con cada valor URL-encodeado.
+     * Concatenar a mano rompería el body si un valor contiene &, = o +
+     * (el clientSecret de Google/Microsoft puede traerlos).
+     */
+    static String formBody(String... paresNombreValor) {
+        if (paresNombreValor.length % 2 != 0) {
+            throw new IllegalArgumentException("formBody espera pares nombre-valor");
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < paresNombreValor.length; i += 2) {
+            if (i > 0) sb.append('&');
+            sb.append(URLEncoder.encode(paresNombreValor[i], StandardCharsets.UTF_8))
+              .append('=')
+              .append(URLEncoder.encode(paresNombreValor[i + 1], StandardCharsets.UTF_8));
+        }
+        return sb.toString();
+    }
+
+    /**
      * Obtiene el email del usuario autenticado desde la API de perfil del proveedor.
      */
     private String obtenerEmail(String proveedor, String accessToken) {
+        String email;
         try {
             String profileUrl = "GOOGLE".equalsIgnoreCase(proveedor)
                     ? GoogleOAuthProvider.PROFILE_URL
@@ -292,19 +315,26 @@ public class OAuthService {
             JsonNode json = mapper.readTree(response);
 
             if ("GOOGLE".equalsIgnoreCase(proveedor)) {
-                return json.path("email").asText();
+                email = json.path("email").asText("");
             } else {
                 // Microsoft: el email está en mail o userPrincipalName
-                String email = json.path("mail").asText("");
+                email = json.path("mail").asText("");
                 if (email.isBlank()) {
                     email = json.path("userPrincipalName").asText("");
                 }
-                return email;
             }
         } catch (Exception e) {
             log.warn("No se pudo obtener el email del perfil OAuth: {}", e.getMessage());
-            return "oauth-" + System.currentTimeMillis() + "@localhost";
+            email = "";
         }
+        // Antes se devolvía "oauth-<ts>@localhost": una cuenta fantasma que
+        // rompía el login posterior (auditoría 2026-08-26). Fallar el flujo
+        // con error claro es más seguro que persistir una cuenta inservible.
+        if (email == null || email.isBlank() || !email.contains("@")) {
+            throw new OAuth2Exception("El proveedor OAuth no devolvió un email válido "
+                    + "(revisa los scopes del perfil) — flujo cancelado");
+        }
+        return email;
     }
 
     /**
@@ -319,10 +349,11 @@ public class OAuthService {
 
         try {
             RestClient rc = restClientConTimeout();
-            String body = "grant_type=refresh_token"
-                    + "&refresh_token=" + refreshToken
-                    + "&client_id=" + clientId
-                    + "&client_secret=" + clientSecret;
+            String body = formBody(
+                    "grant_type", "refresh_token",
+                    "refresh_token", refreshToken,
+                    "client_id", clientId,
+                    "client_secret", clientSecret);
 
             String response = rc.post()
                     .uri(tokenUrl)

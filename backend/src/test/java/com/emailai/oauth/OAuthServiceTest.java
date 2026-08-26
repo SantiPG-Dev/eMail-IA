@@ -107,4 +107,36 @@ class OAuthServiceTest {
         assertEquals(antes + 1, OAuthService.ACTIVE_OAUTH_STATES.size(),
                 "iniciarFlujo debe registrar exactamente un state nuevo");
     }
+
+    // ── formBody: encoding de application/x-www-form-urlencoded ──
+
+    @Test
+    void formBody_codificaCaracteresEspecialesDelSecret() {
+        // Auditoría 2026-08-26: concatenar a mano rompía el body si el
+        // clientSecret contenía &, = o +
+        String body = OAuthService.formBody(
+                "grant_type", "authorization_code",
+                "client_secret", "abc&def=ghi+jkl espacio");
+
+        assertEquals("grant_type=authorization_code&client_secret=abc%26def%3Dghi%2Bjkl+espacio",
+                body, "&, = y + deben ir URL-encodeados");
+    }
+
+    @Test
+    void formBody_valoresSimplesQuedanIguales() {
+        assertEquals("a=1&b=hola",
+                OAuthService.formBody("a", "1", "b", "hola"));
+    }
+
+    @Test
+    void formBody_urlDeRedirectSeCodificaComoValor() {
+        String body = OAuthService.formBody("redirect_uri", "http://localhost:9876/oauth/callback");
+        assertEquals("redirect_uri=http%3A%2F%2Flocalhost%3A9876%2Foauth%2Fcallback",
+                body, "el valor completo se forma-encodea (el proveedor lo decodifica)");
+    }
+
+    @Test
+    void formBody_numImparDeArgumentosLanza() {
+        assertThrows(IllegalArgumentException.class, () -> OAuthService.formBody("solo"));
+    }
 }
