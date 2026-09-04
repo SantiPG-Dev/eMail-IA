@@ -60,12 +60,21 @@ protocol.registerSchemesAsPrivileged([
 // privado 0700 por usuario (tmpdir es mundial-leíble: cualquier proceso local
 // podría sembrar un ready file en la raíz y desviar el tráfico al backend).
 function resolveReadyFile(): string {
-  const jarArg = process.argv.find(a => a.startsWith('--jar='));
-  if (jarArg) return path.join(path.dirname(jarArg.slice('--jar='.length)), 'backend.ready');
-  if (app.isPackaged) return path.join(app.getPath('userData'), 'backend.ready');
+  const jarArg = process.argv.find((a) => a.startsWith("--jar="));
+  if (jarArg)
+    return path.join(
+      path.dirname(jarArg.slice("--jar=".length)),
+      "backend.ready",
+    );
+  if (app.isPackaged)
+    return path.join(app.getPath("userData"), "backend.ready");
   const dir = path.join(os.tmpdir(), `emailai-dev-${os.userInfo().uid}`);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  try { fs.chmodSync(dir, 0o700); } catch { /* Windows/FS sin chmod */ }
+  try {
+    fs.chmodSync(dir, 0o700);
+  } catch {
+    /* Windows/FS sin chmod */
+  }
   return path.join(dir, `backend-${process.pid}.ready`);
 }
 
@@ -79,10 +88,15 @@ function resolveReadyFile(): string {
 //   copia scripts/install.sh). El asar es de solo lectura, NUNCA ahí dentro.
 // - Empaquetada sin --jar: userData (única ruta escribible garantizada).
 function oauthConfigPath(): string {
-  if (!app.isPackaged) return path.resolve(__dirname, '..', 'oauth-config.json');
-  const jarArg = process.argv.find(a => a.startsWith('--jar='));
-  if (jarArg) return path.join(path.dirname(jarArg.slice('--jar='.length)), 'oauth-config.json');
-  return path.join(app.getPath('userData'), 'oauth-config.json');
+  if (!app.isPackaged)
+    return path.resolve(__dirname, "..", "oauth-config.json");
+  const jarArg = process.argv.find((a) => a.startsWith("--jar="));
+  if (jarArg)
+    return path.join(
+      path.dirname(jarArg.slice("--jar=".length)),
+      "oauth-config.json",
+    );
+  return path.join(app.getPath("userData"), "oauth-config.json");
 }
 
 // Si el archivo no existe se crea un template vacío; si la ruta no es
@@ -144,7 +158,7 @@ function detectVite(): Promise<string | null> {
 function esUrlNavegable(u: string): boolean {
   try {
     const p = new URL(u);
-    return p.protocol === 'http:' || p.protocol === 'https:';
+    return p.protocol === "http:" || p.protocol === "https:";
   } catch {
     return false;
   }
@@ -155,9 +169,12 @@ function esUrlNavegable(u: string): boolean {
 function esOrigenLocalPermitido(u: string): boolean {
   try {
     const p = new URL(u);
-    if (p.protocol === 'app:' && p.host === 'local') return true;
-    const puertos = app.isPackaged ? ['9876'] : ['9876', '5173'];
-    return (p.hostname === 'localhost' || p.hostname === '127.0.0.1') && puertos.includes(p.port);
+    if (p.protocol === "app:" && p.host === "local") return true;
+    const puertos = app.isPackaged ? ["9876"] : ["9876", "5173"];
+    return (
+      (p.hostname === "localhost" || p.hostname === "127.0.0.1") &&
+      puertos.includes(p.port)
+    );
   } catch {
     return false;
   }
