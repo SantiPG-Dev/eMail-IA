@@ -207,8 +207,7 @@ export default function CorreoPage() {
 		setTareaPrefill({
 			titulo: m.asunto || "(sin asunto)",
 			descripcion: `De: ${m.remitente || "?"}\n\n${(m.cuerpo || "").slice(0, 500)}`,
-			fechaVencimiento:
-				det?.fecha || m.fechaRecepcion?.slice(0, 10) || undefined,
+			fechaVencimiento: det?.fecha || m.fechaRecepcion?.slice(0, 10) || undefined,
 			mensajeId: m.id,
 		});
 		setTareaOpen(true);
@@ -238,9 +237,7 @@ export default function CorreoPage() {
 				}
 			} catch (e: any) {
 				setErrorMensajes(
-					e?.response?.data?.error ||
-						e?.message ||
-						"Error al cargar los mensajes",
+					e?.response?.data?.error || e?.message || "Error al cargar los mensajes",
 				);
 			} finally {
 				setLoadingMensajes(false);
@@ -293,9 +290,7 @@ export default function CorreoPage() {
 			setSelected(null);
 		} catch (e: any) {
 			setErrorMensajes(
-				e?.response?.data?.error ||
-					e?.message ||
-					"No se pudo borrar el mensaje",
+				e?.response?.data?.error || e?.message || "No se pudo borrar el mensaje",
 			);
 		}
 	};
@@ -430,9 +425,7 @@ export default function CorreoPage() {
 					<p
 						className="text-xs"
 						style={{
-							color: statusText.includes("Error")
-								? "#ef4444"
-								: "var(--color-accent)",
+							color: statusText.includes("Error") ? "#ef4444" : "var(--color-accent)",
 						}}
 					>
 						{statusText}
@@ -483,8 +476,7 @@ export default function CorreoPage() {
 										selected?.id === m.id
 											? "var(--color-accent-selected)"
 											: categoriaBg(m.categoria),
-									color:
-										selected?.id === m.id ? "#0F172A" : "var(--color-text)",
+									color: selected?.id === m.id ? "#0F172A" : "var(--color-text)",
 								}}
 							>
 								<div className="font-bold truncate">
@@ -526,31 +518,28 @@ export default function CorreoPage() {
 									<span className="shrink-0">
 										{selected.fechaRecepcion?.slice(0, 10)}
 									</span>
-									{selected.categoria &&
-										selected.categoria !== "DESCONOCIDO" && (
-											<span
-												className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0"
-												style={{
-													backgroundColor:
-														selected.categoria === "SPAM" ||
-														selected.categoria === "PHISHING"
-															? "#dc2626"
-															: selected.categoria === "LEGITIMO"
-																? "#16a34a"
-																: "#ca8a04",
-													color: "#fff",
-													border:
-														selected.categoria === "SPAM" ||
-														selected.categoria === "PHISHING"
-															? "1px solid #ef4444"
-															: selected.categoria === "LEGITIMO"
-																? "1px solid #22c55e"
-																: "1px solid #fbbf24",
-												}}
-											>
-												{selected.categoria}
-											</span>
-										)}
+									{selected.categoria && selected.categoria !== "DESCONOCIDO" && (
+										<span
+											className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0"
+											style={{
+												backgroundColor:
+													selected.categoria === "SPAM" || selected.categoria === "PHISHING"
+														? "#dc2626"
+														: selected.categoria === "LEGITIMO"
+															? "#16a34a"
+															: "#ca8a04",
+												color: "#fff",
+												border:
+													selected.categoria === "SPAM" || selected.categoria === "PHISHING"
+														? "1px solid #ef4444"
+														: selected.categoria === "LEGITIMO"
+															? "1px solid #22c55e"
+															: "1px solid #fbbf24",
+											}}
+										>
+											{selected.categoria}
+										</span>
+									)}
 								</div>
 							</div>
 							{/* Derecha: botones de acción alineados a la derecha */}
@@ -678,10 +667,7 @@ export default function CorreoPage() {
 									onClick={async () => {
 										if (!selected) return;
 										try {
-											const res = await mensajeApi.classify(
-												selected.id,
-												"SPAM",
-											);
+											const res = await mensajeApi.classify(selected.id, "SPAM");
 											setSelected(res.data);
 											if (res.data.reclasificados != null) {
 												setFeedback(
@@ -693,9 +679,7 @@ export default function CorreoPage() {
 											await cargarMensajes(carpetaImap, true);
 										} catch (e: any) {
 											setErrorMensajes(
-												e?.response?.data?.error ||
-													e?.message ||
-													"No se pudo clasificar",
+												e?.response?.data?.error || e?.message || "No se pudo clasificar",
 											);
 										}
 									}}
@@ -708,10 +692,7 @@ export default function CorreoPage() {
 									onClick={async () => {
 										if (!selected) return;
 										try {
-											const res = await mensajeApi.classify(
-												selected.id,
-												"LEGITIMO",
-											);
+											const res = await mensajeApi.classify(selected.id, "LEGITIMO");
 											setSelected(res.data);
 											if (res.data.reclasificados != null) {
 												setFeedback(
@@ -722,9 +703,7 @@ export default function CorreoPage() {
 											await cargarMensajes(carpetaImap, true);
 										} catch (e: any) {
 											setErrorMensajes(
-												e?.response?.data?.error ||
-													e?.message ||
-													"No se pudo clasificar",
+												e?.response?.data?.error || e?.message || "No se pudo clasificar",
 											);
 										}
 									}}
