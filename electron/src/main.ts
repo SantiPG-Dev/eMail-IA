@@ -159,8 +159,11 @@ function detectVite(): Promise<string | null> {
       res.resume();
       resolve(res.statusCode === 200 ? DEV_FRONTEND : null);
     });
-    req.on('error', () => resolve(null));
-    req.setTimeout(1000, () => { req.destroy(); resolve(null); });
+    req.on("error", () => resolve(null));
+    req.setTimeout(1000, () => {
+      req.destroy();
+      resolve(null);
+    });
   });
 }
 
@@ -201,28 +204,35 @@ let tray: Tray | null = null;
 // 2) JRE empaquetado con jlink (resources/jre/bin/java[.exe]) — AppImage/deb/rpm/dmg/nsis
 // 3) PATH del sistema (desarrollo)
 function findJava(): string {
-  const javaArg = process.argv.find(a => a.startsWith('--java='));
-  if (javaArg) return javaArg.slice('--java='.length);
+  const javaArg = process.argv.find((a) => a.startsWith("--java="));
+  if (javaArg) return javaArg.slice("--java=".length);
 
-  const javaBin = process.platform === 'win32' ? 'java.exe' : 'java';
-  const bundled = path.join(process.resourcesPath || '', 'jre', 'bin', javaBin);
+  const javaBin = process.platform === "win32" ? "java.exe" : "java";
+  const bundled = path.join(process.resourcesPath || "", "jre", "bin", javaBin);
   if (fs.existsSync(bundled)) return bundled;
 
-  return 'java';
+  return "java";
 }
 
 // ── Buscar el JAR del backend ────────────────────────────────────
 function findJar(): string | null {
   // 1) Argumento --jar
-  const jarArg = process.argv.find(a => a.startsWith('--jar='));
-  if (jarArg) return jarArg.slice('--jar='.length);
+  const jarArg = process.argv.find((a) => a.startsWith("--jar="));
+  if (jarArg) return jarArg.slice("--jar=".length);
 
   // 2) Desarrollo: JAR compilado en backend/target/
-  const devJar = path.resolve(__dirname, '..', '..', 'backend', 'target', 'emailai-backend-1.0.0.jar');
+  const devJar = path.resolve(
+    __dirname,
+    "..",
+    "..",
+    "backend",
+    "target",
+    "emailai-backend-1.0.0.jar",
+  );
   if (fs.existsSync(devJar)) return devJar;
 
   // 3) Producción: JAR en resources/
-  const prodJar = path.join(process.resourcesPath || '', 'backend.jar');
+  const prodJar = path.join(process.resourcesPath || "", "backend.jar");
   if (fs.existsSync(prodJar)) return prodJar;
 
   return null; // Se usará mvn spring-boot:run
@@ -236,7 +246,7 @@ function matarProcesosAnteriores() {
   const stale = readReadyFile();
   if (stale && pidAlive(stale.pid)) {
     try {
-      process.kill(stale.pid, 'SIGKILL');
+      process.kill(stale.pid, "SIGKILL");
       console.log(`[Electron] Backend anterior (pid ${stale.pid}) eliminado`);
     } catch (e) {
       console.warn(`[Electron] No se pudo matar el pid ${stale.pid}:`, e);
@@ -245,18 +255,18 @@ function matarProcesosAnteriores() {
 
   // 2) Fallback por nombre: SOLO patrones exclusivos de esta app. Nunca
   //    'spring-boot:run' (mataría backends de otros proyectos del usuario).
-    //    Los corchetes evitan que el patrón coincida con la propia cmdline del
-    //    wrapper sh -c que ejecuta este pkill gotcha que ya mordió una vez:
-    //    'emailai-backend-[0-9]' casa con "emailai-backend-1.2.0.jar" pero no
-    //    consigo mismo; '[.]' exige un punto real en "com.emailai...".
+  //    Los corchetes evitan que el patrón coincida con la propia cmdline del
+  //    wrapper sh -c que ejecuta este pkill gotcha que ya mordió una vez:
+  //    'emailai-backend-[0-9]' casa con "emailai-backend-1.2.0.jar" pero no
+  //    consigo mismo; '[.]' exige un punto real en "com.emailai...".
   try {
     execSync(
       "pkill -9 -f 'emailai-backend-[0-9]' 2>/dev/null; " +
-      "pkill -9 -f 'com[.]emailai[.]EmailAiApplication' 2>/dev/null; " +
-      "true",
-      { stdio: 'ignore' }
+        "pkill -9 -f 'com[.]emailai[.]EmailAiApplication' 2>/dev/null; " +
+        "true",
+      { stdio: "ignore" },
     );
-    console.log('[Electron] Barrido de procesos anteriores hecho');
+    console.log("[Electron] Barrido de procesos anteriores hecho");
   } catch {
     // Si no hay procesos, ignorar
   }
@@ -268,8 +278,8 @@ function matarProcesosAnteriores() {
 // falta health check HTTP). El pid descarta archivos stale de un kill -9.
 function readReadyFile(): { port: number; pid: number } | null {
   try {
-    const raw = JSON.parse(fs.readFileSync(READY_FILE, 'utf-8'));
-    if (typeof raw.port === 'number' && typeof raw.pid === 'number') return raw;
+    const raw = JSON.parse(fs.readFileSync(READY_FILE, "utf-8"));
+    if (typeof raw.port === "number" && typeof raw.pid === "number") return raw;
   } catch {
     // Aún no existe o está a medio escribir
   }
@@ -281,7 +291,7 @@ function pidAlive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (e) {
-    return (e as NodeJS.ErrnoException).code === 'EPERM';
+    return (e as NodeJS.ErrnoException).code === "EPERM";
   }
 }
 
@@ -295,7 +305,9 @@ function waitForBackend(timeoutMs: number): Promise<number> {
         return;
       }
       if (Date.now() > deadline) {
-        reject(new Error(`Timeout esperando al backend (ready file: ${READY_FILE})`));
+        reject(
+          new Error(`Timeout esperando al backend (ready file: ${READY_FILE})`),
+        );
         return;
       }
       setTimeout(tick, 150);
