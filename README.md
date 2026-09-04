@@ -57,7 +57,7 @@ eMail-IA/
 | F2 | Dominio (JPA + repos + servicios) | ✅ |
 | F3 | REST API + JWT stateless | ✅ |
 | F4 | Seguridad (OAuth2, JWT persistente, login IMAP) | ✅ |
-| F5 | Tests backend | ⏳ |
+| F5 | Tests backend | ✅ |
 | F6 | Frontend base (React + Tailwind + 16 temas) | ✅ |
 | F7 | Frontend completo (replicar vistas + IA + anti-tracking) | ✅ |
 | F8 | Tests frontend | ✅ |
