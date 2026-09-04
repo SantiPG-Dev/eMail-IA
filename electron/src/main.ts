@@ -290,7 +290,12 @@ async function proxyToBackend(request: Request): Promise<Response> {
   if (backendPort === null) {
     return new Response('Backend no disponible todavía', { status: 503 });
   }
-  const u = new URL(request.url);
+  let u: URL;
+  try {
+    u = new URL(request.url);
+  } catch {
+    return new Response('URL malformada', { status: 400 });
+  }
   const target = `http://127.0.0.1:${backendPort}${u.pathname}${u.search}`;
   const headers = new Headers();
   request.headers.forEach((value, key) => {
@@ -376,7 +381,11 @@ function startBackend(): Promise<void> {
       console.log(`[Electron] Iniciando backend: ${JAVA_BIN} -jar ${BACKEND_JAR}`);
       console.log(`[Electron] data-dir=${dataDir}, ready-file=${READY_FILE} (isPackaged=${app.isPackaged})`);
       const oauthEnv = loadOAuthConfig();
+      // heap capado; sin techo el JVM se come 25% de la RAM y arranca
+      // con ~1,5% de heap inicial. EMAILAI_XMX sube el techo si Weka/H2 lo piden.
+      const xmx = process.env.EMAILAI_XMX || '768m';
       backendProcess = spawn(JAVA_BIN, [
+        '-Xms64m', `-Xmx${xmx}`,
         '-jar', BACKEND_JAR,
         '--server.port=0',
         `--emailai.data-dir=${dataDir}`,
