@@ -1,9 +1,21 @@
-import { app, BrowserWindow, shell, dialog, Tray, Menu, Notification, nativeImage, session, ipcMain, protocol } from 'electron';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as os from 'os';
-import { spawn, execSync, ChildProcess } from 'child_process';
-import * as http from 'http';
+import {
+  app,
+  BrowserWindow,
+  shell,
+  dialog,
+  Tray,
+  Menu,
+  Notification,
+  nativeImage,
+  session,
+  ipcMain,
+  protocol,
+} from "electron";
+import * as path from "path";
+import * as fs from "fs";
+import * as os from "os";
+import { spawn, execSync, type ChildProcess } from "child_process";
+import * as http from "http";
 
 // ── Config ──────────────────────────────────────────────────────
 // Sin puertos fijos: el backend arranca con --server.port=0 (puerto efímero
@@ -13,14 +25,14 @@ import * as http from 'http';
 // En dev, si Vite (5173) está corriendo, se usa Vite y el backend (8080) lo
 // lanza el desarrollador aparte — el proxy de Vite ya apunta ahí.
 
-process.env.ELECTRON_ENABLE_STACK_DUMPING = 'false';
+process.env.ELECTRON_ENABLE_STACK_DUMPING = "false";
 // Silenciar los logs internos de Chromium que ensucian la consola en desarrollo
 // (ej. "[ERROR:debug_utils.cc] Hit debug scenario: 4" al cargar iframes srcdoc/about:blank).
 // log-level=3 => solo mensajes FATAL. No afecta a la app.
-app.commandLine.appendSwitch('log-level', '3');
+app.commandLine.appendSwitch("log-level", "3");
 
-const DEV_FRONTEND = 'http://localhost:5173';
-const APP_ORIGIN = 'app://local';
+const DEV_FRONTEND = "http://localhost:5173";
+const APP_ORIGIN = "app://local";
 let APP_URL = `${APP_ORIGIN}/`;
 let backendPort: number | null = null;
 const BACKEND_JAR = findJar();
@@ -31,7 +43,16 @@ const READY_FILE = resolveReadyFile();
 // secure (localStorage, service workers), fetch/stream (API y adjuntos).
 // Debe registrarse antes de app.ready().
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, codeCache: true } },
+  {
+    scheme: "app",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      codeCache: true,
+    },
+  },
 ]);
 
 // Ready file junto al jar (--jar=, instalación ~/.eMailAI), en userData
