@@ -19,7 +19,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"   # raíz del repo
 APP_DIR="$HOME/.eMailAI"
 BIN_DIR="$HOME/.local/bin"
-JAR_SRC="$ROOT/backend/target/emailai-backend-1.0.0.jar"
+JAR_SRC="$(ls -t "$ROOT"/backend/target/emailai-backend-*.jar | head -1)"
 JAR_DST="$APP_DIR/emailai-backend.jar"
 ELECTRON_SRC="$ROOT/electron/release/linux-unpacked"
 ELECTRON_DST="$APP_DIR/app"
