@@ -21,30 +21,37 @@ class CredentialServiceTest {
 
     @BeforeAll
     static void prepararCipherKey() throws Exception {
-        // CredentialService deriva su clave de DB/cipher.key (ruta relativa);
-        // ejecutamos el test desde un directorio temporal con su propia clave.
+        // CredentialService deriva su clave de <data-dir>/cipher.key. DataDir
+        // resuelve en cada llamada, así que basta con la property (mismo mecanismo
+        // que usa el wrapper de Electron).
         tmpDir = Files.createTempDirectory("emailai-cred-test");
         Path dbDir = tmpDir.resolve("DB");
         Files.createDirectories(dbDir);
         byte[] key = new byte[16];
         new java.security.SecureRandom().nextBytes(key);
         Files.write(dbDir.resolve("cipher.key"), key);
-        System.setProperty("user.dir", tmpDir.toString());
+        System.setProperty("emailai.data-dir", dbDir.toString());
 
         // Reset del cache de clave para que derive de la nueva cipher.key
-        var campo = CredentialService.class.getDeclaredField("claveCacheada");
-        campo.setAccessible(true);
-        campo.set(null, null);
+        setStatic(CredentialService.class, "claveCacheada", null);
 
         service = new CredentialService();
     }
 
     @AfterAll
     static void limpiar() throws Exception {
-        // Dejar el cache limpio para no afectar a otros tests del mismo JVM
-        var campo = CredentialService.class.getDeclaredField("claveCacheada");
-        campo.setAccessible(true);
-        campo.set(null, null);
+        // Dejar los caches limpios para no afectar a otros tests del mismo JVM
+        setStatic(CredentialService.class, "claveCacheada", null);
+        System.clearProperty("emailai.data-dir");
+        try (var walk = Files.walk(tmpDir)) {
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+        }
+    }
+
+    private static void setStatic(Class<?> clase, String campo, Object valor) throws Exception {
+        var f = clase.getDeclaredField(campo);
+        f.setAccessible(true);
+        f.set(null, valor);
     }
 
     @Test
