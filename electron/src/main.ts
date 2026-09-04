@@ -423,27 +423,39 @@ function ensureFrontendBuilt(): Promise<void> {
     // En instalación empaquetada (~/.eMailAI, --jar= o app empaquetada) el
     // frontend está EMBEBIDO en el jar (BOOT-INF/classes/static): no hay nada
     // que compilar. Solo tiene sentido construir en el checkout de desarrollo.
-    const jarArg = process.argv.find(a => a.startsWith('--jar='));
-    const frontendDir = path.resolve(__dirname, '..', '..', 'frontend');
-    if (jarArg || app.isPackaged || !fs.existsSync(path.join(frontendDir, 'package.json'))) {
-      console.log('[Electron] Frontend embebido en el jar — no se compila');
+    const jarArg = process.argv.find((a) => a.startsWith("--jar="));
+    const frontendDir = path.resolve(__dirname, "..", "..", "frontend");
+    if (
+      jarArg ||
+      app.isPackaged ||
+      !fs.existsSync(path.join(frontendDir, "package.json"))
+    ) {
+      console.log("[Electron] Frontend embebido en el jar — no se compila");
       resolve();
       return;
     }
 
-    const indexPath = path.join(frontendDir, 'dist', 'index.html');
-    if (fs.existsSync(indexPath)) { resolve(); return; }
+    const indexPath = path.join(frontendDir, "dist", "index.html");
+    if (fs.existsSync(indexPath)) {
+      resolve();
+      return;
+    }
 
-    console.log('[Electron] Construyendo frontend React...');
-    const pnpm = spawn('pnpm', ['build'], { cwd: frontendDir, stdio: 'pipe' });
+    console.log("[Electron] Construyendo frontend React...");
+    const pnpm = spawn("pnpm", ["build"], { cwd: frontendDir, stdio: "pipe" });
     // Sin este handler, "pnpm" ausente lanza ENOENT no capturado y tumba la app
-    pnpm.on('error', (err) => {
-      console.warn(`[Electron] No se pudo lanzar pnpm (${err.message}); el backend usa su fallback`);
+    pnpm.on("error", (err) => {
+      console.warn(
+        `[Electron] No se pudo lanzar pnpm (${err.message}); el backend usa su fallback`,
+      );
       resolve();
     });
-    pnpm.on('close', (code) => {
-      if (code === 0) console.log('[Electron] Frontend construido');
-      else console.warn(`[Electron] Frontend build fallo (codigo ${code}), usando fallback`);
+    pnpm.on("close", (code) => {
+      if (code === 0) console.log("[Electron] Frontend construido");
+      else
+        console.warn(
+          `[Electron] Frontend build fallo (codigo ${code}), usando fallback`,
+        );
       resolve(); // Seguir aunque falle
     });
   });
@@ -550,11 +562,11 @@ function startBackend(): Promise<void> {
 
 function stopBackend() {
   if (backendProcess) {
-    console.log('[Electron] Deteniendo backend...');
-    backendProcess.kill('SIGTERM');
+    console.log("[Electron] Deteniendo backend...");
+    backendProcess.kill("SIGTERM");
     setTimeout(() => {
       if (backendProcess) {
-        backendProcess.kill('SIGKILL');
+        backendProcess.kill("SIGKILL");
         backendProcess = null;
       }
     }, 5000);
@@ -571,12 +583,17 @@ function showSplash() {
     resizable: false,
     center: true,
     alwaysOnTop: true,
-    icon: path.join(__dirname, '..', 'assets', 'icon-512.png'),
+    icon: path.join(__dirname, "..", "assets", "icon-512.png"),
     webPreferences: { nodeIntegration: false, contextIsolation: true },
   });
 
   // Cargar splash HTML desde archivo
-  splash.loadURL('file://' + path.resolve(__dirname, '..', 'splash.html') + '?v=' + app.getVersion());
+  splash.loadURL(
+    "file://" +
+      path.resolve(__dirname, "..", "splash.html") +
+      "?v=" +
+      app.getVersion(),
+  );
 
   return splash;
 }
@@ -584,9 +601,11 @@ function showSplash() {
 // ── Ventana principal ────────────────────────────────────────────
 async function createWindow() {
   await session.defaultSession.clearCache().catch(() => {});
-  await session.defaultSession.clearStorageData({
-    storages: ['localstorage', 'serviceworkers', 'cachestorage']
-  }).catch(() => {});
+  await session.defaultSession
+    .clearStorageData({
+      storages: ["localstorage", "serviceworkers", "cachestorage"],
+    })
+    .catch(() => {});
 
   // Mostrar splash mientras carga
   const splash = showSplash();
@@ -596,12 +615,12 @@ async function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    title: 'eMail-IA',
-    icon: path.join(__dirname, '..', 'assets', 'icon-512.png'),
+    title: "eMail-IA",
+    icon: path.join(__dirname, "..", "assets", "icon-512.png"),
     show: false,
-    backgroundColor: '#0F172A',
+    backgroundColor: "#0F172A",
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
     },
@@ -609,29 +628,30 @@ async function createWindow() {
 
   // Deshabilitar caché HTTP
   mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
-    { urls: ['*://*/*'] },
+    { urls: ["*://*/*"] },
     (details: any, callback: any) => {
       callback({
         requestHeaders: {
           ...details.requestHeaders,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
         },
       });
-    }
+    },
   );
 
   mainWindow.loadURL(APP_URL);
 
   // Visibilidad de errores del renderer en el log del main (diagnóstico E2E)
-  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) =>
-    console.error(`[Electron] did-fail-load ${code} ${desc} ${url}`));
-  mainWindow.webContents.on('console-message', (_e, level, message) => {
+  mainWindow.webContents.on("did-fail-load", (_e, code, desc, url) =>
+    console.error(`[Electron] did-fail-load ${code} ${desc} ${url}`),
+  );
+  mainWindow.webContents.on("console-message", (_e, level, message) => {
     if (level >= 2) console.warn(`[Renderer] ${message}`);
   });
 
   // Esperar a que React termine y luego hacer transición
-  mainWindow.webContents.on('did-finish-load', () => {
+  mainWindow.webContents.on("did-finish-load", () => {
     setTimeout(async () => {
       // Animación: splash se escala, main aparece
       if (splash && !splash.isDestroyed()) {
@@ -650,78 +670,86 @@ async function createWindow() {
   // otro proceso local podría servir una UI clónica que hereda el preload.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (esOrigenLocalPermitido(url)) {
-      return { action: 'allow' };
+      return { action: "allow" };
     }
     if (esUrlNavegable(url)) {
       shell.openExternal(url);
     } else {
-      console.warn(`[Electron] Ventana/openExternal bloqueado (URL no permitida): ${url}`);
+      console.warn(
+        `[Electron] Ventana/openExternal bloqueado (URL no permitida): ${url}`,
+      );
     }
-    return { action: 'deny' };
+    return { action: "deny" };
   });
 
   // La ventana principal solo navega dentro de la propia app (SPA); cualquier
   // navegación top-level a un origen ajeno se bloquea.
-  mainWindow.webContents.on('will-navigate', (event, url) => {
+  mainWindow.webContents.on("will-navigate", (event, url) => {
     if (url !== APP_URL && !esOrigenLocalPermitido(url)) {
       console.warn(`[Electron] Navegación top-level bloqueada: ${url}`);
       event.preventDefault();
     }
   });
 
-  mainWindow.on('closed', () => {
+  mainWindow.on("closed", () => {
     mainWindow = null;
   });
 
   // Tray icon (64x64 para mejor visibilidad en HiDPI)
   try {
-    let trayIconPath = path.join(__dirname, '..', 'assets', 'icon-128.png');
+    let trayIconPath = path.join(__dirname, "..", "assets", "icon-128.png");
     if (!fs.existsSync(trayIconPath)) {
-      trayIconPath = path.join(__dirname, '..', 'assets', 'icon-512.png');
+      trayIconPath = path.join(__dirname, "..", "assets", "icon-512.png");
     }
     if (fs.existsSync(trayIconPath)) {
       const trayIcon = nativeImage.createFromPath(trayIconPath);
       tray = new Tray(trayIcon);
-      tray.setToolTip('eMail-IA');
+      tray.setToolTip("eMail-IA");
       const contextMenu = Menu.buildFromTemplate([
-        { label: 'Abrir eMail-IA', click: () => mainWindow?.show() },
-        { type: 'separator' },
-        { label: 'Salir', click: () => app.quit() },
+        { label: "Abrir eMail-IA", click: () => mainWindow?.show() },
+        { type: "separator" },
+        { label: "Salir", click: () => app.quit() },
       ]);
       tray.setContextMenu(contextMenu);
-      tray.on('click', () => mainWindow?.show());
+      tray.on("click", () => mainWindow?.show());
     }
   } catch (e) {
-    console.log('[Electron] Tray no disponible:', e);
+    console.log("[Electron] Tray no disponible:", e);
   }
 }
 
 // ── App lifecycle ────────────────────────────────────────────────
 // ── IPC: purgar caché HTTP (anti-tracking al marcar SPAM) ─────────
-ipcMain.handle('cache:clear', async () => {
-  try { await session.defaultSession.clearCache(); } catch { /* ignore */ }
+ipcMain.handle("cache:clear", async () => {
+  try {
+    await session.defaultSession.clearCache();
+  } catch {
+    /* ignore */
+  }
 });
 
 // ── IPC: enlaces externos con whitelist http/https ────────────────
 // El preload expone openExternal para el flujo OAuth (URLs de Google/Microsoft);
 // cualquier otro esquema se rechaza (shell.openExternal arbitrario = RCE vía xdg-open).
-ipcMain.handle('shell:openExternal', async (_e, url: unknown) => {
-  if (typeof url !== 'string' || !esUrlNavegable(url)) {
+ipcMain.handle("shell:openExternal", async (_e, url: unknown) => {
+  if (typeof url !== "string" || !esUrlNavegable(url)) {
     throw new Error(`URL no permitida: ${String(url)}`);
   }
   await shell.openExternal(url);
 });
 
 // ── IPC: diálogos nativos de ficheros ─────────────────────────────
-ipcMain.handle('dialog:openFile', (_e, options: Electron.OpenDialogOptions) =>
-  dialog.showOpenDialog(options));
-ipcMain.handle('dialog:saveFile', (_e, options: Electron.SaveDialogOptions) =>
-  dialog.showSaveDialog(options));
+ipcMain.handle("dialog:openFile", (_e, options: Electron.OpenDialogOptions) =>
+  dialog.showOpenDialog(options),
+);
+ipcMain.handle("dialog:saveFile", (_e, options: Electron.SaveDialogOptions) =>
+  dialog.showSaveDialog(options),
+);
 
 // ── IPC: notificaciones nativas ───────────────────────────────────
 // El preload sandboxed no puede instanciar Notification de electron.
-ipcMain.handle('notification:show', (_e, title: unknown, body: unknown) => {
-  if (typeof title !== 'string' || typeof body !== 'string') return;
+ipcMain.handle("notification:show", (_e, title: unknown, body: unknown) => {
+  if (typeof title !== "string" || typeof body !== "string") return;
   new Notification({ title, body }).show();
 });
 
@@ -729,10 +757,8 @@ ipcMain.handle('notification:show', (_e, title: unknown, body: unknown) => {
 // Con puertos efímeros dos instancias NO chocan por red, pero sí por la BD H2
 // (file lock). El segundo lanzamiento activa la ventana de la primera y muere.
 const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on('second-instance', () => {
+if (gotTheLock) {
+  app.on("second-instance", () => {
     if (mainWindow) {
       mainWindow.show();
       mainWindow.focus();
@@ -742,7 +768,7 @@ if (!gotTheLock) {
   app.whenReady().then(async () => {
     try {
       // El renderer vive en app://local/; el main lo proxya al backend
-      protocol.handle('app', proxyToBackend);
+      protocol.handle("app", proxyToBackend);
 
       // Dev con Vite: UI desde 5173 y backend (8080) externo. Empaquetado o
       // dev sin Vite: backend hijo en puerto efímero + app://local/
@@ -757,12 +783,14 @@ if (!gotTheLock) {
             callback({
               responseHeaders: {
                 ...details.responseHeaders,
-                'Content-Security-Policy': [CSP.dev],
+                "Content-Security-Policy": [CSP.dev],
               },
             });
-          }
+          },
         );
-        console.log(`[Electron] Dev: UI en ${viteUrl} (backend externo en 8080 vía proxy Vite)`);
+        console.log(
+          `[Electron] Dev: UI en ${viteUrl} (backend externo en 8080 vía proxy Vite)`,
+        );
       } else {
         matarProcesosAnteriores();
         await ensureFrontendBuilt();
@@ -771,25 +799,27 @@ if (!gotTheLock) {
       console.log(`[Electron] Abriendo ${APP_URL}`);
       createWindow();
     } catch (err) {
-      console.error('[Electron] Error al iniciar:', err);
-      dialog.showErrorBox('Error', `No se pudo iniciar el backend: ${err}`);
+      console.error("[Electron] Error al iniciar:", err);
+      dialog.showErrorBox("Error", `No se pudo iniciar el backend: ${err}`);
       app.quit();
     }
   });
+} else {
+  app.quit();
 }
 
-app.on('window-all-closed', () => {
+app.on("window-all-closed", () => {
   stopBackend();
-  if (process.platform !== 'darwin') {
+  if (process.platform !== "darwin") {
     app.quit();
   }
 });
 
-app.on('before-quit', () => {
+app.on("before-quit", () => {
   stopBackend();
 });
 
-app.on('activate', () => {
+app.on("activate", () => {
   if (mainWindow === null) {
     createWindow();
   }
