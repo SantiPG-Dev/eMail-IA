@@ -104,36 +104,48 @@ function oauthConfigPath(): string {
 function loadOAuthConfig(): Record<string, string> {
   const configPath = oauthConfigPath();
   const template = {
-    google: { clientId: '', clientSecret: '' },
-    microsoft: { clientId: '', clientSecret: '' }
+    google: { clientId: "", clientSecret: "" },
+    microsoft: { clientId: "", clientSecret: "" },
   };
 
   if (!fs.existsSync(configPath)) {
     try {
-      fs.writeFileSync(configPath, JSON.stringify(template, null, 2), 'utf-8');
+      fs.writeFileSync(configPath, JSON.stringify(template, null, 2), "utf-8");
       // El template se rellena con el clientSecret de Google/Microsoft:
       // jamás legible por otros usuarios locales (umask 022 dejaría 0644)
       fs.chmodSync(configPath, 0o600);
-      console.log(`[Electron] Creado ${configPath} (0600) — rellena tus credenciales OAuth`);
+      console.log(
+        `[Electron] Creado ${configPath} (0600) — rellena tus credenciales OAuth`,
+      );
     } catch (e) {
-      console.warn(`[Electron] No se pudo crear ${configPath} (${(e as NodeJS.ErrnoException).code}); OAuth deshabilitado`);
+      console.warn(
+        `[Electron] No se pudo crear ${configPath} (${(e as NodeJS.ErrnoException).code}); OAuth deshabilitado`,
+      );
     }
     return {};
   }
 
   // Retro-corrección: versiones anteriores lo dejaban en 0644
-  try { fs.chmodSync(configPath, 0o600); } catch { /* FS sin chmod */ }
+  try {
+    fs.chmodSync(configPath, 0o600);
+  } catch {
+    /* FS sin chmod */
+  }
 
   try {
-    const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     const env: Record<string, string> = {};
-    if (cfg.google?.clientId) env.EMAILAI_GOOGLE_CLIENT_ID = cfg.google.clientId;
-    if (cfg.google?.clientSecret) env.EMAILAI_GOOGLE_CLIENT_SECRET = cfg.google.clientSecret;
-    if (cfg.microsoft?.clientId) env.EMAILAI_MICROSOFT_CLIENT_ID = cfg.microsoft.clientId;
-    if (cfg.microsoft?.clientSecret) env.EMAILAI_MICROSOFT_CLIENT_SECRET = cfg.microsoft.clientSecret;
+    if (cfg.google?.clientId)
+      env.EMAILAI_GOOGLE_CLIENT_ID = cfg.google.clientId;
+    if (cfg.google?.clientSecret)
+      env.EMAILAI_GOOGLE_CLIENT_SECRET = cfg.google.clientSecret;
+    if (cfg.microsoft?.clientId)
+      env.EMAILAI_MICROSOFT_CLIENT_ID = cfg.microsoft.clientId;
+    if (cfg.microsoft?.clientSecret)
+      env.EMAILAI_MICROSOFT_CLIENT_SECRET = cfg.microsoft.clientSecret;
     return env;
   } catch (e) {
-    console.warn('[Electron] oauth-config.json inválido:', e);
+    console.warn("[Electron] oauth-config.json inválido:", e);
     return {};
   }
 }
