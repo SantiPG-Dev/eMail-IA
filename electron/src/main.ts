@@ -321,10 +321,18 @@ function waitForBackend(timeoutMs: number): Promise<number> {
 // 127.0.0.1:<puerto efímero>. Streaming (adjuntos), Authorization y
 // Content-Disposition pasan tal cual.
 const HOP_BY_HOP = new Set([
-  'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
-  'te', 'trailer', 'transfer-encoding', 'upgrade', 'host',
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+  "host",
   // net.fetch ya decodifica la compresión: reenviarlos corrompería el cuerpo
-  'content-length', 'content-encoding',
+  "content-length",
+  "content-encoding",
 ]);
 
 // ── Content-Security-Policy del documento principal ──────────────
@@ -336,27 +344,29 @@ const HOP_BY_HOP = new Set([
 // se cruzan: gana la más estricta). Vite prod no genera scripts inline.
 // frame-src incluye about: por el srcdoc; blob: por adjuntos embebidos.
 const CSP = {
-  prod: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-      + "img-src 'self' data: blob: http: https:; font-src 'self' data:; "
-      + "connect-src 'self'; media-src 'self' blob:; frame-src 'self' blob: about:; "
-      + "object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  prod:
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: blob: http: https:; font-src 'self' data:; " +
+    "connect-src 'self'; media-src 'self' blob:; frame-src 'self' blob: about:; " +
+    "object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
   // Dev con Vite (5173): React-refresh inyecta <script> inline y HMR necesita
   // ws: — relajación solo en desarrollo, nunca en empaquetado.
-  dev: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-      + "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; "
-      + "font-src 'self' data:; connect-src 'self' ws:; media-src 'self' blob:; "
-      + "frame-src 'self' blob: about:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  dev:
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; " +
+    "font-src 'self' data:; connect-src 'self' ws:; media-src 'self' blob:; " +
+    "frame-src 'self' blob: about:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
 };
 
 async function proxyToBackend(request: Request): Promise<Response> {
   if (backendPort === null) {
-    return new Response('Backend no disponible todavía', { status: 503 });
+    return new Response("Backend no disponible todavía", { status: 503 });
   }
   let u: URL;
   try {
     u = new URL(request.url);
   } catch {
-    return new Response('URL malformada', { status: 400 });
+    return new Response("URL malformada", { status: 400 });
   }
   const target = `http://127.0.0.1:${backendPort}${u.pathname}${u.search}`;
   const headers = new Headers();
@@ -364,12 +374,16 @@ async function proxyToBackend(request: Request): Promise<Response> {
     const k = key.toLowerCase();
     // origin/referer del esquema custom app:// los rechaza el CorsFilter del
     // backend (403): el proxy es el boundary, al backend no le hace falta
-    if (!HOP_BY_HOP.has(k) && k !== 'origin' && k !== 'referer') headers.set(key, value);
+    if (!HOP_BY_HOP.has(k) && k !== "origin" && k !== "referer")
+      headers.set(key, value);
   });
-  const init: RequestInit & { duplex?: 'half' } = { method: request.method, headers };
-  if (request.method !== 'GET' && request.method !== 'HEAD') {
+  const init: RequestInit & { duplex?: "half" } = {
+    method: request.method,
+    headers,
+  };
+  if (request.method !== "GET" && request.method !== "HEAD") {
     init.body = request.body;
-    init.duplex = 'half';
+    init.duplex = "half";
   }
   try {
     // fetch de Node (undici), NO net.fetch: el network service de Chromium
@@ -383,14 +397,23 @@ async function proxyToBackend(request: Request): Promise<Response> {
     // CSP del documento principal: todo lo que sirve el backend (SPA embebida
     // incluida) pasa por aquí en empaquetado. En respuestas no-HTML la ignora
     // el navegador, así que inyectarla siempre es seguro.
-    if (!outHeaders.has('content-security-policy')) {
-      outHeaders.set('Content-Security-Policy', CSP.prod);
+    if (!outHeaders.has("content-security-policy")) {
+      outHeaders.set("Content-Security-Policy", CSP.prod);
     }
-    console.log(`[Proxy] ${request.method} ${u.pathname} → ${res.status} ct=${res.headers.get('content-type') ?? '(none)'}`);
-    return new Response(res.body, { status: res.status, statusText: res.statusText, headers: outHeaders });
+    console.log(
+      `[Proxy] ${request.method} ${u.pathname} → ${res.status} ct=${res.headers.get("content-type") ?? "(none)"}`,
+    );
+    return new Response(res.body, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: outHeaders,
+    });
   } catch (e) {
-    console.error(`[Electron] Proxy ${request.method} ${u.pathname} → error:`, e);
-    return new Response('Backend no disponible', { status: 502 });
+    console.error(
+      `[Electron] Proxy ${request.method} ${u.pathname} → error:`,
+      e,
+    );
+    return new Response("Backend no disponible", { status: 502 });
   }
 }
 
