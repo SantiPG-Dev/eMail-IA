@@ -429,61 +429,87 @@ function ensureFrontendBuilt(): Promise<void> {
 function startBackend(): Promise<void> {
   return new Promise((resolve, reject) => {
     // Ready file de un kill -9 anterior: fuera antes de arrancar
-    try { fs.rmSync(READY_FILE, { force: true }); } catch { /* ignore */ }
+    try {
+      fs.rmSync(READY_FILE, { force: true });
+    } catch {
+      /* ignore */
+    }
 
     if (BACKEND_JAR) {
       // data-dir: relativo ("DB") solo cuando un wrapper controla el cwd
       // (dev desde electron/ o instalación con --jar= desde ~/.eMailAI).
       // Empaquetado sin --jar (AppImage/deb/rpm) el cwd es el del lanzador
       // → ruta absoluta en userData para no regar la BD por ahí.
-      const jarArg = process.argv.find(a => a.startsWith('--jar='));
-      const dataDir = (!jarArg && app.isPackaged)
-        ? path.join(app.getPath('userData'), 'DB')
-        : 'DB';
-      console.log(`[Electron] Iniciando backend: ${JAVA_BIN} -jar ${BACKEND_JAR}`);
-      console.log(`[Electron] data-dir=${dataDir}, ready-file=${READY_FILE} (isPackaged=${app.isPackaged})`);
+      const jarArg = process.argv.find((a) => a.startsWith("--jar="));
+      const dataDir =
+        !jarArg && app.isPackaged
+          ? path.join(app.getPath("userData"), "DB")
+          : "DB";
+      console.log(
+        `[Electron] Iniciando backend: ${JAVA_BIN} -jar ${BACKEND_JAR}`,
+      );
+      console.log(
+        `[Electron] data-dir=${dataDir}, ready-file=${READY_FILE} (isPackaged=${app.isPackaged})`,
+      );
       const oauthEnv = loadOAuthConfig();
       // heap capado; sin techo el JVM se come 25% de la RAM y arranca
       // con ~1,5% de heap inicial. EMAILAI_XMX sube el techo si Weka/H2 lo piden.
-      const xmx = process.env.EMAILAI_XMX || '768m';
-      backendProcess = spawn(JAVA_BIN, [
-        '-Xms64m', `-Xmx${xmx}`,
-        '-jar', BACKEND_JAR,
-        '--server.port=0',
-        `--emailai.data-dir=${dataDir}`,
-        `--emailai.ready-file=${READY_FILE}`,
-      ], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, ...oauthEnv },
-      });
+      const xmx = process.env.EMAILAI_XMX || "768m";
+      backendProcess = spawn(
+        JAVA_BIN,
+        [
+          "-Xms64m",
+          `-Xmx${xmx}`,
+          "-jar",
+          BACKEND_JAR,
+          "--server.port=0",
+          `--emailai.data-dir=${dataDir}`,
+          `--emailai.ready-file=${READY_FILE}`,
+        ],
+        {
+          stdio: ["ignore", "pipe", "pipe"],
+          env: { ...process.env, ...oauthEnv },
+        },
+      );
     } else {
-      const backendDir = path.resolve(__dirname, '..', '..', 'backend');
-      console.log(`[Electron] Iniciando backend: mvn spring-boot:run en ${backendDir}`);
+      const backendDir = path.resolve(__dirname, "..", "..", "backend");
+      console.log(
+        `[Electron] Iniciando backend: mvn spring-boot:run en ${backendDir}`,
+      );
       const oauthEnv = loadOAuthConfig();
-      backendProcess = spawn('mvn', ['spring-boot:run'], {
+      backendProcess = spawn("mvn", ["spring-boot:run"], {
         cwd: backendDir,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, ...oauthEnv, SERVER_PORT: '0', EMAILAI_READYFILE: READY_FILE },
+        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+          ...process.env,
+          ...oauthEnv,
+          SERVER_PORT: "0",
+          EMAILAI_READYFILE: READY_FILE,
+        },
       });
     }
 
-    backendProcess.stdout?.on('data', (data: Buffer) => {
+    backendProcess.stdout?.on("data", (data: Buffer) => {
       console.log(`[Backend] ${data.toString().trim()}`);
     });
 
-    backendProcess.stderr?.on('data', (data: Buffer) => {
+    backendProcess.stderr?.on("data", (data: Buffer) => {
       console.error(`[Backend ERR] ${data.toString().trim()}`);
     });
 
-    backendProcess.on('error', (err) => {
-      console.error('[Electron] Error al iniciar backend:', err);
-      const enoent = (err as NodeJS.ErrnoException).code === 'ENOENT';
-      reject(enoent
-        ? new Error(`No se encontró "${JAVA_BIN}". Instala Java 21 o empaqueta el JRE (build-jre.sh).`)
-        : err);
+    backendProcess.on("error", (err) => {
+      console.error("[Electron] Error al iniciar backend:", err);
+      const enoent = (err as NodeJS.ErrnoException).code === "ENOENT";
+      reject(
+        enoent
+          ? new Error(
+              `No se encontró "${JAVA_BIN}". Instala Java 21 o empaqueta el JRE (build-jre.sh).`,
+            )
+          : err,
+      );
     });
 
-    backendProcess.on('exit', (code) => {
+    backendProcess.on("exit", (code) => {
       console.log(`[Electron] Backend terminado con código ${code}`);
       backendProcess = null;
     });
