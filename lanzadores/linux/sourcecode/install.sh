@@ -16,7 +16,7 @@
 # Desinstalar:  bash lanzadores/linux/sourcecode/uninstall.sh
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"   # raíz del repo
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)" # raíz del repo
 APP_DIR="$HOME/.eMailAI"
 BIN_DIR="$HOME/.local/bin"
 JAR_SRC="$(ls -t "$ROOT"/backend/target/emailai-backend-*.jar | head -1)"
@@ -24,9 +24,12 @@ JAR_DST="$APP_DIR/emailai-backend.jar"
 ELECTRON_SRC="$ROOT/electron/release/linux-unpacked"
 ELECTRON_DST="$APP_DIR/app"
 
-ok()   { printf '  \033[1;32m✔\033[0m %s\n' "$*"; }
+ok() { printf '  \033[1;32m✔\033[0m %s\n' "$*"; }
 pass() { printf '\033[1;32m✔ %s\033[0m\n' "$*"; }
-fail() { printf '\033[1;31m✘ ERROR: %s\033[0m\n' "$*" >&2; exit 1; }
+fail() {
+    printf '\033[1;31m✘ ERROR: %s\033[0m\n' "$*" >&2
+    exit 1
+}
 size() { du -sh "$1" 2>/dev/null | cut -f1; }
 
 banner() {
@@ -66,14 +69,14 @@ ok "Backend instalado en $JAR_DST"
 # ── Paso 3: configuración OAuth ───────────────────────────────────────
 printf '\033[1m[3/6] Configuración OAuth\033[0m\n'
 OAUTH_DST="$APP_DIR/oauth-config.json"
-chmod 600 "$OAUTH_DST" 2>/dev/null || true  # contiene clientSecrets: owner-only
+chmod 600 "$OAUTH_DST" 2>/dev/null || true # contiene clientSecrets: owner-only
 if [[ ! -f "$OAUTH_DST" ]]; then
     if [[ -f "$ROOT/electron/oauth-config.json" ]]; then
         cp "$ROOT/electron/oauth-config.json" "$OAUTH_DST"
         chmod 600 "$OAUTH_DST"
         ok "Copiado desde electron/oauth-config.json"
     else
-        cat > "$OAUTH_DST" <<'EOF'
+        cat >"$OAUTH_DST" <<'EOF'
 {
   "google": { "clientId": "", "clientSecret": "" },
   "microsoft": { "clientId": "", "clientSecret": "" }
@@ -87,7 +90,7 @@ fi
 
 # ── Paso 4: lanzador ~/.local/bin/emailai ─────────────────────────────
 printf '\033[1m[4/6] Instalando lanzador en %s/emailai\033[0m\n' "$BIN_DIR"
-cat > "$BIN_DIR/emailai" <<EOF
+cat >"$BIN_DIR/emailai" <<EOF
 #!/usr/bin/env bash
 # eMail-IA — lanzador de la instalación local (~/.eMailAI)
 # Sin puertos: el backend arranca en un puerto efímero elegido por el SO y
@@ -190,7 +193,7 @@ ok "Icono: $ICON_DST"
 DESKTOP="$HOME/.local/share/applications/emailai.desktop"
 # Icono por ruta absoluta: la resolución por nombre (Icon=emailai) falla
 # a veces en KDE hasta refrescar cachés; la ruta directa siempre funciona.
-cat > "$DESKTOP" <<EOF
+cat >"$DESKTOP" <<EOF
 [Desktop Entry]
 Type=Application
 Name=eMail-IA

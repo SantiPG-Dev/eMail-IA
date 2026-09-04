@@ -4,7 +4,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"   # raíz del repo
+ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)" # raíz del repo
 SKIP_TESTS=false
 [[ "${1:-}" == "--skip-tests" ]] && SKIP_TESTS=true
 
