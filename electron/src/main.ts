@@ -256,7 +256,7 @@ function matarProcesosAnteriores() {
   // 2) Fallback por nombre: SOLO patrones exclusivos de esta app. Nunca
   //    'spring-boot:run' (mataría backends de otros proyectos del usuario).
   //    Los corchetes evitan que el patrón coincida con la propia cmdline del
-  //    wrapper sh -c que ejecuta este pkill gotcha que ya mordió una vez:
+  //    wrapper sh -c que ejecuta este pkill (gotcha que ya mordió una vez):
   //    'emailai-backend-[0-9]' casa con "emailai-backend-1.2.0.jar" pero no
   //    consigo mismo; '[.]' exige un punto real en "com.emailai...".
   try {
@@ -487,8 +487,8 @@ function startBackend(): Promise<void> {
         `[Electron] data-dir=${dataDir}, ready-file=${READY_FILE} (isPackaged=${app.isPackaged})`,
       );
       const oauthEnv = loadOAuthConfig();
-      // heap capado; sin techo el JVM se come 25% de la RAM y arranca
-      // con ~1,5% de heap inicial. EMAILAI_XMX sube el techo si Weka/H2 lo piden.
+      // Heap capado a pelo: sin techo el JVM se come el 25% de la RAM y arranca
+      // con ~1,5% de heap inicial. Si Weka/H2 se quedan cortos, EMAILAI_XMX sube el techo.
       const xmx = process.env.EMAILAI_XMX || "768m";
       backendProcess = spawn(
         JAVA_BIN,
