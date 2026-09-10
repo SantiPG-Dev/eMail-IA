@@ -6,6 +6,7 @@ import { useSync } from "../context/SyncContext";
 import { Spinner, EmptyState, ErrorState } from "../components/StateViews";
 import ComposePage from "./ComposePage";
 import ContextMenu from "../components/ContextMenu";
+import { formatearFecha } from "../utils/fechas";
 import EventoDialog from "../components/EventoDialog";
 import TareaDialog from "../components/TareaDialog";
 import { detectarFechaHora } from "../utils/fechas";
@@ -484,7 +485,7 @@ export default function CorreoPage() {
 								</div>
 								<div className="truncate opacity-80">{m.asunto}</div>
 								<div className="text-[10px] opacity-60">
-									{m.fechaRecepcion?.slice(0, 10)}
+									{formatearFecha(m.fechaRecepcion)}
 								</div>
 							</div>
 						))
@@ -516,7 +517,7 @@ export default function CorreoPage() {
 									<span className="truncate">{selected.remitente}</span>
 									<span>·</span>
 									<span className="shrink-0">
-										{selected.fechaRecepcion?.slice(0, 10)}
+										{formatearFecha(selected.fechaRecepcion)}
 									</span>
 									{selected.categoria && selected.categoria !== "DESCONOCIDO" && (
 										<span

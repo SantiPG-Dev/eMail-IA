@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { proximosEventos, etiquetaFecha } from '../utils/fechas';
+import { proximosEventos, etiquetaFecha, formatearFecha } from '../utils/fechas';
 
 const HOY = new Date('2026-08-24T10:00:00');
 
@@ -30,5 +30,25 @@ describe('etiquetaFecha', () => {
 
   it('formato largo en español para fechas lejanas', () => {
     expect(etiquetaFecha('2026-09-01', HOY)).toBe('Martes, 1 de septiembre');
+  });
+});
+
+describe('formatearFecha', () => {
+  it('por defecto (sin setting) usa DD-MM-YYYY', () => {
+    localStorage.removeItem('emailai_formato_fecha');
+    expect(formatearFecha('2026-09-10')).toBe('10-09-2026');
+    // acepta ISO completo (datetime) y devuelve vacío sin fecha
+    expect(formatearFecha('2026-09-10T14:30:00')).toBe('10-09-2026');
+    expect(formatearFecha(null)).toBe('');
+  });
+
+  it('respeta el formato configurado', () => {
+    localStorage.setItem('emailai_formato_fecha', 'DD/MM/YYYY');
+    expect(formatearFecha('2026-09-10')).toBe('10/09/2026');
+    localStorage.setItem('emailai_formato_fecha', 'MM-DD-YYYY');
+    expect(formatearFecha('2026-09-10')).toBe('09-10-2026');
+    localStorage.setItem('emailai_formato_fecha', 'YYYY-MM-DD');
+    expect(formatearFecha('2026-09-10')).toBe('2026-09-10');
+    localStorage.removeItem('emailai_formato_fecha');
   });
 });

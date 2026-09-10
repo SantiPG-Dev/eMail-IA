@@ -3,6 +3,7 @@ import { tareaApi } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { Spinner, EmptyState, ErrorState } from '../components/StateViews';
 import TareaDialog, { Tarea } from '../components/TareaDialog';
+import { formatearFecha } from '../utils/fechas';
 
 // Gestión de tareas con vistas estilo Planify (Hoy con vencidas incluidas,
 // Programadas, etiquetas como filtros clicables) más periodo semana/mes.
@@ -152,7 +153,7 @@ export default function TareasPage() {
                   <span className="text-xs font-medium"
                     style={{ color: t.fechaVencimiento < hoy && t.estado !== 'completada'
                       ? '#ef4444' : 'var(--color-text-secondary)' }}>
-                    {t.fechaVencimiento < hoy && t.estado !== 'completada' ? '⚠ ' : ''}{t.fechaVencimiento}</span>
+                    {t.fechaVencimiento < hoy && t.estado !== 'completada' ? '⚠ ' : ''}{formatearFecha(t.fechaVencimiento)}</span>
                 )}
               </div>
             );
