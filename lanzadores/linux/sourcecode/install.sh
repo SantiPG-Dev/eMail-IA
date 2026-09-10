@@ -190,16 +190,27 @@ mkdir -p "$(dirname "$ICON_DST")"
 cp -f "$ICON_SRC" "$ICON_DST"
 ok "Icono: $ICON_DST"
 
+# SVG escalable: KDE rasteriza al tamaño exacto (menú, barra, alt-tab) en
+# vez de reescalar el png de 256, que se ve borroso en tamaños raros.
+SVG_SRC="$ROOT/electron/assets/icon.svg"
+SVG_DST="$HOME/.local/share/icons/hicolor/scalable/apps/emailai.svg"
+mkdir -p "$(dirname "$SVG_DST")"
+cp -f "$SVG_SRC" "$SVG_DST"
+ok "Icono SVG: $SVG_DST"
+
 DESKTOP="$HOME/.local/share/applications/emailai.desktop"
 # Icono por ruta absoluta: la resolución por nombre (Icon=emailai) falla
 # a veces en KDE hasta refrescar cachés; la ruta directa siempre funciona.
+# Se usa el SVG si existe (nítido a cualquier tamaño); el png queda de red.
+ICON_ENTRY="$ICON_DST"
+[[ -f "$SVG_DST" ]] && ICON_ENTRY="$SVG_DST"
 cat >"$DESKTOP" <<EOF
 [Desktop Entry]
 Type=Application
 Name=eMail-IA
 Comment=Cliente de correo con IA
 Exec=$BIN_DIR/emailai start
-Icon=$ICON_DST
+Icon=$ICON_ENTRY
 Terminal=false
 Categories=Network;Email;
 StartupWMClass=eMail-IA
