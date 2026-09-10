@@ -50,10 +50,16 @@ EOF
 install -d -m 0755 %{buildroot}%{_datadir}/icons/hicolor/256x256/apps
 install -m 0644 "$ICON" %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/emailai-electron.png
 
+# SVG escalable: el menú y la barra de tareas lo rasterizan al tamaño exacto
+# en vez de escalar el png de 256, que se vea borroso fuera de ese tamaño.
+install -d -m 0755 %{buildroot}%{_datadir}/icons/hicolor/scalable/apps
+install -m 0644 "%{emailai_svg}" %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/emailai-electron.svg
+
 %files
 /opt/eMail-IA
 %{_datadir}/applications/emailai-electron.desktop
 %{_datadir}/icons/hicolor/256x256/apps/emailai-electron.png
+%{_datadir}/icons/hicolor/scalable/apps/emailai-electron.svg
 
 %changelog
 * Mon Jul 27 2026 Santiago Pérez Gómez <SantiPG-Dev@gmx.com> - 1.0.0-1
