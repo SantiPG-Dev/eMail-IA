@@ -4,6 +4,7 @@ import { cuentaApi } from '../api/client';
 import AccountForm from '../components/AccountForm';
 import type { AccountFormData } from '../components/AccountForm';
 import { Spinner, EmptyState } from '../components/StateViews';
+import { FORMATOS_FECHA } from '../utils/fechas';
 
 // Pantalla de configuración con secciones: General, Cuentas, IA y Temas (16 temas).
 type Section = 'general' | 'cuentas' | 'ia' | 'temas';
@@ -69,6 +70,7 @@ export default function ConfigPage() {
   const [tamano, setTamano] = useState(() => parseInt(localStorage.getItem('emailai_fontsize') || '14'));
   const [fuentesSistema, setFuentesSistema] = useState<string[]>([]);
   const [fondoActual, setFondoActual] = useState(() => localStorage.getItem('emailai_bg') || 'oscuro');
+  const [formatoFecha, setFormatoFecha] = useState(() => localStorage.getItem('emailai_formato_fecha') || 'DD-MM-YYYY');
 
   // Escanear fuentes del sistema
   useEffect(() => {
@@ -94,7 +96,6 @@ export default function ConfigPage() {
             el.style.position = 'absolute';
             el.textContent = 'test';
             document.body.appendChild(el);
-            const ancho = el.offsetWidth;
             document.body.removeChild(el);
             // Si la fuente se cargó, el ancho será diferente al fallback
             return true; // simplificado: confiar en el nombre
@@ -154,6 +155,11 @@ export default function ConfigPage() {
     document.documentElement.style.setProperty('--color-bg', bg);
   };
 
+  const aplicarFormatoFecha = (f: string) => {
+    setFormatoFecha(f);
+    localStorage.setItem('emailai_formato_fecha', f);
+  };
+
   return (
     <div className="flex h-full" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* Nav lateral */}
@@ -191,6 +197,23 @@ export default function ConfigPage() {
             <div className="p-3 rounded-lg border-l-4"
               style={{ backgroundColor: 'var(--color-bg-card)', borderColor: 'var(--color-accent-selected)' }}>
               <p className="text-sm" style={{ color: 'var(--color-text)' }}>eMail-IA v1.0 · Cliente de correo con IA local</p>
+            </div>
+            <div className="p-3 rounded-lg border-l-4"
+              style={{ backgroundColor: 'var(--color-bg-card)', borderColor: 'var(--color-accent-selected)' }}>
+              <p className="text-xs font-bold mb-2" style={{ color: 'var(--color-text)' }}>Formato de fecha</p>
+              <select value={formatoFecha} onChange={e => aplicarFormatoFecha(e.target.value)}
+                className="w-40 px-2 py-1.5 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--color-bg)', color: 'var(--color-text)',
+                  borderColor: 'var(--color-border)',
+                }}>
+                {FORMATOS_FECHA.map(f => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
+              <p className="text-[10px] mt-2" style={{ color: 'var(--color-text-secondary)' }}>
+                Se aplica a las fechas de correo y tareas. Los selectores de fecha usan el idioma de la app.
+              </p>
             </div>
           </div>
         )}

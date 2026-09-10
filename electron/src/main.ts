@@ -30,6 +30,9 @@ process.env.ELECTRON_ENABLE_STACK_DUMPING = "false";
 // (ej. "[ERROR:debug_utils.cc] Hit debug scenario: 4" al cargar iframes srcdoc/about:blank).
 // log-level=3 => solo mensajes FATAL. No afecta a la app.
 app.commandLine.appendSwitch("log-level", "3");
+// Idioma del renderer: sin esto los <input type="date"> y demás controles
+// nativos heredan en-US y pintan las fechas MM/DD/YYYY. Debe ir antes de ready.
+app.commandLine.appendSwitch("lang", "es-ES");
 
 const DEV_FRONTEND = "http://localhost:5173";
 const APP_ORIGIN = "app://local";
