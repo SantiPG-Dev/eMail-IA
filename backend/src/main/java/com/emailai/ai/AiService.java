@@ -1,44 +1,119 @@
 package com.emailai.ai;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import com.emailai.config.AppConfigStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import jakarta.annotation.PostConstruct;
+
 // Servicio de IA unificado: LM Studio (API OpenAI-compatible) o directamente OpenAI.
 // Reemplaza los 3 servicios legacy (IAService, IAAsistenteService, OllamaService)
 // por una implementación simple con RestClient de Spring.
+// baseUrl/modelo/prompt de chat son configurables desde la UI (claves ia.* de
+// AppConfigStore); el @Value solo aporta los valores por defecto de arranque.
 @Service
 public class AiService {
 
-    private final RestClient restClient;
-    private final ObjectMapper mapper;
-    private final String model;
-    private final int timeoutSeconds;
+    public static final String DEFAULT_BASE_URL = "http://localhost:1234";
+    public static final String DEFAULT_MODEL = "qwen3.5:9b";
+    public static final String DEFAULT_PROMPT = "Eres un asistente útil que responde en español.";
 
+    // Volatile: se reconstruyen al guardar configuración (POST /api/ia/config)
+    private volatile RestClient restClient;
+    private volatile String baseUrl;
+    private volatile String model;
+    private final ObjectMapper mapper;
+    private final int timeoutSeconds;
+    // Nulo con el constructor corto (tests): sin overrides de AppConfigStore
+    private final AppConfigStore config;
+
+    @Autowired
     public AiService(
-            @Value("${emailai.ai.base-url:http://localhost:1234}") String baseUrl,
-            @Value("${emailai.ai.model:qwen3.5:9b}") String model,
-            @Value("${emailai.ai.timeout:30}") int timeoutSeconds) {
+            @Value("${emailai.ai.base-url:" + DEFAULT_BASE_URL + "}") String baseUrl,
+            @Value("${emailai.ai.model:" + DEFAULT_MODEL + "}") String model,
+            @Value("${emailai.ai.timeout:30}") int timeoutSeconds,
+            AppConfigStore config) {
+        this.config = config;
+        this.baseUrl = baseUrl;
+        this.model = model;
+        this.timeoutSeconds = timeoutSeconds;
+        this.mapper = new ObjectMapper();
+        this.restClient = construirCliente(baseUrl, timeoutSeconds);
+    }
+
+    public AiService(String baseUrl, String model, int timeoutSeconds) {
+        this(baseUrl, model, timeoutSeconds, null);
+    }
+
+    /** Arranca con la última configuración guardada desde la UI, si la hay. */
+    @PostConstruct
+    void aplicarConfigGuardada() {
+        if (config == null) return;
+        actualizar(
+                config.get("ia.baseUrl", baseUrl),
+                config.get("ia.model", model));
+    }
+
+    private static RestClient construirCliente(String baseUrl, int timeoutSeconds) {
         // Timeout REAL (connect + read): sin esto, una llamada a LM Studio
         // colgada bloquea el hilo indefinidamente aunque la config diga 30s.
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(5));
         factory.setReadTimeout(Duration.ofSeconds(Math.max(1, timeoutSeconds)));
-        this.restClient = RestClient.builder()
+        return RestClient.builder()
                 .baseUrl(baseUrl)
                 .requestFactory(factory)
                 .build();
-        this.mapper = new ObjectMapper();
-        this.model = model;
-        this.timeoutSeconds = timeoutSeconds;
+    }
+
+    /** Reconstruye el cliente con otro servidor/modelo (POST /api/ia/config). */
+    public synchronized void actualizar(String nuevoBaseUrl, String nuevoModelo) {
+        if (nuevoBaseUrl == null || nuevoBaseUrl.isBlank()
+                || nuevoModelo == null || nuevoModelo.isBlank()) {
+            return;
+        }
+        this.baseUrl = nuevoBaseUrl.strip();
+        this.model = nuevoModelo.strip();
+        this.restClient = construirCliente(this.baseUrl, timeoutSeconds);
+    }
+
+    public String getBaseUrl() {
+        return baseUrl;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    /** Resultado de la prueba de conexión: modelos cargados en LM Studio. */
+    public record EstadoIA(boolean ok, List<String> modelos, String error) {}
+
+    /** Prueba un baseUrl sin guardarlo: devuelve los modelos que expone. */
+    public EstadoIA probar(String baseUrlCandidato) {
+        RestClient cliente = construirCliente(baseUrlCandidato, timeoutSeconds);
+        try {
+            String body = cliente.get().uri("/v1/models").retrieve().body(String.class);
+            List<String> modelos = new ArrayList<>();
+            for (JsonNode n : mapper.readTree(body).path("data")) {
+                String id = n.path("id").asText("");
+                if (!id.isEmpty()) modelos.add(id);
+            }
+            return new EstadoIA(true, modelos, null);
+        } catch (Exception e) {
+            return new EstadoIA(false, List.of(), e.getMessage());
+        }
     }
 
     /**
@@ -89,10 +164,17 @@ public class AiService {
     }
 
     /**
-     * Chat conversacional con la IA.
+     * Chat conversacional con la IA: el system prompt es configurable desde
+     * Configuración → IA (ia.prompt) para afinar el tono del asistente.
      */
     public String chat(String mensaje) {
-        return chatString("Eres un asistente útil que responde en español.", mensaje);
+        return chatString(promptDeChat(), mensaje);
+    }
+
+    private String promptDeChat() {
+        return config != null
+                ? config.get("ia.prompt", DEFAULT_PROMPT)
+                : DEFAULT_PROMPT;
     }
 
     /**

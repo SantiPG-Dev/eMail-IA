@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { cuentaApi } from '../api/client';
+import { cuentaApi, iaApi } from '../api/client';
 import AccountForm from '../components/AccountForm';
 import type { AccountFormData } from '../components/AccountForm';
 import { Spinner, EmptyState } from '../components/StateViews';
@@ -71,6 +71,12 @@ export default function ConfigPage() {
   const [fuentesSistema, setFuentesSistema] = useState<string[]>([]);
   const [fondoActual, setFondoActual] = useState(() => localStorage.getItem('emailai_bg') || 'oscuro');
   const [formatoFecha, setFormatoFecha] = useState(() => localStorage.getItem('emailai_formato_fecha') || 'DD-MM-YYYY');
+  // Conexión a LM Studio (se persiste en el backend, claves ia.*)
+  const [iaBaseUrl, setIaBaseUrl] = useState('http://localhost:1234');
+  const [iaModel, setIaModel] = useState('qwen3.5:9b');
+  const [iaPrompt, setIaPrompt] = useState('Eres un asistente útil que responde en español.');
+  const [iaModelos, setIaModelos] = useState<string[]>([]);
+  const [probando, setProbando] = useState(false);
 
   // Escanear fuentes del sistema
   useEffect(() => {
@@ -107,6 +113,40 @@ export default function ConfigPage() {
   }, []);
 
   useEffect(() => { cargarCuentas(); }, []);
+
+  useEffect(() => {
+    iaApi.config()
+      .then(r => { setIaBaseUrl(r.data.baseUrl); setIaModel(r.data.model); setIaPrompt(r.data.prompt); })
+      .catch(() => {});
+  }, []);
+
+  const conectarIA = async () => {
+    setProbando(true); setStatus('');
+    try {
+      const r = await iaApi.conectar(iaBaseUrl);
+      if (r.data.ok) {
+        const modelos: string[] = r.data.modelos || [];
+        setIaModelos(modelos);
+        setStatus(`✅ Conectado a ${iaBaseUrl} — ${modelos.length} modelo(s) disponible(s)`);
+        // Si el modelo configurado no está entre los expuestos, usar el primero
+        if (modelos.length > 0 && !modelos.includes(iaModel)) setIaModel(modelos[0]);
+      } else {
+        setIaModelos([]);
+        setStatus('❌ Sin conexión: ' + (r.data.error || 'sin detalle'));
+      }
+    } catch (e: any) {
+      setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo conectar'));
+    } finally { setProbando(false); }
+  };
+
+  const guardarIA = async () => {
+    try {
+      await iaApi.guardarConfig(iaBaseUrl, iaModel, iaPrompt);
+      setStatus('✅ Configuración de IA guardada');
+    } catch (e: any) {
+      setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo guardar'));
+    }
+  };
 
   const cargarCuentas = async () => {
     setLoadingCuentas(true);
@@ -260,15 +300,44 @@ export default function ConfigPage() {
         {section === 'ia' && (
           <div className="space-y-4">
             <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>Configuración de IA</h3>
-            <div className="p-3 rounded-lg" style={{ backgroundColor: 'var(--color-bg-card)' }}>
-              <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Servidor LM Studio</label>
-              <input defaultValue="http://localhost:1234"
-                className="w-full max-w-md px-2 py-1.5 text-sm rounded-lg border outline-none"
-                style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
-              <label className="text-xs font-bold block mt-3 mb-1" style={{ color: 'var(--color-text)' }}>Modelo</label>
-              <input defaultValue="qwen3.5:9b"
-                className="w-full max-w-md px-2 py-1.5 text-sm rounded-lg border outline-none"
-                style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+            <div className="p-3 rounded-lg space-y-3" style={{ backgroundColor: 'var(--color-bg-card)' }}>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Servidor LM Studio</label>
+                  <input value={iaBaseUrl} onChange={e => setIaBaseUrl(e.target.value)}
+                    className="w-full max-w-md px-2 py-1.5 text-sm rounded-lg border outline-none"
+                    style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+                </div>
+                <button onClick={conectarIA} disabled={probando}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg shrink-0"
+                  style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A', opacity: probando ? 0.6 : 1 }}>
+                  {probando ? 'Conectando...' : 'Conectar'}</button>
+              </div>
+              <div>
+                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Modelo</label>
+                <input value={iaModel} onChange={e => setIaModel(e.target.value)} list="ia-modelos"
+                  className="w-full max-w-md px-2 py-1.5 text-sm rounded-lg border outline-none"
+                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+                {/* Sugerencias con los modelos que expone el servidor */}
+                <datalist id="ia-modelos">
+                  {iaModelos.map(m => <option key={m} value={m} />)}
+                </datalist>
+                {iaModelos.length > 0 && (
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                    Modelos detectados: {iaModelos.join(', ')}</p>
+                )}
+              </div>
+              <div>
+                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Prompt del asistente</label>
+                <textarea value={iaPrompt} onChange={e => setIaPrompt(e.target.value)} rows={3}
+                  className="w-full max-w-md px-2 py-1.5 text-sm rounded-lg border outline-none resize-y"
+                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+                <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                  Instrucción de sistema del chat (resúmenes y sugerencias usan la suya propia).</p>
+              </div>
+              <button onClick={guardarIA}
+                className="px-4 py-1.5 text-sm font-bold rounded-lg"
+                style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Guardar</button>
             </div>
           </div>
         )}

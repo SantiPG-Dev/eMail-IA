@@ -20,7 +20,8 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401 && !window.location.pathname.startsWith('/login')) {
       localStorage.removeItem('emailai_token');
-      window.location.href = '/login';
+      // Destino fijo interno: no depende de nada que venga de fuera
+      window.location.assign('/login');
     }
     return Promise.reject(error);
   }
@@ -90,6 +91,11 @@ export const iaApi = {
     api.post('/api/ia/chat', { mensaje, tipo, mensajeId }),
   retrain: (cuentaHash: string) =>
     api.post('/api/ia/reentrenar', null, { params: { cuentaHash } }),
+  config: () => api.get('/api/ia/config'),
+  guardarConfig: (baseUrl: string, model: string, prompt: string) =>
+    api.post('/api/ia/config', null, { params: { baseUrl, model, prompt } }),
+  conectar: (baseUrl?: string) =>
+    api.post('/api/ia/conectar', null, { params: baseUrl ? { baseUrl } : {} }),
 };
 
 export const configApi = {
