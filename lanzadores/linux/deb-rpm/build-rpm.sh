@@ -22,6 +22,7 @@ rpmbuild -bb \
   --define "_topdir $RPM_TOP" \
   --define "emailai_src $ELECTRON_DIR/release/linux-unpacked" \
   --define "emailai_icon $ELECTRON_DIR/assets/icon-256.png" \
+  --define "emailai_svg $ELECTRON_DIR/assets/icon.svg" \
   "$SCRIPT_DIR/emailai-electron.spec"
 
 echo "✓ RPM → $RPM_TOP/RPMS/x86_64/"

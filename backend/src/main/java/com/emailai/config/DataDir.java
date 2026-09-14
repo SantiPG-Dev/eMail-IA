@@ -7,15 +7,14 @@ import java.nio.file.Path;
  * Centraliza lo que antes estaba hardcodeado como Path.of("DB") / Path.of("config")
  * (relativo al cwd), que solo funcionaba cuando un wrapper controlaba el directorio.
  *
- * Resolución (una vez, al primer uso):
+ * Resolución (en cada llamada — es barato, solo lee una property, y así los
+ * tests pueden redirigirla sin depender del orden de carga de clases):
  * 1. System property emailai.data-dir — la fija EmailAiApplication.main desde
  *    el argumento --emailai.data-dir=... (lo pasa el wrapper Electron empaquetado).
  * 2. Env EMAILAI_DATA_DIR.
  * 3. "DB" relativo al cwd (desarrollo o instalación con wrapper que hace cd).
  */
 public final class DataDir {
-
-    private static final Path ROOT = resolveRoot();
 
     private DataDir() {}
 
@@ -28,12 +27,12 @@ public final class DataDir {
 
     /** Directorio raíz de datos (…/DB), absoluto y normalizado. */
     public static Path root() {
-        return ROOT;
+        return resolveRoot();
     }
 
     /** Ruta dentro de la raíz de datos: of("ia") → …/DB/ia. */
     public static Path of(String... children) {
-        Path p = ROOT;
+        Path p = root();
         for (String c : children) p = p.resolve(c);
         return p;
     }
@@ -43,8 +42,8 @@ public final class DataDir {
      * Con el default relativo equivale al cwd, como en el layout de siempre.
      */
     public static Path base() {
-        Path parent = ROOT.getParent();
-        return parent != null ? parent : ROOT;
+        Path parent = root().getParent();
+        return parent != null ? parent : root();
     }
 
     /** Directorio de configuración (config/, hermano de DB/). */

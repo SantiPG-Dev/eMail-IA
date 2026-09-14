@@ -123,3 +123,22 @@ export function etiquetaFecha(fecha: string, hoy: Date = new Date()): string {
 const DIAS_CAP = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const MESES_CAP = ['enero','febrero','marzo','abril','mayo','junio',
   'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+// Formato numérico de fechas mostradas en listas (correo, tareas). Se lee en
+// cada llamada para que cambiarlo en ConfigPage aplique sin recargar.
+// DD-MM-YYYY por defecto (español); los <input type="date"> nativos van aparte,
+// con el idioma de la app (es-ES en Electron).
+export const FORMATOS_FECHA = ['DD-MM-YYYY', 'DD/MM/YYYY', 'MM-DD-YYYY', 'YYYY-MM-DD'] as const;
+
+/** '2026-09-10' (o ISO completo) → '10-09-2026' según el formato configurado. */
+export function formatearFecha(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  if (!y || !m || !d) return iso;
+  switch (localStorage.getItem('emailai_formato_fecha')) {
+    case 'DD/MM/YYYY': return `${d}/${m}/${y}`;
+    case 'MM-DD-YYYY': return `${m}-${d}-${y}`;
+    case 'YYYY-MM-DD': return `${y}-${m}-${d}`;
+    default: return `${d}-${m}-${y}`;
+  }
+}

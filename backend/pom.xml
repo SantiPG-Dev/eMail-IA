@@ -15,7 +15,7 @@
 
     <groupId>com.emailai</groupId>
     <artifactId>emailai-backend</artifactId>
-    <version>1.2.0</version>
+    <version>1.3.0</version>
     <name>eMail-IA Backend</name>
     <description>eMail-IA — Backend REST (correo, IA, calendario, tareas) con Spring Boot</description>
 
@@ -109,7 +109,7 @@
     </dependencies>
 
     <build>
-        <finalName>emailai-backend-1.2.0</finalName>
+        <finalName>emailai-backend-1.3.0</finalName>
         <plugins>
             <!-- Empaqueta el build de React dentro del JAR (classpath:/static/)
                  para que la app distribuida sirva el frontend sin frontend/dist en disco.

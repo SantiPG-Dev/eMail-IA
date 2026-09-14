@@ -12,7 +12,11 @@ import java.util.Base64;
 // Si el archivo no existe, se genera una nueva clave automáticamente.
 public final class DatabaseKeyStore {
 
-    private static final Path KEY_FILE = DataDir.of("cipher.key");
+    // Ruta resuelta bajo demanda: si se cachea al cargar la clase, los tests no
+    // pueden redirigir DataDir después (orden de clases impredecible en surefire).
+    private static Path keyFile() {
+        return DataDir.of("cipher.key");
+    }
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private static String cachedPassword;
@@ -30,9 +34,9 @@ public final class DatabaseKeyStore {
             throw new IllegalStateException("No se pudo crear el directorio DB: " + e.getMessage(), e);
         }
 
-        if (Files.exists(KEY_FILE)) {
+        if (Files.exists(keyFile())) {
             try {
-                byte[] raw = Files.readAllBytes(KEY_FILE);
+                byte[] raw = Files.readAllBytes(keyFile());
                 cachedPassword = Base64.getEncoder().encodeToString(raw);
                 return cachedPassword;
             } catch (IOException e) {
@@ -44,11 +48,11 @@ public final class DatabaseKeyStore {
         byte[] raw = new byte[16];
         RANDOM.nextBytes(raw);
         try {
-            Files.write(KEY_FILE, raw);
+            Files.write(keyFile(), raw);
             // Permisos restrictivos (owner-only): cipher.key cifra la BD entera
             // y de él deriva la clave de las credenciales IMAP/OAuth guardadas.
             try {
-                Files.setPosixFilePermissions(KEY_FILE, java.util.Set.of(
+                Files.setPosixFilePermissions(keyFile(), java.util.Set.of(
                         java.nio.file.attribute.PosixFilePermission.OWNER_READ,
                         java.nio.file.attribute.PosixFilePermission.OWNER_WRITE));
             } catch (UnsupportedOperationException ignored) {
@@ -60,8 +64,8 @@ public final class DatabaseKeyStore {
 
         // Endurecer también una clave preexistente creada con perms abiertos
         try {
-            if (Files.exists(KEY_FILE)) {
-                Files.setPosixFilePermissions(KEY_FILE, java.util.Set.of(
+            if (Files.exists(keyFile())) {
+                Files.setPosixFilePermissions(keyFile(), java.util.Set.of(
                         java.nio.file.attribute.PosixFilePermission.OWNER_READ,
                         java.nio.file.attribute.PosixFilePermission.OWNER_WRITE));
             }
@@ -87,6 +91,6 @@ public final class DatabaseKeyStore {
 
     // Para backup/restore manual
     public static Path getKeyFilePath() {
-        return KEY_FILE.toAbsolutePath();
+        return keyFile().toAbsolutePath();
     }
 }
