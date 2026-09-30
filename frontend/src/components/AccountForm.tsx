@@ -205,6 +205,17 @@ export default function AccountForm({ onSave, onOAuthStart, onCancel, status: ex
               {status}
             </p>
           )}
+          {/* Misma salida que el flujo con contraseña: sin esto no hay forma
+              de cerrar el modal si uno se arrepiente en la rama OAuth */}
+          <div className="flex justify-end pt-2">
+            {onCancel && (
+              <button onClick={onCancel}
+                className="px-4 py-1.5 text-sm rounded-lg transition-colors"
+                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>
+                Cancelar
+              </button>
+            )}
+          </div>
         </>
       ) : (
         /* ── Flujo con contraseña ─────────────────────────── */
