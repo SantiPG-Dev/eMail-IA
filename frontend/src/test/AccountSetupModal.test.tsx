@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import AccountSetupModal from '../components/AccountSetupModal';
 
 const mockIniciar = vi.fn();
@@ -38,5 +38,29 @@ describe('AccountSetupModal — cancelar el alta de cuenta', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(200_000); });
     expect(mockCreate).not.toHaveBeenCalled();
     vi.useRealTimers();
+  });
+});
+
+describe('AccountSetupModal — esDefault según quien llama', () => {
+  beforeAll(() => {
+    (window as any).electronAPI = { openExternal: vi.fn().mockResolvedValue(undefined) };
+  });
+
+  it('con esDefault={false} la cuenta creada no roba el default', async () => {
+    mockCreate.mockResolvedValue({ data: {} });
+    const onClose = vi.fn();
+
+    render(<AccountSetupModal open onClose={onClose} esDefault={false} />);
+    // Proveedor sin OAuth (Yahoo) → flujo con contraseña
+    fireEvent.click(screen.getByText('Seleccionar proveedor...'));
+    fireEvent.click(screen.getByText('Yahoo Mail'));
+    fireEvent.change(screen.getByPlaceholderText('usuario@dominio.com'),
+      { target: { value: 'yo@yahoo.com' } });
+    fireEvent.change(screen.getByPlaceholderText('Contraseña de la cuenta'),
+      { target: { value: 'secreto' } });
+    fireEvent.click(screen.getByText('Guardar cuenta'));
+
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    expect(mockCreate.mock.calls[0][0].esDefault).toBe(false);
   });
 });
