@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { mensajeDeError } from '../utils/error';
 
 // Formulario de cuenta de correo: soporta IMAP, POP3, OAuth Google y Microsoft.
 // Los proveedores preconfigurados auto-rellenan servidor y puerto.
@@ -123,8 +124,8 @@ export default function AccountForm({ onSave, onOAuthStart, onCancel, status: ex
       setEmail('');
       setPassword('');
       setTipoConexion('IMAP');
-    } catch (err: any) {
-      setInternalStatus(err?.response?.data?.message || 'Error al guardar');
+    } catch (err) {
+      setInternalStatus(mensajeDeError(err, 'Error al guardar'));
     } finally {
       setInternalLoading(false);
     }

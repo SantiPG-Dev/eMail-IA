@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
 import api, { cuentaApi, mensajeApi } from '../api/client';
 import { conectarEventos, type SyncTerminadoEvento } from '../api/sse';
+import { mensajeDeError } from '../utils/error';
 
 // Estado global de sincronización: sync manual al abrir la app, y push vía
 // SSE (api/eventos): el backend avisa al terminar cualquier sync (manual o
@@ -77,10 +78,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setState(s => ({ ...s, accountEmail: c.email }));
 
       const syncRes = await api.post(`/api/cuentas/${c.id}/sync?limite=50`);
-      const resultados = syncRes.data || [];
-      const totalDescargados = resultados.reduce((sum: number, r: any) => sum + (r.descargados || 0), 0);
-      const totalServer = resultados.reduce((sum: number, r: any) => sum + (r.totalServer || 0), 0);
-      const noLeidos = resultados.reduce((sum: number, r: any) => sum + (r.noLeidos || 0), 0);
+      const resultados: { descargados?: number; totalServer?: number; noLeidos?: number }[] = syncRes.data || [];
+      const totalDescargados = resultados.reduce((sum, r) => sum + (r.descargados || 0), 0);
+      const totalServer = resultados.reduce((sum, r) => sum + (r.totalServer || 0), 0);
+      const noLeidos = resultados.reduce((sum, r) => sum + (r.noLeidos || 0), 0);
 
       if (!sseConectadoRef.current) await refreshMessages();
       setState(s => ({
@@ -88,8 +89,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         statusText: textoSync({ cuenta: c.email, descargados: totalDescargados, totalServer, noLeidos }),
         lastSync: new Date().toISOString(),
       }));
-    } catch (e: any) {
-      const errMsg = e?.response?.data?.error || e?.response?.data?.message || 'Error de conexión';
+    } catch (e) {
+      const errMsg = mensajeDeError(e, 'Error de conexión');
       setState(s => ({ ...s, syncing: false, statusText: `⚠️ ${errMsg}` }));
     } finally {
       syncingRef.current = false;

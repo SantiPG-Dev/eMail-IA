@@ -4,6 +4,7 @@ import { cuentaApi, iaApi } from '../api/client';
 import AccountSetupModal from '../components/AccountSetupModal';
 import { Spinner, EmptyState } from '../components/StateViews';
 import { FORMATOS_FECHA } from '../utils/fechas';
+import { mensajeDeError } from '../utils/error';
 
 // Pantalla de configuración con secciones: General, Cuentas, IA y Temas (16 temas).
 type Section = 'general' | 'cuentas' | 'ia' | 'temas';
@@ -39,11 +40,13 @@ const FUENTES_FALLBACK = [
   'Ubuntu', 'Cantarell', 'Fira Sans', 'Source Sans Pro',
 ];
 
+interface CuentaConfig { id: number; nombre: string; email: string; servidor: string }
+
 export default function ConfigPage() {
   const { theme, setTheme, mode, toggleMode } = useTheme();
   const [section, setSection] = useState<Section>('general');
 
-  const [cuentas, setCuentas] = useState<any[]>([]);
+  const [cuentas, setCuentas] = useState<CuentaConfig[]>([]);
   const [altaOpen, setAltaOpen] = useState(false);
   const [loadingCuentas, setLoadingCuentas] = useState(true);
   const [errorCuentas, setErrorCuentas] = useState('');
@@ -73,8 +76,8 @@ export default function ConfigPage() {
     try {
       if ('queryLocalFonts' in navigator) {
         (navigator as any).queryLocalFonts()
-          .then((fonts: any[]) => {
-            const names = [...new Set(fonts.map((f: any) => f.family))].sort();
+          .then((fonts: { family: string }[]) => {
+            const names = [...new Set(fonts.map(f => f.family))].sort();
             setFuentesSistema(names.length > 0 ? names : FUENTES_FALLBACK);
           }).catch(() => setFuentesSistema(FUENTES_FALLBACK));
       } else {
@@ -124,8 +127,8 @@ export default function ConfigPage() {
         setIaModelos([]);
         setStatus('❌ Sin conexión: ' + (r.data.error || 'sin detalle'));
       }
-    } catch (e: any) {
-      setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo conectar'));
+    } catch (e) {
+      setStatus('Error: ' + mensajeDeError(e, 'no se pudo conectar'));
     } finally { setProbando(false); }
   };
 
@@ -133,8 +136,8 @@ export default function ConfigPage() {
     try {
       await iaApi.guardarConfig(iaBaseUrl, iaModel, iaPrompt);
       setStatus('✅ Configuración de IA guardada');
-    } catch (e: any) {
-      setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo guardar'));
+    } catch (e) {
+      setStatus('Error: ' + mensajeDeError(e, 'no se pudo guardar'));
     }
   };
 
@@ -142,8 +145,8 @@ export default function ConfigPage() {
     setLoadingCuentas(true);
     setErrorCuentas('');
     try { const r = await cuentaApi.list(); setCuentas(r.data); }
-    catch (e: any) {
-      setErrorCuentas(e?.response?.data?.error || e?.message || 'No se pudieron cargar las cuentas');
+    catch (e) {
+      setErrorCuentas(mensajeDeError(e, 'No se pudieron cargar las cuentas'));
     } finally { setLoadingCuentas(false); }
   };
 
@@ -151,7 +154,7 @@ export default function ConfigPage() {
   const eliminarCuenta = async (id: number) => {
     if (!window.confirm('¿Eliminar la cuenta? Se borrarán sus correos sincronizados.')) return;
     try { await cuentaApi.delete(id); setStatus('✅ Cuenta eliminada'); cargarCuentas(); }
-    catch (e: any) { setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo eliminar')); }
+    catch (e) { setStatus('Error: ' + mensajeDeError(e, 'no se pudo eliminar')); }
   };
 
   const aplicarFuente = (f: string, s: number) => {
@@ -244,7 +247,7 @@ export default function ConfigPage() {
                 style={{ backgroundColor: 'var(--color-bg-card)', borderColor: 'var(--color-accent-selected)' }}>
                 <p className="text-xs font-bold mb-2" style={{ color: 'var(--color-text)' }}>Cuentas configuradas</p>
                 <div className="space-y-2">
-                  {cuentas.map((c: any) => (
+                  {cuentas.map(c => (
                     <div key={c.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg text-sm"
                       style={{ backgroundColor: 'var(--color-bg)' }}>
                       <div>

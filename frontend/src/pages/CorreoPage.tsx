@@ -10,6 +10,7 @@ import { formatearFecha } from "../utils/fechas";
 import EventoDialog from "../components/EventoDialog";
 import TareaDialog from "../components/TareaDialog";
 import { detectarFechaHora } from "../utils/fechas";
+import { mensajeDeError } from '../utils/error';
 
 interface Adjunto {
 	id: number;
@@ -103,10 +104,10 @@ async function descargarAdjunto(
 		a.click();
 		a.remove();
 		URL.revokeObjectURL(url);
-	} catch (err: any) {
+	} catch (err) {
 		alert(
 			"No se pudo descargar el adjunto: " +
-				(err?.response?.data?.error || err.message || "error"),
+				mensajeDeError(err, "error"),
 		);
 	}
 }
@@ -244,9 +245,9 @@ export default function CorreoPage() {
 				} else {
 					setMensajes([]);
 				}
-			} catch (e: any) {
+			} catch (e) {
 				setErrorMensajes(
-					e?.response?.data?.error || e?.message || "Error al cargar los mensajes",
+					mensajeDeError(e, "Error al cargar los mensajes"),
 				);
 			} finally {
 				setLoadingMensajes(false);
@@ -281,9 +282,9 @@ export default function CorreoPage() {
 		try {
 			const res = await mensajeApi.search(cuentaHash, search);
 			setMensajes(res.data.mensajes || []);
-		} catch (e: any) {
+		} catch (e) {
 			setErrorMensajes(
-				e?.response?.data?.error || e?.message || "Error en la búsqueda",
+				mensajeDeError(e, "Error en la búsqueda"),
 			);
 		} finally {
 			setLoadingMensajes(false);
@@ -297,9 +298,9 @@ export default function CorreoPage() {
 			await mensajeApi.delete(selected.id);
 			setMensajes((prev) => prev.filter((m) => m.id !== selected.id));
 			setSelected(null);
-		} catch (e: any) {
+		} catch (e) {
 			setErrorMensajes(
-				e?.response?.data?.error || e?.message || "No se pudo borrar el mensaje",
+				mensajeDeError(e, "No se pudo borrar el mensaje"),
 			);
 		}
 	};
@@ -686,9 +687,9 @@ export default function CorreoPage() {
 											}
 											window.electronAPI?.clearCache(); // purge del caché HTTP (anti-tracking)
 											await cargarMensajes(carpetaImap, true);
-										} catch (e: any) {
+										} catch (e) {
 											setErrorMensajes(
-												e?.response?.data?.error || e?.message || "No se pudo clasificar",
+												mensajeDeError(e, "No se pudo clasificar"),
 											);
 										}
 									}}
@@ -710,9 +711,9 @@ export default function CorreoPage() {
 												setTimeout(() => setFeedback(""), 4000);
 											}
 											await cargarMensajes(carpetaImap, true);
-										} catch (e: any) {
+										} catch (e) {
 											setErrorMensajes(
-												e?.response?.data?.error || e?.message || "No se pudo clasificar",
+												mensajeDeError(e, "No se pudo clasificar"),
 											);
 										}
 									}}
