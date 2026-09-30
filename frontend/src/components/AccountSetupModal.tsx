@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import AccountForm, { type AccountFormData } from './AccountForm';
 import { cuentaApi, oauthApi } from '../api/client';
 
@@ -27,6 +27,9 @@ export default function AccountSetupModal({ open, onClose }: Props) {
   const [saved, setSaved] = useState(false);
   const [status, setStatus] = useState('');
   const [oauthInProgress, setOauthInProgress] = useState(false);
+  // Identifica el intento OAuth vigente: si se cancela y se vuelve a empezar,
+  // el intento anterior deja de contar aunque su polling siguiera dormido.
+  const intentoOauth = useRef(0);
 
   // ── Guardar cuenta normal (password IMAP/POP3) ──────────
   const handleSave = async (data: AccountFormData) => {
@@ -58,6 +61,8 @@ export default function AccountSetupModal({ open, onClose }: Props) {
     setOauthInProgress(true);
     setStatus('');
 
+    const intento = ++intentoOauth.current;
+
     try {
       // 1. Pedir URL de autorización al backend (arranca la escucha en background)
       const authRes = await oauthApi.iniciar(proveedor);
@@ -74,6 +79,7 @@ export default function AccountSetupModal({ open, onClose }: Props) {
       let session: any = null;
       const deadline = Date.now() + 150_000;
       while (Date.now() < deadline) {
+        if (intentoOauth.current !== intento) return; // cancelado o relanzado
         await new Promise(r => setTimeout(r, 2000));
         const res = await oauthApi.estado(flujoId);
         if (res.status === 200 && res.data.accessToken) {
@@ -118,6 +124,15 @@ export default function AccountSetupModal({ open, onClose }: Props) {
     }
   };
 
+  // Cancelar cierra el modal y descarta un OAuth en marcha: no crea la
+  // cuenta aunque el navegador acabe autorizando después.
+  const handleCancelar = () => {
+    intentoOauth.current++;
+    setOauthInProgress(false);
+    setStatus('');
+    onClose();
+  };
+
   if (!open) return null;
 
   if (saved) {
@@ -153,7 +168,7 @@ export default function AccountSetupModal({ open, onClose }: Props) {
         <AccountForm
           onSave={handleSave}
           onOAuthStart={handleOAuthStart}
-          onCancel={onClose}
+          onCancel={handleCancelar}
           status={status}
           oauthInProgress={oauthInProgress}
         />
