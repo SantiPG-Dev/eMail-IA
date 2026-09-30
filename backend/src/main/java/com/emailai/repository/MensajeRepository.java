@@ -70,4 +70,7 @@ public interface MensajeRepository extends JpaRepository<Mensaje, Long> {
     void eliminarAntiguos(@Param("cuentaHash") String cuentaHash,
                           @Param("carpetaImap") String carpetaImap,
                           @Param("limite") int limite);
+
+    /** Últimos mensajes de todas las cuentas (contexto del chat de IA). */
+    List<Mensaje> findTop40ByOrderByFechaRecepcionDescIdDesc();
 }

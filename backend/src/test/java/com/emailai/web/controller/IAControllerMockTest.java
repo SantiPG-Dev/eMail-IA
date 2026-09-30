@@ -50,7 +50,8 @@ class IAControllerMockTest {
 
     @Test
     void chat_mensaje_200() throws Exception {
-        when(aiService.chat(anyString())).thenReturn("respuesta de la IA");
+        when(mensajeService.contextoCorreosIa()).thenReturn("[2026-09-30] De: a@b.c — Asunto: Hola\n");
+        when(aiService.chat(anyString(), anyString())).thenReturn("respuesta de la IA");
         when(aiService.isAvailable()).thenReturn(true);
 
         mockMvc.perform(post("/api/ia/chat")
@@ -58,6 +59,10 @@ class IAControllerMockTest {
                         .content("{\"mensaje\":\"hola\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.respuesta").value("respuesta de la IA"));
+
+        // El controller debe pasar al chat el contexto de correos de la IA
+        verify(aiService).chat(eq("hola"),
+                org.mockito.ArgumentMatchers.argThat(ctx -> ctx != null && ctx.contains("Asunto: Hola")));
     }
 
     @Test
