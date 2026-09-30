@@ -5,6 +5,9 @@ import { cuentaApi, oauthApi } from '../api/client';
 interface Props {
   open: boolean;
   onClose: (result?: { email: string; password: string }) => void;
+  // Cuenta creada como default: el login la deja true (es la primera vez que
+  // se crea); desde Configuración solo interesa si aún no hay ninguna.
+  esDefault?: boolean;
 }
 
 // Modal de creación de cuenta. Para Gmail/Outlook usa OAuth2,
@@ -23,7 +26,7 @@ const PROVIDERS_LOOKUP: Record<string, { imap: { host: string; port: number }; p
 // Proveedores que usan OAuth
 const OAUTH_PROVIDERS = ['gmail', 'outlook'];
 
-export default function AccountSetupModal({ open, onClose }: Props) {
+export default function AccountSetupModal({ open, onClose, esDefault }: Props) {
   const [saved, setSaved] = useState(false);
   const [status, setStatus] = useState('');
   const [oauthInProgress, setOauthInProgress] = useState(false);
@@ -44,7 +47,7 @@ export default function AccountSetupModal({ open, onClose }: Props) {
       usuario: data.email,
       password: data.password,
       tipoConexion: data.tipoConexion,
-      esDefault: true,
+      esDefault: esDefault ?? true,
       oauthProvider: null,
       oauthAccessToken: null,
       oauthRefreshToken: null,
@@ -107,7 +110,7 @@ export default function AccountSetupModal({ open, onClose }: Props) {
         usuario: session.email,
         password: '',  // No hace falta para OAuth
         tipoConexion: 'IMAP',
-        esDefault: true,
+        esDefault: esDefault ?? true,
         oauthProvider: proveedorUpper,
         oauthAccessToken: session.accessToken,
         oauthRefreshToken: session.refreshToken || '',

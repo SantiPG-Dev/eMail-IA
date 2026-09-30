@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { cuentaApi, iaApi } from '../api/client';
-import AccountForm from '../components/AccountForm';
-import type { AccountFormData } from '../components/AccountForm';
+import AccountSetupModal from '../components/AccountSetupModal';
 import { Spinner, EmptyState } from '../components/StateViews';
 import { FORMATOS_FECHA } from '../utils/fechas';
 
@@ -15,16 +14,6 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: 'temas', label: '🎨 Temas' },
 ];
 
-const PROVIDERS_LOOKUP: Record<string, { imap: { host: string; port: number }; pop3: { host: string; port: number } }> = {
-  gmail: { imap: { host: 'imap.gmail.com', port: 993 }, pop3: { host: 'pop.gmail.com', port: 995 } },
-  outlook: { imap: { host: 'outlook.office365.com', port: 993 }, pop3: { host: 'outlook.office365.com', port: 995 } },
-  yahoo: { imap: { host: 'imap.mail.yahoo.com', port: 993 }, pop3: { host: 'pop.mail.yahoo.com', port: 995 } },
-  gmx: { imap: { host: 'imap.gmx.com', port: 993 }, pop3: { host: 'pop.gmx.com', port: 995 } },
-  icloud: { imap: { host: 'imap.mail.me.com', port: 993 }, pop3: { host: 'pop.mail.me.com', port: 995 } },
-  zoho: { imap: { host: 'imap.zoho.com', port: 993 }, pop3: { host: 'pop.zoho.com', port: 995 } },
-  yandex: { imap: { host: 'imap.yandex.com', port: 993 }, pop3: { host: 'pop.yandex.com', port: 995 } },
-  other: { imap: { host: '', port: 993 }, pop3: { host: '', port: 995 } },
-};
 
 // Opciones de resalte (accent)
 const RESALTE_OPCIONES = [
@@ -55,6 +44,7 @@ export default function ConfigPage() {
   const [section, setSection] = useState<Section>('general');
 
   const [cuentas, setCuentas] = useState<any[]>([]);
+  const [altaOpen, setAltaOpen] = useState(false);
   const [loadingCuentas, setLoadingCuentas] = useState(true);
   const [errorCuentas, setErrorCuentas] = useState('');
   const [status, setStatus] = useState('');
@@ -157,23 +147,6 @@ export default function ConfigPage() {
     } finally { setLoadingCuentas(false); }
   };
 
-  const handleSave = async (data: AccountFormData) => {
-    const p = PROVIDERS_LOOKUP[data.proveedor] || PROVIDERS_LOOKUP.other;
-    const conn = data.tipoConexion === 'IMAP' ? p.imap : p.pop3;
-
-    try {
-      await cuentaApi.create({
-        nombre: data.nombre, email: data.email, servidor: conn.host, puerto: conn.port,
-        usuario: data.email, password: data.password, tipoConexion: data.tipoConexion,
-        esDefault: cuentas.length === 0, oauthProvider: null,
-        oauthAccessToken: null, oauthRefreshToken: null, oauthExpiresAt: null,
-      });
-      setStatus('✅ Cuenta añadida correctamente');
-      cargarCuentas();
-    } catch (e: any) {
-      setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo crear la cuenta'));
-    }
-  };
 
   const eliminarCuenta = async (id: number) => {
     if (!window.confirm('¿Eliminar la cuenta? Se borrarán sus correos sincronizados.')) return;
@@ -291,7 +264,14 @@ export default function ConfigPage() {
             )}
             <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-card)' }}>
               <p className="text-sm font-bold mb-3" style={{ color: 'var(--color-text)' }}>Añadir cuenta</p>
-              <AccountForm onSave={handleSave} />
+              <p className="text-xs mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+                Gmail y Outlook se conectan con OAuth2 (se abre el navegador); el resto, con contraseña IMAP/POP3.
+              </p>
+              <button onClick={() => setAltaOpen(true)}
+                className="px-4 py-1.5 text-sm font-bold rounded-pill"
+                style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>
+                + Añadir cuenta
+              </button>
             </div>
           </div>
         )}
@@ -428,6 +408,9 @@ export default function ConfigPage() {
           </div>
         )}
       </div>
+
+      <AccountSetupModal open={altaOpen} onClose={() => { setAltaOpen(false); cargarCuentas(); }}
+        esDefault={cuentas.length === 0} />
     </div>
   );
 }
