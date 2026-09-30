@@ -114,7 +114,7 @@ class OAuthServiceTest {
     void formBody_codificaCaracteresEspecialesDelSecret() {
         // Auditoría 2026-08-26: concatenar a mano rompía el body si el
         // clientSecret contenía &, = o +
-        String body = OAuthService.formBody(
+        String body = OAuthTokenService.formBody(
                 "grant_type", "authorization_code",
                 "client_secret", "abc&def=ghi+jkl espacio");
 
@@ -125,18 +125,18 @@ class OAuthServiceTest {
     @Test
     void formBody_valoresSimplesQuedanIguales() {
         assertEquals("a=1&b=hola",
-                OAuthService.formBody("a", "1", "b", "hola"));
+                OAuthTokenService.formBody("a", "1", "b", "hola"));
     }
 
     @Test
     void formBody_urlDeRedirectSeCodificaComoValor() {
-        String body = OAuthService.formBody("redirect_uri", "http://localhost:9876/oauth/callback");
+        String body = OAuthTokenService.formBody("redirect_uri", "http://localhost:9876/oauth/callback");
         assertEquals("redirect_uri=http%3A%2F%2Flocalhost%3A9876%2Foauth%2Fcallback",
                 body, "el valor completo se forma-encodea (el proveedor lo decodifica)");
     }
 
     @Test
     void formBody_numImparDeArgumentosLanza() {
-        assertThrows(IllegalArgumentException.class, () -> OAuthService.formBody("solo"));
+        assertThrows(IllegalArgumentException.class, () -> OAuthTokenService.formBody("solo"));
     }
 }
