@@ -102,4 +102,30 @@ public class MensajeService {
     public void limpiarAntiguos(String cuentaHash, String carpetaImap) {
         repo.eliminarAntiguos(cuentaHash, carpetaImap, MAX_MENSAJES_POR_CARPETA);
     }
+
+    /**
+     * Contexto compacto con los correos recientes para el chat de IA: los
+     * últimos legítimos (sin spam/phishing) con fecha, remitente, asunto y
+     * un fragmento del cuerpo. Vacío si no hay correos sincronizados.
+     */
+    @Transactional(readOnly = true)
+    public String contextoCorreosIa() {
+        List<Mensaje> recientes = repo.findTop40ByOrderByFechaRecepcionDescIdDesc().stream()
+                .filter(m -> !"SPAM".equals(m.getCategoria()) && !"PHISHING".equals(m.getCategoria()))
+                .limit(25)
+                .toList();
+        StringBuilder sb = new StringBuilder();
+        for (Mensaje m : recientes) {
+            String cuerpo = m.getCuerpo() == null ? "" : m.getCuerpo().replaceAll("\\s+", " ").trim();
+            sb.append('[').append(m.getFechaRecepcion()).append("] De: ")
+              .append(m.getRemitente() == null ? "" : m.getRemitente())
+              .append(" — Asunto: ")
+              .append(m.getAsunto() == null ? "" : m.getAsunto())
+              .append('\n');
+            if (!cuerpo.isEmpty()) {
+                sb.append("  ").append(cuerpo, 0, Math.min(cuerpo.length(), 200)).append('\n');
+            }
+        }
+        return sb.toString();
+    }
 }
