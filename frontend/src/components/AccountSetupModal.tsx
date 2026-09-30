@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import AccountForm, { type AccountFormData } from './AccountForm';
 import { cuentaApi, oauthApi } from '../api/client';
+import { mensajeDeError } from '../utils/error';
 
 interface Props {
   open: boolean;
@@ -79,7 +80,7 @@ export default function AccountSetupModal({ open, onClose, esDefault }: Props) {
       }
 
       // 3. Polling del estado hasta COMPLETADO/TIMEOUT/ERROR (máx 2,5 min)
-      let session: any = null;
+      let session: { email?: string; accessToken: string; refreshToken?: string; expiresAt?: string } | null = null;
       const deadline = Date.now() + 150_000;
       while (Date.now() < deadline) {
         if (intentoOauth.current !== intento) return; // cancelado o relanzado
@@ -104,10 +105,10 @@ export default function AccountSetupModal({ open, onClose, esDefault }: Props) {
 
       await cuentaApi.create({
         nombre: session.email || proveedor,
-        email: session.email,
+        email: session.email ?? ``,
         servidor: host.imap,
         puerto: 993,
-        usuario: session.email,
+        usuario: session.email ?? ``,
         password: '',  // No hace falta para OAuth
         tipoConexion: 'IMAP',
         esDefault: esDefault ?? true,
@@ -119,8 +120,8 @@ export default function AccountSetupModal({ open, onClose, esDefault }: Props) {
 
       setSaved(true);
       setTimeout(() => onClose(), 1500);
-    } catch (err: any) {
-      const msg = err?.response?.data?.error || err.message || 'Error en autenticación OAuth';
+    } catch (err) {
+      const msg = mensajeDeError(err, 'Error en autenticación OAuth');
       setStatus('❌ ' + msg);
     } finally {
       setOauthInProgress(false);

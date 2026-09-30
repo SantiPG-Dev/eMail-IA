@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { iaApi, mensajeApi } from '../api/client';
+import { mensajeDeError } from '../utils/error';
 
 interface ChatMsg {
   role: 'user' | 'ia' | 'error';
@@ -24,10 +25,10 @@ export default function ChatIAPage() {
     try {
       const res = await iaApi.chat(msg);
       setMessages(prev => [...prev, { role: 'ia', text: res.data.respuesta || 'Sin respuesta' }]);
-    } catch (e: any) {
+    } catch (e) {
       setMessages(prev => [...prev, {
         role: 'error',
-        text: e?.response?.data?.error || e?.message || 'Error de conexión con la IA.',
+        text: mensajeDeError(e, 'Error de conexión con la IA.'),
       }]);
     } finally {
       setTyping(false);

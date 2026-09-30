@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { enviarApi } from '../api/client';
+import { mensajeDeError } from '../utils/error';
 
 interface Props {
   mode: 'nuevo' | 'responder' | 'reenviar';
@@ -35,8 +36,8 @@ export default function ComposePage({ mode, to, subject, body, onClose }: Props)
       } else {
         setStatus('Error: ' + (res.data.error || 'desconocido'));
       }
-    } catch (err: any) {
-      setStatus('Error: ' + (err.response?.data?.error || err.message || 'desconocido'));
+    } catch (err) {
+      setStatus('Error: ' + mensajeDeError(err, 'desconocido'));
     } finally {
       setSending(false);
     }
