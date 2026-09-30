@@ -72,6 +72,14 @@ export function htmlSegunCategoria(html: string, categoria?: string): string {
 	return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
 }
 
+// El remitente llega como 'Nombre <email@dom>' (a veces varios separados
+// por coma); para el campo «Para» solo valen las direcciones, sin nombre
+// ni lo que va entre <>. Si no hay <>, se usa la cadena tal cual.
+export function emailDeRemitente(remitente: string): string {
+	const entre = remitente.match(/<[^>]+>/g);
+	return entre ? entre.map((e) => e.slice(1, -1).trim()).join(", ") : remitente.trim();
+}
+
 export function formatBytes(n?: number): string {
 	if (!n || n <= 0) return "";
 	if (n < 1024) return n + " B";
@@ -298,7 +306,7 @@ export default function CorreoPage() {
 
 	const abrirCompose = (mode: "nuevo" | "responder" | "reenviar") => {
 		if (mode === "responder" && selected) {
-			setComposeTo(selected.remitente || "");
+			setComposeTo(emailDeRemitente(selected.remitente || ""));
 		} else if (mode === "reenviar" && selected) {
 			setComposeTo("");
 		} else {

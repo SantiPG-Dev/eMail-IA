@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { htmlSegunCategoria, formatBytes } from '../pages/CorreoPage';
+import { htmlSegunCategoria, formatBytes, emailDeRemitente } from '../pages/CorreoPage';
 
 // htmlSegunCategoria es la ruta anti-tracking del correo: sanitiza con DOMPurify
 // y bloquea imágenes remotas (web beacons) salvo en correos LEGITIMOS.
@@ -52,5 +52,25 @@ describe('formatBytes', () => {
     expect(formatBytes(512)).toBe('512 B');
     expect(formatBytes(2048)).toBe('2.0 KB');
     expect(formatBytes(3 * 1024 * 1024)).toBe('3.0 MB');
+  });
+});
+
+// Al responder, el remitente guardado ('Nombre <email@dom>') no pasa la
+// validación del campo «Para»; hay que quedarse solo con las direcciones.
+describe('emailDeRemitente', () => {
+  it('extrae la dirección de Nombre <email@dom>', () => {
+    expect(emailDeRemitente('Juan <juan@ejemplo.com>')).toBe('juan@ejemplo.com');
+  });
+
+  it('deja pasar tal cual una dirección limpia', () => {
+    expect(emailDeRemitente(' juan@ejemplo.com ')).toBe('juan@ejemplo.com');
+  });
+
+  it('extrae varias direcciones con nombre', () => {
+    expect(emailDeRemitente('A <a@x.com>, B <b@y.com>')).toBe('a@x.com, b@y.com');
+  });
+
+  it('devuelve la cadena sin <> si no hay nada que extraer', () => {
+    expect(emailDeRemitente('')).toBe('');
   });
 });
