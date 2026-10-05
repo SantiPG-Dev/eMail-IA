@@ -9,7 +9,12 @@ import DetalleMensaje from "../components/DetalleMensaje";
 import EventoDialog from "../components/EventoDialog";
 import TareaDialog from "../components/TareaDialog";
 import { detectarFechaHora } from "../utils/fechas";
-import { emailDeRemitente, type Mensaje } from "../utils/correo";
+import {
+	emailDeRemitente,
+	asuntoConPrefijo,
+	htmlATexto,
+	type Mensaje,
+} from "../utils/correo";
 import { mensajeDeError } from "../utils/error";
 
 // Página principal de correo: orquesta estado y carga; la lista vive en
@@ -250,15 +255,17 @@ export default function CorreoPage() {
 				mode={composeMode}
 				to={composeTo}
 				subject={
-					composeMode === "responder"
-						? selected
-							? "Re: " + selected.asunto
-							: ""
-						: ""
+					composeMode === "nuevo" || !selected
+						? ""
+						: asuntoConPrefijo(
+								selected.asunto,
+								composeMode === "reenviar" ? "RV:" : "Re:",
+							)
 				}
 				body={
 					composeMode === "reenviar" && selected
-						? "\n\n--- Mensaje original ---\n" + (selected.cuerpo || "")
+						? "\n\n--- Mensaje original ---\n" +
+							(selected.cuerpo || htmlATexto(selected.html))
 						: ""
 				}
 				onClose={() => {
