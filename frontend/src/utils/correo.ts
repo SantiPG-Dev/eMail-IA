@@ -101,3 +101,31 @@ export async function descargarAdjunto(
 		);
 	}
 }
+
+// Texto plano a partir del HTML: MimeParser deja cuerpo vacío cuando el mail
+// no trae parte text/plain (solo HTML), y reenviar ese correo salía sin
+// contenido. Se usa el DOM ya disponible en el renderer: sin librerías.
+// Los <br> y bloques (p/div/tr/...) se vuelven saltos de línea para que el
+// texto reenviado no sea un muro de palabras pegadas.
+export function htmlATexto(html: string): string {
+	if (!html) return "";
+	try {
+		const doc = new DOMParser().parseFromString(html, "text/html");
+		doc.querySelectorAll("style, script").forEach((el) => el.remove());
+		doc.body.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
+		doc.body
+			.querySelectorAll("p, div, tr, li, h1, h2, h3, blockquote")
+			.forEach((b) => b.append("\n"));
+		return (doc.body.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
+	} catch {
+		return "";
+	}
+}
+
+// Prefija Re:/RV: al asunto sin apilar («Re: Re: Re: …»): se quitan los
+// prefijos previos (de respuesta o reenvío, en mayúsculas o minúsculas) y se
+// pone exactamente uno.
+export function asuntoConPrefijo(asunto: string, prefijo: "Re:" | "RV:"): string {
+	const limpio = asunto.replace(/^(?:(?:re|rv):\s*)+/i, "");
+	return `${prefijo} ${limpio}`.trim();
+}

@@ -9,7 +9,12 @@ import DetalleMensaje from "../components/DetalleMensaje";
 import EventoDialog from "../components/EventoDialog";
 import TareaDialog from "../components/TareaDialog";
 import { detectarFechaHora } from "../utils/fechas";
-import { emailDeRemitente, type Mensaje } from "../utils/correo";
+import {
+	emailDeRemitente,
+	asuntoConPrefijo,
+	htmlATexto,
+	type Mensaje,
+} from "../utils/correo";
 import { mensajeDeError } from "../utils/error";
 
 // Página principal de correo: orquesta estado y carga; la lista vive en
@@ -191,11 +196,14 @@ export default function CorreoPage() {
 		}
 	};
 
+	// Borra en el servidor IMAP y en BD (misma llamada). Si se borrase solo en
+	// local, el sync lo vuelve a descargar y resucita. POP3 no soporta borrado
+	// en servidor: ahí queda solo local y reaparecerá al sync, no hay más tela.
 	const eliminarMensaje = async () => {
 		if (!selected) return;
-		if (!window.confirm("¿Borrar el mensaje seleccionado?")) return;
+		if (!window.confirm("¿Borrar el mensaje? Se borrará también del servidor.")) return;
 		try {
-			await mensajeApi.delete(selected.id);
+			await mensajeApi.deleteServidor(selected.id);
 			setMensajes((prev) => prev.filter((m) => m.id !== selected.id));
 			setSelected(null);
 		} catch (e) {
@@ -247,15 +255,17 @@ export default function CorreoPage() {
 				mode={composeMode}
 				to={composeTo}
 				subject={
-					composeMode === "responder"
-						? selected
-							? "Re: " + selected.asunto
-							: ""
-						: ""
+					composeMode === "nuevo" || !selected
+						? ""
+						: asuntoConPrefijo(
+								selected.asunto,
+								composeMode === "reenviar" ? "RV:" : "Re:",
+							)
 				}
 				body={
 					composeMode === "reenviar" && selected
-						? "\n\n--- Mensaje original ---\n" + (selected.cuerpo || "")
+						? "\n\n--- Mensaje original ---\n" +
+							(selected.cuerpo || htmlATexto(selected.html))
 						: ""
 				}
 				onClose={() => {
