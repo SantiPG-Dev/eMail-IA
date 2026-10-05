@@ -58,6 +58,11 @@ public class Mensaje {
     @Column(name = "fecha_recepcion", nullable = false, columnDefinition = "TEXT")
     private String fechaRecepcion;
 
+    // Leído en la app: estado local que no se refleja en el flag SEEN del
+    // servidor. El upsert del sync no copia este campo, así no se resetea.
+    @Column(nullable = false)
+    private Boolean leido = false;
+
     @OneToMany(mappedBy = "mensaje", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Adjunto> adjuntos = new ArrayList<>();
 
@@ -98,4 +103,6 @@ public class Mensaje {
     public void setPrioridad(String prioridad) { this.prioridad = prioridad; }
     public String getFechaRecepcion() { return fechaRecepcion; }
     public void setFechaRecepcion(String fechaRecepcion) { this.fechaRecepcion = fechaRecepcion; }
+    public Boolean getLeido() { return leido; }
+    public void setLeido(Boolean leido) { this.leido = leido; }
 }

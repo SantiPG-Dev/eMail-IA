@@ -20,6 +20,8 @@ export interface Mensaje {
 	prioridad: string;
 	fechaRecepcion: string;
 	destinatarios?: string;
+	cc?: string;
+	leido?: boolean;
 	adjuntos?: Adjunto[];
 }
 
@@ -128,4 +130,24 @@ export function htmlATexto(html: string): string {
 export function asuntoConPrefijo(asunto: string, prefijo: "Re:" | "RV:"): string {
 	const limpio = asunto.replace(/^(?:(?:re|rv):\s*)+/i, "");
 	return `${prefijo} ${limpio}`.trim();
+}
+
+// Reparto de «Responder a todos»: el remitente y el resto de destinatarios
+// van a «Para», los CC originales a «CC», y mi propia dirección se queda
+// fuera de ambos (nadie se manda su propia respuesta).
+export function repartoRespuestaTodos(
+	remitente: string,
+	destinatarios: string | undefined,
+	cc: string | undefined,
+	miEmail: string,
+): { para: string; cc: string } {
+	const direcciones = (s: string | undefined) =>
+		emailDeRemitente(s || "")
+			.split(",")
+			.map((d) => d.trim())
+			.filter((d) => d && d.toLowerCase() !== miEmail.toLowerCase());
+	const para = [
+		...new Set([...direcciones(remitente), ...direcciones(destinatarios)]),
+	];
+	return { para: para.join(", "), cc: direcciones(cc).join(", ") };
 }

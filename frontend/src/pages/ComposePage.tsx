@@ -3,17 +3,18 @@ import { enviarApi } from '../api/client';
 import { mensajeDeError } from '../utils/error';
 
 interface Props {
-  mode: 'nuevo' | 'responder' | 'reenviar';
+  mode: 'nuevo' | 'responder' | 'responderTodos' | 'reenviar';
   to?: string;
+  cc?: string;
   subject?: string;
   body?: string;
   onClose: () => void;
 }
 
-// Diálogo de redacción de correo. Modos: nuevo, responder, reenviar.
-export default function ComposePage({ mode, to, subject, body, onClose }: Props) {
+// Diálogo de redacción de correo. Modos: nuevo, responder, responderTodos, reenviar.
+export default function ComposePage({ mode, to, cc: ccInicial, subject, body, onClose }: Props) {
   const [para, setPara] = useState(to || '');
-  const [cc, setCc] = useState('');
+  const [cc, setCc] = useState(ccInicial || '');
   const [asunto, setAsunto] = useState(subject || '');
   const [cuerpo, setCuerpo] = useState(body || '');
   const [status, setStatus] = useState('');
@@ -48,7 +49,13 @@ export default function ComposePage({ mode, to, subject, body, onClose }: Props)
       <div className="flex items-center justify-between px-4 py-2 border-b"
         style={{ borderColor: 'var(--color-border)' }}>
         <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
-          {mode === 'nuevo' ? 'Nuevo mensaje' : mode === 'responder' ? 'Responder' : 'Reenviar'}
+          {mode === 'nuevo'
+            ? 'Nuevo mensaje'
+            : mode === 'responderTodos'
+              ? 'Responder a todos'
+              : mode === 'responder'
+                ? 'Responder'
+                : 'Reenviar'}
         </h3>
         <button onClick={onClose}
           className="text-xs px-2 py-1 rounded-lg"

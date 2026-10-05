@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { htmlSegunCategoria, formatBytes, emailDeRemitente, htmlATexto, asuntoConPrefijo } from '../utils/correo';
+import {
+	htmlSegunCategoria,
+	formatBytes,
+	emailDeRemitente,
+	htmlATexto,
+	asuntoConPrefijo,
+	repartoRespuestaTodos,
+} from '../utils/correo';
 
 // htmlSegunCategoria es la ruta anti-tracking del correo: sanitiza con DOMPurify
 // y bloquea imágenes remotas (web beacons) salvo en correos LEGITIMOS.
@@ -82,6 +89,9 @@ const mocks = vi.hoisted(() => ({
 	mensajeList: vi.fn(),
 	mensajeDelete: vi.fn(),
 	deleteServidor: vi.fn(),
+	// con respuesta por defecto: los tests que no la configuran no pueden
+	// petar en el .catch() de seleccionar()
+	marcarLeido: vi.fn(() => Promise.resolve({ data: {} })),
 }));
 vi.mock('../api/client', () => ({
 	default: {},
@@ -90,6 +100,7 @@ vi.mock('../api/client', () => ({
 		list: mocks.mensajeList,
 		delete: mocks.mensajeDelete,
 		deleteServidor: mocks.deleteServidor,
+		marcarLeido: mocks.marcarLeido,
 	},
 }));
 vi.mock('../context/SyncContext', () => ({
@@ -240,5 +251,108 @@ describe('CorreoPage — reenviar', () => {
 		fireEvent.click(screen.getAllByText('Responder')[0]);
 
 		expect(screen.getByDisplayValue('Re: Hola')).toBeTruthy();
+	});
+});
+
+// «Resp. todos» hacia lo mismo que «Responder»: ahora reparte remitente +
+// destinatarios a «Para» y los CC originales a «CC», sin la propia dirección.
+describe('repartoRespuestaTodos', () => {
+	const MENS = ['yo@test.com', 'amigo@test.com'];
+
+	it('remitente + destinatarios a Para, CC a CC, sin mi dirección', () => {
+		const r = repartoRespuestaTodos(
+			'Juan <juan@ejemplo.com>',
+			'yo@test.com, Ana <ana@ejemplo.com>',
+			'luis@ejemplo.com',
+			'yo@test.com',
+		);
+		expect(r.para).toBe('juan@ejemplo.com, ana@ejemplo.com');
+		expect(r.cc).toBe('luis@ejemplo.com');
+	});
+
+	it('deduplica direcciones repetidas entre remitente y destinatarios', () => {
+		const r = repartoRespuestaTodos('juan@ejemplo.com', 'juan@ejemplo.com', '', 'yo@test.com');
+		expect(r.para).toBe('juan@ejemplo.com');
+	});
+
+	it('mi dirección también se filtra de los CC', () => {
+		const r = repartoRespuestaTodos('juan@ejemplo.com', '', 'yo@test.com, luis@x.com', MENS[0]);
+		expect(r.cc).toBe('luis@x.com');
+	});
+
+	it('sin destinatarios ni CC, Para queda solo con el remitente', () => {
+		const r = repartoRespuestaTodos('Juan <juan@ejemplo.com>', undefined, undefined, 'yo@test.com');
+		expect(r.para).toBe('juan@ejemplo.com');
+		expect(r.cc).toBe('');
+	});
+});
+
+describe('CorreoPage — responder a todos', () => {
+	it('llena Para (remitente+destinatarios) y CC sin mi dirección', async () => {
+		const TODOS = {
+			...MENSAJE,
+			destinatarios: 'yo@test.com, Ana <ana@ejemplo.com>',
+			cc: 'luis@ejemplo.com',
+		};
+		mocks.cuentaList.mockResolvedValue({ data: [{ email: 'yo@test.com' }] });
+		mocks.mensajeList.mockResolvedValue({ data: { mensajes: [TODOS] } });
+
+		render(
+			<MemoryRouter>
+				<CorreoPage />
+			</MemoryRouter>,
+		);
+
+		fireEvent.click(await screen.findByText('Juan <juan@ejemplo.com>'));
+		fireEvent.click(screen.getByText('Resp. todos'));
+
+		// «Para»: remitente + ana, sin yo@test.com; «CC»: luis
+		const inputs = screen.getAllByRole('textbox');
+		const para = inputs.find((i) => (i as HTMLInputElement).value.includes('juan@')) as HTMLInputElement;
+		const cc = inputs.find((i) => (i as HTMLInputElement).value === 'luis@ejemplo.com') as HTMLInputElement;
+		expect(para.value).toBe('juan@ejemplo.com, ana@ejemplo.com');
+		expect(cc.value).toBe('luis@ejemplo.com');
+		expect(screen.getByText('Responder a todos')).toBeTruthy();
+	});
+});
+
+// El leído es estado local: abrir un correo no leído marca el punto y llama
+// a la API; los ya leídos no vuelven a llamar.
+describe('CorreoPage — leído', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it('abrir un no leído llama a marcarLeido y quita el punto de la lista', async () => {
+		mocks.cuentaList.mockResolvedValue({ data: [{ email: 'yo@test.com' }] });
+		mocks.mensajeList.mockResolvedValue({ data: { mensajes: [MENSAJE] } });
+		mocks.marcarLeido.mockResolvedValue({ data: {} });
+
+		render(
+			<MemoryRouter>
+				<CorreoPage />
+			</MemoryRouter>,
+		);
+
+		expect(await screen.findByText('●')).toBeTruthy();
+		fireEvent.click(screen.getByText('Juan <juan@ejemplo.com>'));
+
+		await waitFor(() => expect(mocks.marcarLeido).toHaveBeenCalledWith(7));
+		await waitFor(() => expect(screen.queryByText('●')).toBeNull());
+	});
+
+	it('abrir un ya leído no llama a marcarLeido', async () => {
+		const LEIDO = { ...MENSAJE, leido: true };
+		mocks.cuentaList.mockResolvedValue({ data: [{ email: 'yo@test.com' }] });
+		mocks.mensajeList.mockResolvedValue({ data: { mensajes: [LEIDO] } });
+
+		render(
+			<MemoryRouter>
+				<CorreoPage />
+			</MemoryRouter>,
+		);
+
+		fireEvent.click(await screen.findByText('Juan <juan@ejemplo.com>'));
+		expect(mocks.marcarLeido).not.toHaveBeenCalled();
 	});
 });

@@ -176,8 +176,9 @@ export default function ListaMensajes({
 								color: seleccionadoId === m.id ? "#0F172A" : "var(--color-text)",
 							}}
 						>
-							<div className="font-bold truncate">
-								{m.remitente || "(sin remitente)"}
+							<div className="font-bold truncate flex items-center gap-1">
+							{!m.leido && <span aria-hidden>●</span>}
+							<span className="truncate">{m.remitente || "(sin remitente)"}</span>
 							</div>
 							<div className="truncate opacity-80">{m.asunto}</div>
 							<div className="text-[10px] opacity-60">
