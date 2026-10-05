@@ -13,6 +13,7 @@ import {
 	emailDeRemitente,
 	asuntoConPrefijo,
 	htmlATexto,
+	repartoRespuestaTodos,
 	type Mensaje,
 } from "../utils/correo";
 import { mensajeDeError } from "../utils/error";
@@ -30,9 +31,10 @@ export default function CorreoPage() {
 	const [cuentaHash, setCuentaHash] = useState("local");
 	const [composeOpen, setComposeOpen] = useState(false);
 	const [composeMode, setComposeMode] = useState<
-		"nuevo" | "responder" | "reenviar"
+		"nuevo" | "responder" | "responderTodos" | "reenviar"
 	>("nuevo");
 	const [composeTo, setComposeTo] = useState("");
+	const [composeCc, setComposeCc] = useState("");
 	const [feedback, setFeedback] = useState("");
 
 	// Conservar la posición de la lista al reclasificar/sincronizar: se ancla el
@@ -213,13 +215,25 @@ export default function CorreoPage() {
 		}
 	};
 
-	const abrirCompose = (mode: "nuevo" | "responder" | "reenviar") => {
+	const abrirCompose = (
+		mode: "nuevo" | "responder" | "responderTodos" | "reenviar",
+	) => {
 		if (mode === "responder" && selected) {
 			setComposeTo(emailDeRemitente(selected.remitente || ""));
-		} else if (mode === "reenviar" && selected) {
-			setComposeTo("");
+			setComposeCc("");
+		} else if (mode === "responderTodos" && selected) {
+			// Remitente + destinatarios a «Para», CC originales a «CC», sin mi dirección
+			const reparto = repartoRespuestaTodos(
+				selected.remitente,
+				selected.destinatarios,
+				selected.cc,
+				cuentaHash,
+			);
+			setComposeTo(reparto.para);
+			setComposeCc(reparto.cc);
 		} else {
 			setComposeTo("");
+			setComposeCc("");
 		}
 		setComposeMode(mode);
 		setComposeOpen(true);
@@ -254,6 +268,7 @@ export default function CorreoPage() {
 			<ComposePage
 				mode={composeMode}
 				to={composeTo}
+				cc={composeCc}
 				subject={
 					composeMode === "nuevo" || !selected
 						? ""
@@ -308,7 +323,7 @@ export default function CorreoPage() {
 					<DetalleMensaje
 						mensaje={selected}
 						onResponder={() => abrirCompose("responder")}
-						onResponderTodos={() => abrirCompose("responder")}
+						onResponderTodos={() => abrirCompose("responderTodos")}
 						onReenviar={() => abrirCompose("reenviar")}
 						onClasificar={clasificar}
 					/>
