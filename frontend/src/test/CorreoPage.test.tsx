@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { htmlSegunCategoria, formatBytes, emailDeRemitente } from '../utils/correo';
+import { htmlSegunCategoria, formatBytes, emailDeRemitente, htmlATexto, asuntoConPrefijo } from '../utils/correo';
 
 // htmlSegunCategoria es la ruta anti-tracking del correo: sanitiza con DOMPurify
 // y bloquea imágenes remotas (web beacons) salvo en correos LEGITIMOS.
@@ -157,5 +157,88 @@ describe('CorreoPage — borrar en servidor', () => {
 
 		await waitFor(() => expect(screen.getByText(/re-autentica OAuth/)).toBeTruthy());
 		expect(screen.getByText('Hola')).toBeTruthy();
+	});
+});
+
+// Reenviar un correo sin parte text/plain (solo HTML) salía vacío: el body
+// citaba selected.cuerpo, que MimeParser deja a null en esos mails.
+describe('htmlATexto', () => {
+	it('extrae el texto del HTML con saltos de línea por bloque', () => {
+		const out = htmlATexto('<p>Uno</p><p>Dos</p><div>Tres</div>');
+		expect(out).toContain('Uno');
+		expect(out).toContain('Dos\n');
+		expect(out).toContain('Tres');
+	});
+
+	it('los <br> son saltos y style/script no contaminan el texto', () => {
+		const out = htmlATexto(
+			'<head><style>p{color:red}</style></head><body><p>a<br>b</p><script>bad()</script></body>',
+		);
+		expect(out).toBe('a\nb');
+	});
+
+	it('devuelve vacío sin html', () => {
+		expect(htmlATexto('')).toBe('');
+	});
+});
+
+describe('asuntoConPrefijo', () => {
+	it('añade Re:/RV: una sola vez', () => {
+		expect(asuntoConPrefijo('Hola', 'Re:')).toBe('Re: Hola');
+		expect(asuntoConPrefijo('Re: Hola', 'Re:')).toBe('Re: Hola');
+		expect(asuntoConPrefijo('RV: Hola', 'RV:')).toBe('RV: Hola');
+	});
+
+	it('no apila prefijos mezclados ni sensible a mayúsculas', () => {
+		expect(asuntoConPrefijo('RE: Hola', 'Re:')).toBe('Re: Hola');
+		expect(asuntoConPrefijo('RV: Re: Hola', 'Re:')).toBe('Re: Hola');
+		expect(asuntoConPrefijo('Re: RV: hola', 'RV:')).toBe('RV: hola');
+	});
+});
+
+describe('CorreoPage — reenviar', () => {
+	it('mail HTML-only: el reenvío lleva asunto RV: y el texto del cuerpo', async () => {
+		const HTML_ONLY = {
+			...MENSAJE,
+			id: 8,
+			cuerpo: '',
+			html: '<html><head><style>p{}</style></head><body><p>Contenido del mail</p></body></html>',
+		};
+		mocks.cuentaList.mockResolvedValue({ data: [{ email: 'yo@test.com' }] });
+		mocks.mensajeList.mockResolvedValue({ data: { mensajes: [HTML_ONLY] } });
+
+		render(
+			<MemoryRouter>
+				<CorreoPage />
+			</MemoryRouter>,
+		);
+
+		fireEvent.click(await screen.findByText('Juan <juan@ejemplo.com>'));
+		fireEvent.click(screen.getByText('Reenviar'));
+
+		expect(screen.getByDisplayValue('RV: Hola')).toBeTruthy();
+		const cuerpo = screen.getByPlaceholderText(
+			'Escribe tu mensaje aquí...',
+		) as HTMLTextAreaElement;
+		expect(cuerpo.value).toContain('--- Mensaje original ---');
+		expect(cuerpo.value).toContain('Contenido del mail');
+	});
+
+	it('responder a un asunto que ya lleva Re: no lo apila', async () => {
+		const YA_RE = { ...MENSAJE, asunto: 'Re: Hola' };
+		mocks.cuentaList.mockResolvedValue({ data: [{ email: 'yo@test.com' }] });
+		mocks.mensajeList.mockResolvedValue({ data: { mensajes: [YA_RE] } });
+
+		render(
+			<MemoryRouter>
+				<CorreoPage />
+			</MemoryRouter>,
+		);
+
+		fireEvent.click(await screen.findByText('Juan <juan@ejemplo.com>'));
+		// hay dos botones «Responder» (el de acción y el chip IA decorativo): el bueno es el primero
+		fireEvent.click(screen.getAllByText('Responder')[0]);
+
+		expect(screen.getByDisplayValue('Re: Hola')).toBeTruthy();
 	});
 });
