@@ -89,6 +89,9 @@ const mocks = vi.hoisted(() => ({
 	mensajeList: vi.fn(),
 	mensajeDelete: vi.fn(),
 	deleteServidor: vi.fn(),
+	// con respuesta por defecto: los tests que no la configuran no pueden
+	// petar en el .catch() de seleccionar()
+	marcarLeido: vi.fn(() => Promise.resolve({ data: {} })),
 }));
 vi.mock('../api/client', () => ({
 	default: {},
@@ -97,6 +100,7 @@ vi.mock('../api/client', () => ({
 		list: mocks.mensajeList,
 		delete: mocks.mensajeDelete,
 		deleteServidor: mocks.deleteServidor,
+		marcarLeido: mocks.marcarLeido,
 	},
 }));
 vi.mock('../context/SyncContext', () => ({
@@ -309,5 +313,46 @@ describe('CorreoPage — responder a todos', () => {
 		expect(para.value).toBe('juan@ejemplo.com, ana@ejemplo.com');
 		expect(cc.value).toBe('luis@ejemplo.com');
 		expect(screen.getByText('Responder a todos')).toBeTruthy();
+	});
+});
+
+// El leído es estado local: abrir un correo no leído marca el punto y llama
+// a la API; los ya leídos no vuelven a llamar.
+describe('CorreoPage — leído', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it('abrir un no leído llama a marcarLeido y quita el punto de la lista', async () => {
+		mocks.cuentaList.mockResolvedValue({ data: [{ email: 'yo@test.com' }] });
+		mocks.mensajeList.mockResolvedValue({ data: { mensajes: [MENSAJE] } });
+		mocks.marcarLeido.mockResolvedValue({ data: {} });
+
+		render(
+			<MemoryRouter>
+				<CorreoPage />
+			</MemoryRouter>,
+		);
+
+		expect(await screen.findByText('●')).toBeTruthy();
+		fireEvent.click(screen.getByText('Juan <juan@ejemplo.com>'));
+
+		await waitFor(() => expect(mocks.marcarLeido).toHaveBeenCalledWith(7));
+		await waitFor(() => expect(screen.queryByText('●')).toBeNull());
+	});
+
+	it('abrir un ya leído no llama a marcarLeido', async () => {
+		const LEIDO = { ...MENSAJE, leido: true };
+		mocks.cuentaList.mockResolvedValue({ data: [{ email: 'yo@test.com' }] });
+		mocks.mensajeList.mockResolvedValue({ data: { mensajes: [LEIDO] } });
+
+		render(
+			<MemoryRouter>
+				<CorreoPage />
+			</MemoryRouter>,
+		);
+
+		fireEvent.click(await screen.findByText('Juan <juan@ejemplo.com>'));
+		expect(mocks.marcarLeido).not.toHaveBeenCalled();
 	});
 });

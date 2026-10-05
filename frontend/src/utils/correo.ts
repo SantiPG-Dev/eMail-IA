@@ -21,6 +21,7 @@ export interface Mensaje {
 	fechaRecepcion: string;
 	destinatarios?: string;
 	cc?: string;
+	leido?: boolean;
 	adjuntos?: Adjunto[];
 }
 

@@ -30,6 +30,8 @@ public class MensajeService {
     public Mensaje guardarOActualizar(Mensaje mensaje) {
         Optional<Mensaje> existente = repo.findByUidAndCuentaHashAndCarpetaImap(
                 mensaje.getUid(), mensaje.getCuentaHash(), mensaje.getCarpetaImap());
+        // Nota: leido NO se copia en el upsert — es estado local del usuario
+        // y un re-sync no debe marcar como no leído lo ya leído.
         if (existente.isPresent()) {
             Mensaje m = existente.get();
             m.setRemitente(mensaje.getRemitente());
@@ -45,6 +47,11 @@ public class MensajeService {
             return repo.save(m);
         }
         return repo.save(mensaje);
+    }
+
+    /** Guarda directo, sin upsert: persista cambios locales como el leído. */
+    public Mensaje guardar(Mensaje m) {
+        return repo.save(m);
     }
 
     @Transactional(readOnly = true)

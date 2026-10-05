@@ -92,6 +92,7 @@ export const mensajeApi = {
   // Borra en servidor (IMAP) y en BD; el delete local solo se usa si no hay
   // credenciales y el correo ya no está en el servidor.
   deleteServidor: (id: number) => api.delete(`/api/mensajes/${id}/servidor`),
+  marcarLeido: (id: number) => api.post(`/api/mensajes/${id}/leer`),
   classify: (id: number, categoria?: string) =>
     api.post(`/api/mensajes/${id}/clasificar${categoria ? `?categoria=${categoria}` : ''}`),
   descargarAdjunto: (id: number, adjuntoId: number) =>

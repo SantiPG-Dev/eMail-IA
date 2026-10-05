@@ -215,6 +215,20 @@ export default function CorreoPage() {
 		}
 	};
 
+	// Al abrir un correo se marca como leído (estado local; el SEEN del servidor
+	// no se toca). Lanzamiento silencioso: si falla, quedará sin marcar y se
+	// reintentará la próxima vez que se abra.
+	const seleccionar = (m: Mensaje) => {
+		if (m.leido) {
+			setSelected(m);
+			return;
+		}
+		const leido = { ...m, leido: true };
+		setSelected(leido);
+		setMensajes((prev) => prev.map((x) => (x.id === m.id ? leido : x)));
+		mensajeApi.marcarLeido(m.id).catch(() => {});
+	};
+
 	const abrirCompose = (
 		mode: "nuevo" | "responder" | "responderTodos" | "reenviar",
 	) => {
@@ -308,7 +322,7 @@ export default function CorreoPage() {
 				onRedactar={() => abrirCompose("nuevo")}
 				onSync={sincronizar}
 				onBorrar={eliminarMensaje}
-				onSeleccionar={setSelected}
+				onSeleccionar={seleccionar}
 				onContextMenu={(x, y, mensaje) => setMenu({ x, y, mensaje })}
 				onRetry={() => cargarMensajes(carpetaImap)}
 				listRef={listRef}

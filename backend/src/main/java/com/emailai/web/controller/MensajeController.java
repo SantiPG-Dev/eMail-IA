@@ -114,9 +114,17 @@ public class MensajeController {
                     resp.carpetaImap(), resp.remitente(), resp.destinatarios(),
                     resp.cc(), resp.cco(), resp.asunto(), resp.cuerpo(), resp.html(),
                     resp.categoria(), resp.prioridad(), resp.fechaRecepcion(),
-                    resp.adjuntos(), reclasificados);
+                    resp.adjuntos(), reclasificados, resp.leido());
         }
         return resp;
+    }
+
+    /** Marca el mensaje como leído (estado local de la app). */
+    @PostMapping("/{id}/leer")
+    public MensajeResponse marcarLeido(@PathVariable Long id) {
+        Mensaje m = mensajeService.buscarPorId(id);
+        m.setLeido(true);
+        return toResponse(mensajeService.guardar(m));
     }
 
     @PostMapping("/{id}/resumen")
@@ -198,7 +206,8 @@ public class MensajeController {
                 m.getHtml(), m.getCategoria(), m.getPrioridad(), m.getFechaRecepcion(),
                 m.getAdjuntos() != null
                     ? m.getAdjuntos().stream().map(this::adjuntoResponse).toList()
-                    : List.of());
+                    : List.of(),
+                m.getLeido());
     }
 
     private AdjuntoResponse adjuntoResponse(Adjunto a) {
