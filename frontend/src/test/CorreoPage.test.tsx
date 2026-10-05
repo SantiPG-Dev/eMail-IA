@@ -74,3 +74,88 @@ describe('emailDeRemitente', () => {
     expect(emailDeRemitente('')).toBe('');
   });
 });
+
+// Borrar tiene que ir al servidor (DELETE /{id}/servidor): el borrado solo
+// local hace que el sync vuelva a descargar el mensaje y resucite en bandeja.
+const mocks = vi.hoisted(() => ({
+	cuentaList: vi.fn(),
+	mensajeList: vi.fn(),
+	mensajeDelete: vi.fn(),
+	deleteServidor: vi.fn(),
+}));
+vi.mock('../api/client', () => ({
+	default: {},
+	cuentaApi: { list: mocks.cuentaList },
+	mensajeApi: {
+		list: mocks.mensajeList,
+		delete: mocks.mensajeDelete,
+		deleteServidor: mocks.deleteServidor,
+	},
+}));
+vi.mock('../context/SyncContext', () => ({
+	useSync: () => ({ triggerSync: vi.fn(), syncing: false, statusText: '', refreshKey: 0 }),
+}));
+
+import { vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import CorreoPage from '../pages/CorreoPage';
+
+const MENSAJE = {
+	id: 7,
+	uid: '<abc@x>',
+	remitente: 'Juan <juan@ejemplo.com>',
+	asunto: 'Hola',
+	cuerpo: 'que tal',
+	html: '',
+	categoria: 'LEGITIMO',
+	prioridad: 'NORMAL',
+	fechaRecepcion: '2026-10-05T10:00:00Z',
+};
+
+describe('CorreoPage — borrar en servidor', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it('Borrar llama al endpoint de servidor (no al local) y quita el mensaje', async () => {
+		mocks.cuentaList.mockResolvedValue({ data: [{ email: 'yo@test.com' }] });
+		mocks.mensajeList.mockResolvedValue({ data: { mensajes: [MENSAJE] } });
+		mocks.deleteServidor.mockResolvedValue({ data: { ok: true } });
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+		render(
+			<MemoryRouter>
+				<CorreoPage />
+			</MemoryRouter>,
+		);
+
+		fireEvent.click(await screen.findByText('Juan <juan@ejemplo.com>'));
+		fireEvent.click(screen.getByText('Borrar'));
+
+		await waitFor(() => expect(mocks.deleteServidor).toHaveBeenCalledWith(7));
+		expect(mocks.mensajeDelete).not.toHaveBeenCalled();
+		await waitFor(() => expect(screen.queryByText('Hola')).toBeNull());
+	});
+
+	it('sin credenciales (409) el mensaje se queda y se ve el motivo', async () => {
+		mocks.cuentaList.mockResolvedValue({ data: [{ email: 'yo@test.com' }] });
+		mocks.mensajeList.mockResolvedValue({ data: { mensajes: [MENSAJE] } });
+		mocks.deleteServidor.mockRejectedValue({
+			response: { status: 409, data: { error: 're-autentica OAuth o configura password' } },
+		});
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+		render(
+			<MemoryRouter>
+				<CorreoPage />
+			</MemoryRouter>,
+		);
+
+		fireEvent.click(await screen.findByText('Juan <juan@ejemplo.com>'));
+		fireEvent.click(screen.getByText('Borrar'));
+
+		await waitFor(() => expect(screen.getByText(/re-autentica OAuth/)).toBeTruthy());
+		expect(screen.getByText('Hola')).toBeTruthy();
+	});
+});

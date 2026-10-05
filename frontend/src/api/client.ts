@@ -89,6 +89,9 @@ export const mensajeApi = {
     api.get('/api/mensajes/buscar', { params: { cuentaHash, carpeta, q } }),
   get: (id: number) => api.get(`/api/mensajes/${id}`),
   delete: (id: number) => api.delete(`/api/mensajes/${id}`),
+  // Borra en servidor (IMAP) y en BD; el delete local solo se usa si no hay
+  // credenciales y el correo ya no está en el servidor.
+  deleteServidor: (id: number) => api.delete(`/api/mensajes/${id}/servidor`),
   classify: (id: number, categoria?: string) =>
     api.post(`/api/mensajes/${id}/clasificar${categoria ? `?categoria=${categoria}` : ''}`),
   descargarAdjunto: (id: number, adjuntoId: number) =>

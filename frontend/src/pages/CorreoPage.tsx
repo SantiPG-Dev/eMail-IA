@@ -191,11 +191,14 @@ export default function CorreoPage() {
 		}
 	};
 
+	// Borra en el servidor IMAP y en BD (misma llamada). Si se borrase solo en
+	// local, el sync lo vuelve a descargar y resucita. POP3 no soporta borrado
+	// en servidor: ahí queda solo local y reaparecerá al sync, no hay más tela.
 	const eliminarMensaje = async () => {
 		if (!selected) return;
-		if (!window.confirm("¿Borrar el mensaje seleccionado?")) return;
+		if (!window.confirm("¿Borrar el mensaje? Se borrará también del servidor.")) return;
 		try {
-			await mensajeApi.delete(selected.id);
+			await mensajeApi.deleteServidor(selected.id);
 			setMensajes((prev) => prev.filter((m) => m.id !== selected.id));
 			setSelected(null);
 		} catch (e) {
