@@ -5,8 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.emailai.domain.entities.Cuenta;
-import com.emailai.oauth.OAuthService;
-import com.emailai.oauth.OAuthService.OAuthTokenResult;
+import com.emailai.oauth.OAuthTokenService;
+import com.emailai.oauth.OAuthTokenService.OAuthTokenResult;
 import com.emailai.security.CredentialService;
 
 // Resuelve las credenciales IMAP/SMTP de una cuenta: password o OAuth2.
@@ -23,14 +23,14 @@ public class CredencialesMailService {
 
     private final CuentaService cuentaService;
     private final CredentialService credentialService;
-    private final OAuthService oauthService;
+    private final OAuthTokenService oauthTokenService;
 
     public CredencialesMailService(CuentaService cuentaService,
                                     CredentialService credentialService,
-                                    OAuthService oauthService) {
+                                    OAuthTokenService oauthTokenService) {
         this.cuentaService = cuentaService;
         this.credentialService = credentialService;
-        this.oauthService = oauthService;
+        this.oauthTokenService = oauthTokenService;
     }
 
     /** Credenciales resueltas listas para MailService. */
@@ -88,7 +88,7 @@ public class CredencialesMailService {
             return null;
         }
         try {
-            OAuthTokenResult res = oauthService.renovarToken(cuenta.getOauthProvider(), refreshToken);
+            OAuthTokenResult res = oauthTokenService.renovarToken(cuenta.getOauthProvider(), refreshToken);
             cuenta.setOauthAccessToken(credentialService.cifrar(res.accessToken()));
             if (res.refreshToken() != null && !res.refreshToken().isBlank()) {
                 cuenta.setOauthRefreshToken(credentialService.cifrar(res.refreshToken()));

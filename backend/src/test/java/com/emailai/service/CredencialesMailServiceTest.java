@@ -13,8 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.emailai.domain.entities.Cuenta;
-import com.emailai.oauth.OAuthService;
-import com.emailai.oauth.OAuthService.OAuthTokenResult;
+import com.emailai.oauth.OAuthTokenService;
+import com.emailai.oauth.OAuthTokenService.OAuthTokenResult;
 import com.emailai.security.CredentialService;
 
 /**
@@ -25,10 +25,10 @@ class CredencialesMailServiceTest {
 
     private final CuentaService cuentaService = mock(CuentaService.class);
     private final CredentialService credentialService = mock(CredentialService.class);
-    private final OAuthService oauthService = mock(OAuthService.class);
+    private final OAuthTokenService oauthTokenService = mock(OAuthTokenService.class);
 
     private final CredencialesMailService service = new CredencialesMailService(
-            cuentaService, credentialService, oauthService);
+            cuentaService, credentialService, oauthTokenService);
 
     private Cuenta cuentaPassword() {
         Cuenta c = new Cuenta();
@@ -69,8 +69,8 @@ class CredencialesMailServiceTest {
         assertNotNull(cred);
         assertTrue(cred.esOAuth());
         assertEquals("access-viejo", cred.secret());
-        // Token vigente: no se toca OAuthService
-        verify(oauthService, never()).renovarToken(anyString(), anyString());
+        // Token vigente: no se toca OAuthTokenService
+        verify(oauthTokenService, never()).renovarToken(anyString(), anyString());
     }
 
     @Test
@@ -78,7 +78,7 @@ class CredencialesMailServiceTest {
         when(credentialService.descifrar("access-viejo")).thenReturn("access-viejo");
         when(credentialService.descifrar("refresh-token")).thenReturn("refresh-token");
         when(credentialService.cifrar(anyString())).thenAnswer(a -> a.getArgument(0));
-        when(oauthService.renovarToken(eq("GOOGLE"), eq("refresh-token")))
+        when(oauthTokenService.renovarToken(eq("GOOGLE"), eq("refresh-token")))
                 .thenReturn(new OAuthTokenResult("access-nuevo", "refresh-nuevo",
                         System.currentTimeMillis() + 3600_000L));
 
@@ -100,7 +100,7 @@ class CredencialesMailServiceTest {
     void cuentaOAuth_refreshFallido_conToken_residual_devuelveTokenViejo() {
         when(credentialService.descifrar("access-viejo")).thenReturn("access-viejo");
         when(credentialService.descifrar("refresh-token")).thenReturn("refresh-token");
-        when(oauthService.renovarToken(anyString(), anyString()))
+        when(oauthTokenService.renovarToken(anyString(), anyString()))
                 .thenThrow(new RuntimeException("invalid_grant"));
 
         var cred = service.resolver(cuentaOAuth(-60_000L));
