@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { htmlSegunCategoria, formatBytes, emailDeRemitente } from '../pages/CorreoPage';
+import { htmlSegunCategoria, formatBytes, emailDeRemitente } from '../utils/correo';
 
 // htmlSegunCategoria es la ruta anti-tracking del correo: sanitiza con DOMPurify
 // y bloquea imágenes remotas (web beacons) salvo en correos LEGITIMOS.
