@@ -1,6 +1,6 @@
 Name:           emailai-electron
-Version:        1.3.0
-Release:        2%{?dist}
+Version:        1.3.1
+Release:        1%{?dist}
 Summary:        eMail-IA Desktop App (Electron wrapper)
 License:        Proprietary
 URL:            https://github.com/santipg/eMail-IA
@@ -62,7 +62,7 @@ install -m 0644 "%{emailai_svg}" %{buildroot}%{_datadir}/icons/hicolor/scalable/
 %{_datadir}/icons/hicolor/scalable/apps/emailai-electron.svg
 
 %changelog
-* Wed Oct 28 2026 Santiago Pérez Gómez <SantiPG-Dev@gmx.com> - 1.3.0-2
-- 1.3.0 con heap del backend capado (EMAILAI_XMX) y modelo/tema configurables.
+* Wed Oct 28 2026 Santiago Pérez Gómez <SantiPG-Dev@gmx.com> - 1.3.1-1
+- 1.3.1: editar y elegir cuenta, ICS por HTTP, remitentes, Todoist v1, IA y borrado en servidor, sesion persistente.
 * Mon Jul 27 2026 Santiago Pérez Gómez <SantiPG-Dev@gmx.com> - 1.0.0-1
 - Initial RPM build (bypasses fpm 1.9.3 builddir bug via hand-written spec).

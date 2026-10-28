@@ -1,4 +1,4 @@
-# Características y consumo de recursos — eMail-IA 1.3.0
+# Características y consumo de recursos — eMail-IA 1.3.1
 
 Medido en vivo el 04-09-2026 sobre la instalación rpm en Fedora 44 (KDE),
 Ryzen 12 núcleos / 30 GB RAM, con la app en uso (cuenta cargada, ~16 min de
