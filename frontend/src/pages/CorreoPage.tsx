@@ -157,6 +157,8 @@ export default function CorreoPage() {
 	// nuevos descargados quedan a la vista.
 	const listRef = useRef<HTMLDivElement>(null);
 	const anchorRef = useRef<{ mid: number; offset: number } | null>(null);
+	// Evita solapar dos refrescos automaticos si uno tarda mas de 5 s
+	const refrescoEnCurso = useRef(false);
 
 	const salvarAncla = () => {
 		const c = listRef.current;
@@ -249,11 +251,15 @@ export default function CorreoPage() {
 	const carpetaImap = searchParams.get("carpeta") || "INBOX";
 
 	const cargarMensajes = useCallback(
-		async (carpeta?: string, preservarScroll = false) => {
+		async (carpeta?: string, preservarScroll = false, silencioso = false) => {
 			if (preservarScroll) salvarAncla();
 			else anchorRef.current = null;
-			setLoadingMensajes(true);
-			setErrorMensajes(null);
+			// En modo silencioso (refresco automatico) no se toca el spinner ni
+			// el estado de error: la lista sigue visible y no parpadea.
+			if (!silencioso) {
+				setLoadingMensajes(true);
+				setErrorMensajes(null);
+			}
 			try {
 				if (!cuentaEmail) {
 					setMensajes([]);
@@ -263,11 +269,12 @@ export default function CorreoPage() {
 				const res = await mensajeApi.list(cuentaEmail, carpetaActual);
 				setMensajes(res.data.mensajes || []);
 			} catch (e: any) {
+				if (silencioso) return;
 				setErrorMensajes(
 					e?.response?.data?.error || e?.message || "Error al cargar los mensajes",
 				);
 			} finally {
-				setLoadingMensajes(false);
+				if (!silencioso) setLoadingMensajes(false);
 			}
 		},
 		[carpetaImap, cuentaEmail],
@@ -313,6 +320,22 @@ export default function CorreoPage() {
 	useEffect(() => {
 		if (refreshKey > 0) cargarMensajes(carpetaImap, true);
 	}, [refreshKey, cargarMensajes, carpetaImap]);
+
+	// Refresco automatico cada 5 s, sin spinner y sin mover el scroll. Se para
+	// mientras hay una busqueda activa para no pisar sus resultados.
+	useEffect(() => {
+		if (!cuentaEmail || search.trim()) return;
+		const id = setInterval(async () => {
+			if (refrescoEnCurso.current) return;
+			refrescoEnCurso.current = true;
+			try {
+				await cargarMensajes(carpetaImap, true, true);
+			} finally {
+				refrescoEnCurso.current = false;
+			}
+		}, 5000);
+		return () => clearInterval(id);
+	}, [cargarMensajes, carpetaImap, cuentaEmail, search]);
 
 	const sincronizar = async () => {
 		await triggerSync();
