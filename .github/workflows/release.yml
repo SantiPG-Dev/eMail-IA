@@ -53,7 +53,7 @@ jobs:
       - name: Checksums
         run: |
           cd electron/release
-          sha256sum *.AppImage *.deb rpm/RPMS/x86_64/*.rpm > SHA256SUMS.txt
+          sha256sum *.AppImage *.deb rpm/RPMS/x86_64/*.rpm > SHA256SUMS-linux.txt
 
       - uses: actions/upload-artifact@v4
         with:
@@ -62,7 +62,7 @@ jobs:
             electron/release/*.AppImage
             electron/release/*.deb
             electron/release/rpm/RPMS/x86_64/*.rpm
-            electron/release/SHA256SUMS.txt
+            electron/release/SHA256SUMS-linux.txt
           if-no-files-found: error
 
   # ── Windows: NSIS (x64) ────────────────────────────────────────
@@ -102,14 +102,14 @@ jobs:
 
       - name: Checksums
         shell: bash
-        run: cd electron/release && sha256sum *.exe > SHA256SUMS.txt
+        run: cd electron/release && sha256sum *.exe > SHA256SUMS-windows.txt
 
       - uses: actions/upload-artifact@v4
         with:
           name: windows-instaladores
           path: |
             electron/release/*.exe
-            electron/release/SHA256SUMS.txt
+            electron/release/SHA256SUMS-windows.txt
           if-no-files-found: error
 
   # ── macOS: DMG (x64 + arm64) ───────────────────────────────────
@@ -147,14 +147,14 @@ jobs:
           npx electron-builder --mac dmg --arm64
 
       - name: Checksums
-        run: cd electron/release && shasum -a 256 *.dmg > SHA256SUMS.txt
+        run: cd electron/release && shasum -a 256 *.dmg > SHA256SUMS-macos.txt
 
       - uses: actions/upload-artifact@v4
         with:
           name: macos-instaladores
           path: |
             electron/release/*.dmg
-            electron/release/SHA256SUMS.txt
+            electron/release/SHA256SUMS-macos.txt
           if-no-files-found: error
 
   # ── Publicar al release (solo en tags) ─────────────────────────
