@@ -29,8 +29,10 @@ public class EnviarController {
     @PostMapping
     public ResponseEntity<Map<String, Object>> enviar(@RequestBody EnviarRequest req) {
         try {
-            // Obtener credenciales de la cuenta default (password u OAuth2 con XOAUTH2)
-            var cuentaOpt = cuentaService.buscarDefault();
+            // Cuenta indicada por la UI (multi-cuenta) o la default si no viene
+            var cuentaOpt = (req.cuenta() != null && !req.cuenta().isBlank())
+                    ? cuentaService.buscarPorEmail(req.cuenta())
+                    : cuentaService.buscarDefault();
             if (cuentaOpt.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of(
                     "error", "No hay cuenta configurada",
@@ -73,5 +75,5 @@ public class EnviarController {
         }
     }
 
-    public record EnviarRequest(String para, String cc, String asunto, String cuerpo) {}
+    public record EnviarRequest(String para, String cc, String asunto, String cuerpo, String cuenta) {}
 }

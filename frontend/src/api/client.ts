@@ -76,6 +76,7 @@ export const cuentaApi = {
   list: () => api.get('/api/cuentas'),
   get: (id: number) => api.get(`/api/cuentas/${id}`),
   create: (data: any) => api.post('/api/cuentas', data),
+  update: (id: number, data: any) => api.put(`/api/cuentas/${id}`, data),
   delete: (id: number) => api.delete(`/api/cuentas/${id}`),
   sync: (id: number) => api.post(`/api/cuentas/${id}/sync`),
   carpetas: (id: number) => api.get(`/api/cuentas/${id}/carpetas`),
@@ -102,7 +103,7 @@ export const configApi = {
 };
 
 export const enviarApi = {
-  send: (data: { para: string; cc?: string; asunto: string; cuerpo: string }) =>
+  send: (data: { para: string; cc?: string; asunto: string; cuerpo: string; cuenta?: string }) =>
     api.post('/api/enviar', data),
 };
 

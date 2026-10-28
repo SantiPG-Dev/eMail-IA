@@ -113,7 +113,12 @@ export default function CorreoPage() {
 	const [selected, setSelected] = useState<Mensaje | null>(null);
 	const [search, setSearch] = useState("");
 	const [hasAccounts, setHasAccounts] = useState(false);
-	const [cuentaHash, setCuentaHash] = useState("local");
+	// Multi-cuenta: la cuenta activa se recuerda entre sesiones; por defecto
+	// la marcada como predeterminada en Configuración.
+	const [cuentas, setCuentas] = useState<
+		{ id: number; email: string; nombre: string; esDefault: boolean }[]
+	>([]);
+	const [cuentaEmail, setCuentaEmail] = useState("");
 	const [composeOpen, setComposeOpen] = useState(false);
 	const [composeMode, setComposeMode] = useState<
 		"nuevo" | "responder" | "reenviar"
@@ -225,17 +230,13 @@ export default function CorreoPage() {
 			setLoadingMensajes(true);
 			setErrorMensajes(null);
 			try {
-				const cuentas = await cuentaApi.list();
-				setHasAccounts(cuentas.data.length > 0);
-				if (cuentas.data.length > 0) {
-					const c = cuentas.data[0];
-					setCuentaHash(c.email);
-					const carpetaActual = carpeta || carpetaImap;
-					const res = await mensajeApi.list(c.email, carpetaActual);
-					setMensajes(res.data.mensajes || []);
-				} else {
+				if (!cuentaEmail) {
 					setMensajes([]);
+					return;
 				}
+				const carpetaActual = carpeta || carpetaImap;
+				const res = await mensajeApi.list(cuentaEmail, carpetaActual);
+				setMensajes(res.data.mensajes || []);
 			} catch (e: any) {
 				setErrorMensajes(
 					e?.response?.data?.error || e?.message || "Error al cargar los mensajes",
@@ -244,8 +245,38 @@ export default function CorreoPage() {
 				setLoadingMensajes(false);
 			}
 		},
-		[carpetaImap],
+		[carpetaImap, cuentaEmail],
 	);
+
+	// Cuentas disponibles (selector de multi-cuenta). La activa se guarda en
+	// localStorage y cae a la predeterminada o a la primera.
+	useEffect(() => {
+		cuentaApi
+			.list()
+			.then((r) => {
+				const lista = r.data || [];
+				setCuentas(lista);
+				setHasAccounts(lista.length > 0);
+				if (lista.length === 0) return;
+				const guardada = localStorage.getItem("emailai_cuenta");
+				const elegida =
+					lista.find((c: any) => c.email === guardada) ||
+					lista.find((c: any) => c.esDefault) ||
+					lista[0];
+				setCuentaEmail(elegida.email);
+			})
+			.catch(() => {
+				setCuentas([]);
+				setHasAccounts(false);
+			});
+	}, []);
+
+	const cambiarCuenta = (email: string) => {
+		setCuentaEmail(email);
+		localStorage.setItem("emailai_cuenta", email);
+		setSelected(null);
+		setSearch("");
+	};
 
 	// Carga inicial y cuando cambia la carpeta
 	useEffect(() => {
@@ -271,7 +302,7 @@ export default function CorreoPage() {
 		setLoadingMensajes(true);
 		setErrorMensajes(null);
 		try {
-			const res = await mensajeApi.search(cuentaHash, search);
+			const res = await mensajeApi.search(cuentaEmail, search);
 			setMensajes(res.data.mensajes || []);
 		} catch (e: any) {
 			setErrorMensajes(
@@ -337,6 +368,7 @@ export default function CorreoPage() {
 			<ComposePage
 				mode={composeMode}
 				to={composeTo}
+				cuenta={cuentaEmail}
 				subject={
 					composeMode === "responder"
 						? selected
@@ -398,6 +430,27 @@ export default function CorreoPage() {
 						Borrar
 					</button>
 				</div>
+
+				{/* Selector de cuenta (solo si hay varias) */}
+				{cuentas.length > 1 && (
+					<select
+						value={cuentaEmail}
+						onChange={(e) => cambiarCuenta(e.target.value)}
+						className="w-full px-2 py-1.5 text-xs rounded-lg border outline-none cursor-pointer"
+						style={{
+							backgroundColor: "var(--color-bg)",
+							color: "var(--color-text)",
+							borderColor: "var(--color-border)",
+						}}
+						title="Cuenta activa"
+					>
+						{cuentas.map((c) => (
+							<option key={c.id} value={c.email}>
+								{c.nombre} — {c.email}
+							</option>
+						))}
+					</select>
+				)}
 
 				{/* Buscador + Sync */}
 				<div className="flex gap-1">

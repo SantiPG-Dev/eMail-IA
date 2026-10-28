@@ -18,6 +18,8 @@ interface Props {
   status?: string;
   loading?: boolean;
   oauthInProgress?: boolean;
+  // Modo edición: precarga nombre/email/tipo y deja la contraseña opcional.
+  initial?: { nombre: string; email: string; tipoConexion: 'IMAP' | 'POP3' };
 }
 
 interface ProviderInfo {
@@ -79,15 +81,16 @@ const PROVIDERS: Record<string, ProviderInfo> = {
   },
 };
 
-export default function AccountForm({ onSave, onOAuthStart, onCancel, status: externalStatus, loading: externalLoading, oauthInProgress }: Props) {
+export default function AccountForm({ onSave, onOAuthStart, onCancel, status: externalStatus, loading: externalLoading, oauthInProgress, initial }: Props) {
   const [proveedor, setProveedor] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [nombre, setNombre] = useState('');
-  const [email, setEmail] = useState('');
+  const [nombre, setNombre] = useState(initial?.nombre || '');
+  const [email, setEmail] = useState(initial?.email || '');
   const [password, setPassword] = useState('');
-  const [tipoConexion, setTipoConexion] = useState<'IMAP' | 'POP3'>('IMAP');
+  const [tipoConexion, setTipoConexion] = useState<'IMAP' | 'POP3'>(initial?.tipoConexion || 'IMAP');
   const [internalStatus, setInternalStatus] = useState('');
   const [internalLoading, setInternalLoading] = useState(false);
+  const esEdicion = !!initial;
 
   const status = externalStatus ?? internalStatus;
   const loading = externalLoading ?? internalLoading;
@@ -109,8 +112,8 @@ export default function AccountForm({ onSave, onOAuthStart, onCancel, status: ex
   };
 
   const handleSave = async () => {
-    if (!proveedor) { setInternalStatus('Selecciona un proveedor'); return; }
-    if (!email || !password) { setInternalStatus('Email y contraseña obligatorios'); return; }
+    if (!esEdicion && !proveedor) { setInternalStatus('Selecciona un proveedor'); return; }
+    if (!email || (!esEdicion && !password)) { setInternalStatus('Email y contraseña obligatorios'); return; }
     if (!nombre.trim()) { setInternalStatus('Indica un nombre para la cuenta'); return; }
 
     setInternalLoading(true);
@@ -118,13 +121,15 @@ export default function AccountForm({ onSave, onOAuthStart, onCancel, status: ex
     try {
       await onSave({ nombre: nombre.trim(), email, password, tipoConexion, proveedor });
       setInternalStatus('✅ Cuenta guardada');
-      setProveedor('');
-      setNombre('');
-      setEmail('');
-      setPassword('');
-      setTipoConexion('IMAP');
+      if (!esEdicion) {
+        setProveedor('');
+        setNombre('');
+        setEmail('');
+        setPassword('');
+        setTipoConexion('IMAP');
+      }
     } catch (err: any) {
-      setInternalStatus(err?.response?.data?.message || 'Error al guardar');
+      setInternalStatus(err?.response?.data?.error || err?.message || 'Error al guardar');
     } finally {
       setInternalLoading(false);
     }
@@ -133,6 +138,7 @@ export default function AccountForm({ onSave, onOAuthStart, onCancel, status: ex
   return (
     <div className="space-y-4">
       {/* Dropdown proveedores */}
+      {!esEdicion && (
       <div>
         <label className="text-xs font-bold block mb-1.5" style={{ color: 'var(--color-text)' }}>
           Proveedor de correo
@@ -176,6 +182,7 @@ export default function AccountForm({ onSave, onOAuthStart, onCancel, status: ex
           )}
         </div>
       </div>
+      )}
 
       {isOauth ? (
         /* ── Flujo OAuth ──────────────────────────────────── */
@@ -227,17 +234,22 @@ export default function AccountForm({ onSave, onOAuthStart, onCancel, status: ex
             </label>
             <input value={email} onChange={e => setEmail(e.target.value)}
               placeholder="usuario@dominio.com"
+              readOnly={esEdicion}
               className="w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors"
-              style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+              style={{ backgroundColor: 'var(--color-bg)', color: esEdicion ? 'var(--color-text-secondary)' : 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+            {esEdicion && (
+              <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                El email no se puede cambiar: los correos guardados van asociados a él.</p>
+            )}
           </div>
 
           {/* Contraseña */}
           <div>
             <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
-              Contraseña *
+              Contraseña {esEdicion ? '(opcional)' : '*'}
             </label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="Contraseña de la cuenta"
+              placeholder={esEdicion ? 'Dejar en blanco para conservar la actual' : 'Contraseña de la cuenta'}
               className="w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors"
               style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
           </div>
@@ -293,7 +305,7 @@ export default function AccountForm({ onSave, onOAuthStart, onCancel, status: ex
             <button onClick={handleSave} disabled={loading}
               className="px-5 py-1.5 text-sm font-bold rounded-pill disabled:opacity-50 transition-colors"
               style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>
-              {loading ? 'Guardando...' : 'Guardar cuenta'}
+              {loading ? 'Guardando...' : esEdicion ? 'Guardar cambios' : 'Guardar cuenta'}
             </button>
           </div>
         </>

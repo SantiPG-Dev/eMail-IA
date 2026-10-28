@@ -4,15 +4,17 @@ import { enviarApi } from '../api/client';
 interface Props {
   mode: 'nuevo' | 'responder' | 'reenviar';
   to?: string;
+  cc?: string;
   subject?: string;
   body?: string;
+  cuenta?: string;   // email de la cuenta activa (multi-cuenta)
   onClose: () => void;
 }
 
 // Diálogo de redacción de correo. Modos: nuevo, responder, reenviar.
-export default function ComposePage({ mode, to, subject, body, onClose }: Props) {
+export default function ComposePage({ mode, to, cc: ccInicial, subject, body, cuenta, onClose }: Props) {
   const [para, setPara] = useState(to || '');
-  const [cc, setCc] = useState('');
+  const [cc, setCc] = useState(ccInicial || '');
   const [asunto, setAsunto] = useState(subject || '');
   const [cuerpo, setCuerpo] = useState(body || '');
   const [status, setStatus] = useState('');
@@ -28,7 +30,7 @@ export default function ComposePage({ mode, to, subject, body, onClose }: Props)
     setSending(true);
     setStatus('Enviando...');
     try {
-      const res = await enviarApi.send({ para: emails.join(', '), cc, asunto: asunto.trim(), cuerpo });
+      const res = await enviarApi.send({ para: emails.join(', '), cc, asunto: asunto.trim(), cuerpo, cuenta });
       if (res.data.ok) {
         setStatus('✅ Enviado correctamente');
         setTimeout(() => onClose(), 1500);

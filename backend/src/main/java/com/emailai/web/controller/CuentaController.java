@@ -78,6 +78,42 @@ public class CuentaController {
         return ResponseEntity.status(HttpStatus.CREATED).body(resp);
     }
 
+    /**
+     * Edita una cuenta existente. La contraseña es opcional: en blanco conserva
+     * la actual. El email no se puede cambiar porque los mensajes se guardan
+     * con el email como cuentaHash (quedarían huérfanos).
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<?> actualizar(@PathVariable Integer id, @Valid @RequestBody CuentaRequest req) {
+        Cuenta c = cuentaService.buscarPorId(id);
+        if (!c.getEmail().equalsIgnoreCase(req.email())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "error", "El email de una cuenta no se puede cambiar. Crea una cuenta nueva."));
+        }
+        c.setNombre(req.nombre());
+        c.setServidor(req.servidor());
+        c.setPuerto(req.puerto());
+        c.setTipoConexion(req.tipoConexion() != null ? req.tipoConexion() : c.getTipoConexion());
+        if (req.usuario() != null && !req.usuario().isBlank()) {
+            c.setUsuarioCifrado(credentialService.cifrar(req.usuario()));
+        }
+        if (req.password() != null && !req.password().isBlank()) {
+            c.setPasswordCifrada(credentialService.cifrar(req.password()));
+        }
+        if (req.oauthProvider() != null) c.setOauthProvider(req.oauthProvider());
+        if (req.oauthAccessToken() != null) {
+            c.setOauthAccessToken(credentialService.cifrar(req.oauthAccessToken()));
+        }
+        if (req.oauthRefreshToken() != null) {
+            c.setOauthRefreshToken(credentialService.cifrar(req.oauthRefreshToken()));
+        }
+        if (req.oauthExpiresAt() != null) c.setOauthExpiresAt(req.oauthExpiresAt());
+
+        Cuenta guardada = req.esDefault() ? cuentaService.marcarComoDefault(id) : cuentaService.guardar(c);
+        log.info("AUDIT cuenta editada id={} email={}", id, guardada.getEmail());
+        return ResponseEntity.ok(toResponse(guardada));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
         cuentaService.eliminar(id);

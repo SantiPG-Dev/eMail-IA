@@ -58,6 +58,7 @@ export default function ConfigPage() {
   const [loadingCuentas, setLoadingCuentas] = useState(true);
   const [errorCuentas, setErrorCuentas] = useState('');
   const [status, setStatus] = useState('');
+  const [cuentaEditando, setCuentaEditando] = useState<any | null>(null);
 
   // Auto-ocultar el banner de status tras 4s
   useEffect(() => {
@@ -175,6 +176,36 @@ export default function ConfigPage() {
     }
   };
 
+  const actualizarCuenta = async (data: AccountFormData) => {
+    const c = cuentaEditando;
+    if (!c) return;
+    await cuentaApi.update(c.id, {
+      nombre: data.nombre, email: c.email, servidor: c.servidor, puerto: c.puerto,
+      usuario: c.email, password: data.password || null, tipoConexion: data.tipoConexion,
+      esDefault: c.esDefault, oauthProvider: c.oauthProvider,
+      oauthAccessToken: null, oauthRefreshToken: null, oauthExpiresAt: null,
+    });
+    setCuentaEditando(null);
+    setStatus('✅ Cuenta actualizada');
+    cargarCuentas();
+  };
+
+  // Marca la cuenta como predeterminada (la que envía correo si no se elige otra)
+  const marcarDefault = async (c: any) => {
+    try {
+      await cuentaApi.update(c.id, {
+        nombre: c.nombre, email: c.email, servidor: c.servidor, puerto: c.puerto,
+        usuario: c.email, password: null, tipoConexion: c.tipoConexion,
+        esDefault: true, oauthProvider: c.oauthProvider,
+        oauthAccessToken: null, oauthRefreshToken: null, oauthExpiresAt: null,
+      });
+      setStatus('✅ Cuenta predeterminada actualizada');
+      cargarCuentas();
+    } catch (e: any) {
+      setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo actualizar'));
+    }
+  };
+
   const eliminarCuenta = async (id: number) => {
     if (!window.confirm('¿Eliminar la cuenta? Se borrarán sus correos sincronizados.')) return;
     try { await cuentaApi.delete(id); setStatus('✅ Cuenta eliminada'); cargarCuentas(); }
@@ -236,7 +267,7 @@ export default function ConfigPage() {
             <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>General</h3>
             <div className="p-3 rounded-lg border-l-4"
               style={{ backgroundColor: 'var(--color-bg-card)', borderColor: 'var(--color-accent-selected)' }}>
-              <p className="text-sm" style={{ color: 'var(--color-text)' }}>eMail-IA v1.0 · Cliente de correo con IA local</p>
+              <p className="text-sm" style={{ color: 'var(--color-text)' }}>eMail-IA v{__APP_VERSION__} · Cliente de correo con IA local</p>
             </div>
             <div className="p-3 rounded-lg border-l-4"
               style={{ backgroundColor: 'var(--color-bg-card)', borderColor: 'var(--color-accent-selected)' }}>
@@ -274,14 +305,31 @@ export default function ConfigPage() {
                   {cuentas.map((c: any) => (
                     <div key={c.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg text-sm"
                       style={{ backgroundColor: 'var(--color-bg)' }}>
-                      <div>
+                      <div className="min-w-0">
                         <span style={{ color: 'var(--color-text)' }}>{c.nombre}</span>
+                        {c.esDefault && (
+                          <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                            style={{ backgroundColor: 'var(--color-accent-selected)', color: '#0F172A' }}>
+                            predeterminada
+                          </span>
+                        )}
                         <span className="ml-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                           {c.email} · {c.servidor}</span>
                       </div>
-                      <button onClick={() => eliminarCuenta(c.id)}
-                        className="text-xs px-2 py-0.5 rounded"
-                        style={{ backgroundColor: '#ef4444', color: 'white' }}>Eliminar</button>
+                      <div className="flex gap-1.5 shrink-0">
+                        {!c.esDefault && (
+                          <button onClick={() => marcarDefault(c)}
+                            className="text-xs px-2 py-0.5 rounded"
+                            style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>
+                            Predeterminada</button>
+                        )}
+                        <button onClick={() => setCuentaEditando(c)}
+                          className="text-xs px-2 py-0.5 rounded"
+                          style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Editar</button>
+                        <button onClick={() => eliminarCuenta(c.id)}
+                          className="text-xs px-2 py-0.5 rounded"
+                          style={{ backgroundColor: '#ef4444', color: 'white' }}>Eliminar</button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -293,6 +341,35 @@ export default function ConfigPage() {
               <p className="text-sm font-bold mb-3" style={{ color: 'var(--color-text)' }}>Añadir cuenta</p>
               <AccountForm onSave={handleSave} />
             </div>
+
+            {/* Modal de edición */}
+            {cuentaEditando && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+                onClick={() => setCuentaEditando(null)}>
+                <div className="w-full max-w-md max-h-[85vh] overflow-auto rounded-2xl p-5 shadow-2xl"
+                  style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+                  onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
+                      Editar {cuentaEditando.nombre}
+                    </h3>
+                    <button onClick={() => setCuentaEditando(null)}
+                      className="text-xs px-2 py-1 rounded-lg"
+                      style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)' }}>✕</button>
+                  </div>
+                  <AccountForm
+                    initial={{
+                      nombre: cuentaEditando.nombre,
+                      email: cuentaEditando.email,
+                      tipoConexion: cuentaEditando.tipoConexion === 'POP3' ? 'POP3' : 'IMAP',
+                    }}
+                    onSave={actualizarCuenta}
+                    onCancel={() => setCuentaEditando(null)}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
