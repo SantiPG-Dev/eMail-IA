@@ -24,6 +24,8 @@ extraResources:
 
 mac:
   category: public.app-category.productivity
+  # macOS exige 512x512 como minimo para generar el .icns (256 falla)
+  icon: assets/icon-1024.png
   # Solo arm64 (Apple Silicon): el JRE jlink se genera en el runner y no
   # puede cross-compilar. dmg x64 necesitaría un runner Intel (macos-13)
   # con su propio JRE — pendiente si hay demanda.
