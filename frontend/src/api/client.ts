@@ -119,6 +119,13 @@ export const oauthApi = {
   estado: (flujoId: string) => api.get(`/api/oauth/estado/${flujoId}`),
 };
 
+export const todoistApi = {
+  estado: () => api.get('/api/todoist/estado'),
+  guardarKey: (apiKey: string) => api.post('/api/todoist/config', null, { params: { apiKey } }),
+  probar: () => api.post('/api/todoist/probar'),
+  enviar: (id: number) => api.post(`/api/todoist/tareas/${id}`),
+};
+
 export const remitenteApi = {
   list: () => api.get('/api/remitentes'),
   save: (remitente: string, categoria: string) =>

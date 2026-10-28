@@ -33,6 +33,9 @@ public class Tarea {
     @Column(name = "mensaje_id")
     private Integer mensajeId;                    // correo de origen (opcional)
 
+    @Column(name = "todoist_id", length = 64)
+    private String todoistId;                     // tarea remota (null = no enviada)
+
     public Tarea() {}
 
     public Integer getId() { return id; }
@@ -51,4 +54,6 @@ public class Tarea {
     public void setPrioridad(String prioridad) { this.prioridad = prioridad; }
     public Integer getMensajeId() { return mensajeId; }
     public void setMensajeId(Integer mensajeId) { this.mensajeId = mensajeId; }
+    public String getTodoistId() { return todoistId; }
+    public void setTodoistId(String todoistId) { this.todoistId = todoistId; }
 }

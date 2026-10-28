@@ -5,6 +5,7 @@ export interface Tarea {
   id: number; titulo: string; descripcion: string | null;
   fechaVencimiento: string | null; estado: string; prioridad: string;
   etiquetas: string | null; mensajeId: number | null;
+  todoistId?: string | null;
 }
 
 // Diálogo para crear/editar tareas (desde la página de tareas o desde un correo).

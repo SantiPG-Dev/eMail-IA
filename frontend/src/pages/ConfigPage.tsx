@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { cuentaApi, iaApi, remitenteApi } from '../api/client';
+import { cuentaApi, iaApi, remitenteApi, todoistApi } from '../api/client';
 import AccountForm from '../components/AccountForm';
 import type { AccountFormData } from '../components/AccountForm';
 import { Spinner, EmptyState } from '../components/StateViews';
 import { FORMATOS_FECHA } from '../utils/fechas';
 
 // Pantalla de configuración con secciones: General, Cuentas, IA y Temas (16 temas).
-type Section = 'general' | 'cuentas' | 'remitentes' | 'ia' | 'temas';
+type Section = 'general' | 'cuentas' | 'remitentes' | 'ia' | 'integraciones' | 'temas';
 const SECTIONS: { key: Section; label: string }[] = [
   { key: 'general', label: 'General' },
   { key: 'cuentas', label: '📬 Cuentas' },
   { key: 'remitentes', label: '🚫 Remitentes' },
   { key: 'ia', label: '🤖 IA' },
+  { key: 'integraciones', label: '🔗 Integraciones' },
   { key: 'temas', label: '🎨 Temas' },
 ];
 
@@ -65,6 +66,12 @@ export default function ConfigPage() {
   const [remitentes, setRemitentes] = useState<{ remitente: string; categoria: string }[]>([]);
   const [nuevoRemitente, setNuevoRemitente] = useState('');
   const [nuevaCategoria, setNuevaCategoria] = useState('LEGITIMO');
+
+  // Todoist (key cifrada en el backend; la UI nunca la lee)
+  const [todoistConfigurado, setTodoistConfigurado] = useState(false);
+  const [todoistKey, setTodoistKey] = useState('');
+  const [todoistStatus, setTodoistStatus] = useState('');
+  const [probandoTodoist, setProbandoTodoist] = useState(false);
 
   // Auto-ocultar el banner de status tras 4s
   useEffect(() => {
@@ -128,7 +135,36 @@ export default function ConfigPage() {
 
   useEffect(() => {
     if (section === 'remitentes') cargarRemitentes();
+    if (section === 'integraciones') {
+      todoistApi.estado()
+        .then(r => setTodoistConfigurado(!!r.data?.configurado))
+        .catch(() => setTodoistConfigurado(false));
+    }
   }, [section]);
+
+  const guardarTodoist = async () => {
+    try {
+      const r = await todoistApi.guardarKey(todoistKey.trim());
+      setTodoistConfigurado(!!r.data?.configurado);
+      setTodoistKey('');
+      setTodoistStatus(r.data?.configurado ? '✅ Key guardada' : 'Key borrada');
+    } catch (e: any) {
+      setTodoistStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo guardar'));
+    }
+  };
+
+  const probarTodoist = async () => {
+    setProbandoTodoist(true);
+    setTodoistStatus('');
+    try {
+      const r = await todoistApi.probar();
+      setTodoistStatus(`✅ Conectado — ${r.data?.tareas ?? 0} tarea(s) en la primera página`);
+    } catch (e: any) {
+      setTodoistStatus('Error: ' + (e?.response?.data?.error || e?.message || 'sin conexión'));
+    } finally {
+      setProbandoTodoist(false);
+    }
+  };
 
   const anadirRemitente = async () => {
     const email = nuevoRemitente.trim();
@@ -512,6 +548,51 @@ export default function ConfigPage() {
               <button onClick={guardarIA}
                 className="px-4 py-1.5 text-sm font-bold rounded-lg"
                 style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Guardar</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Integraciones ── */}
+        {section === 'integraciones' && (
+          <div className="space-y-4 max-w-xl">
+            <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>Integraciones</h3>
+            <div className="p-3 rounded-lg space-y-3" style={{ backgroundColor: 'var(--color-bg-card)' }}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>Todoist</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                  style={{
+                    backgroundColor: todoistConfigurado ? '#166534' : 'var(--color-bg-elevated)',
+                    color: todoistConfigurado ? 'white' : 'var(--color-text-secondary)',
+                  }}>
+                  {todoistConfigurado ? 'configurado' : 'sin configurar'}
+                </span>
+              </div>
+              <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                API key personal de Todoist (Ajustes → Integraciones → API token).
+                Se guarda cifrada en el equipo y nunca se devuelve a la interfaz.
+              </p>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
+                    API key
+                  </label>
+                  <input type="password" value={todoistKey} onChange={e => setTodoistKey(e.target.value)}
+                    placeholder={todoistConfigurado ? '•••••• (escribe otra para cambiarla)' : 'Pega tu API key'}
+                    className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
+                    style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+                </div>
+                <button onClick={guardarTodoist}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg"
+                  style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Guardar</button>
+                <button onClick={probarTodoist} disabled={probandoTodoist || !todoistConfigurado}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg disabled:opacity-40"
+                  style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>
+                  {probandoTodoist ? 'Probando...' : 'Probar'}</button>
+              </div>
+              {todoistStatus && (
+                <p className="text-xs" style={{ color: todoistStatus.startsWith('Error') ? '#ef4444' : '#22c55e' }}>
+                  {todoistStatus}</p>
+              )}
             </div>
           </div>
         )}

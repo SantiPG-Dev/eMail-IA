@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { tareaApi } from '../api/client';
+import { useState, useEffect } from 'react';
+import { tareaApi, todoistApi } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { Spinner, EmptyState, ErrorState } from '../components/StateViews';
 import TareaDialog, { Tarea } from '../components/TareaDialog';
@@ -31,6 +31,35 @@ export default function TareasPage() {
   const [titulo, setTitulo] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editando, setEditando] = useState<Tarea | null>(null);
+  const [todoistOn, setTodoistOn] = useState(false);
+  const [enviandoTodoist, setEnviandoTodoist] = useState<number | null>(null);
+  const [aviso, setAviso] = useState('');
+
+  // ¿Hay Todoist configurado? (la key se gestiona en Ajustes → Integraciones)
+  useEffect(() => {
+    todoistApi.estado()
+      .then(r => setTodoistOn(!!r.data?.configurado))
+      .catch(() => setTodoistOn(false));
+  }, []);
+
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => setAviso(''), 4000);
+    return () => clearTimeout(t);
+  }, [aviso]);
+
+  const enviarATodoist = async (t: Tarea) => {
+    setEnviandoTodoist(t.id);
+    try {
+      await todoistApi.enviar(t.id);
+      setAviso('✅ Tarea enviada a Todoist');
+      reload();
+    } catch (e: any) {
+      setAviso('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo enviar'));
+    } finally {
+      setEnviandoTodoist(null);
+    }
+  };
 
   const add = async () => {
     if (!titulo.trim()) return;
@@ -142,6 +171,11 @@ export default function TareasPage() {
             style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Añadir</button>
         </div>
 
+        {aviso && (
+          <p className="text-xs mb-3"
+            style={{ color: aviso.startsWith('Error') ? '#ef4444' : '#22c55e' }}>{aviso}</p>
+        )}
+
         {/* Etiquetas clicables (estilo Planify) */}
         {etiquetas.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-4">
@@ -187,6 +221,19 @@ export default function TareasPage() {
                     onClick={() => { setEditando(t); setDialogOpen(true); }}
                     className="text-xs px-1.5 py-0.5 rounded"
                     style={{ color: 'var(--color-text-secondary)' }}>✏️</button>
+                  {todoistOn && (
+                    t.todoistId ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-bold"
+                        style={{ backgroundColor: '#166534', color: 'white' }} title="Ya está en Todoist">
+                        ☑ Todoist</span>
+                    ) : (
+                      <button onClick={() => enviarATodoist(t)} disabled={enviandoTodoist === t.id}
+                        className="text-[10px] px-1.5 py-0.5 rounded font-bold disabled:opacity-40"
+                        style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}
+                        title="Enviar esta tarea a Todoist">
+                        {enviandoTodoist === t.id ? '…' : '→ Todoist'}</button>
+                    )
+                  )}
                   <span className="text-xs px-1.5 py-0.5 rounded font-bold"
                     style={{ backgroundColor: prio.bg, color: prio.bg === '#ffca28' ? '#111' : 'white' }}>
                     {prio.label}</span>

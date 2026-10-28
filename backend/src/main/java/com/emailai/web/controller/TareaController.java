@@ -69,6 +69,6 @@ public class TareaController {
     private TareaResponse toResponse(Tarea t) {
         return new TareaResponse(t.getId(), t.getTitulo(), t.getDescripcion(),
                 t.getFechaVencimiento(), t.getEstado(), t.getEtiquetas(), t.getPrioridad(),
-                t.getMensajeId());
+                t.getMensajeId(), t.getTodoistId());
     }
 }
