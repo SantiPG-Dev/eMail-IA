@@ -53,7 +53,8 @@ jobs:
       - name: Checksums
         run: |
           cd electron/release
-          sha256sum *.AppImage *.deb rpm/RPMS/x86_64/*.rpm > SHA256SUMS-linux.txt
+          ( sha256sum *.AppImage *.deb
+            sha256sum rpm/RPMS/x86_64/*.rpm | sed 's|rpm/RPMS/x86_64/||' ) > SHA256SUMS-linux.txt
 
       - uses: actions/upload-artifact@v4
         with:
