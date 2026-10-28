@@ -1,9 +1,5 @@
 package com.emailai.service;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,30 +41,36 @@ public class IcsService {
         if (!Files.exists(path)) {
             throw new IOException("El archivo ICS no existe: " + rutaArchivo);
         }
+        return procesarContenido(Files.readString(path));
+    }
 
+    /**
+     * Procesa el contenido de un .ics (subida por HTTP) y guarda los eventos.
+     */
+    @Transactional
+    public List<EventoICS> procesarContenido(String contenido) {
+        if (contenido == null || contenido.isBlank()) {
+            return List.of();
+        }
         List<EventoICS> eventos = new ArrayList<>();
+        StringBuilder eventoBuilder = new StringBuilder();
+        boolean enEvento = false;
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(path.toFile()))) {
-            StringBuilder eventoBuilder = new StringBuilder();
-            String linea;
-            boolean enEvento = false;
-
-            while ((linea = reader.readLine()) != null) {
-                linea = linea.trim();
-                if (linea.equals("BEGIN:VEVENT")) {
-                    enEvento = true;
-                    eventoBuilder.setLength(0);
-                    eventoBuilder.append(linea).append("\n");
-                } else if (linea.equals("END:VEVENT")) {
-                    eventoBuilder.append(linea).append("\n");
-                    EventoICS evento = parsearEvento(eventoBuilder.toString());
-                    if (evento != null) {
-                        eventos.add(evento);
-                    }
-                    enEvento = false;
-                } else if (enEvento) {
-                    eventoBuilder.append(linea).append("\n");
+        for (String linea : contenido.split("\\r?\\n")) {
+            linea = linea.trim();
+            if (linea.equals("BEGIN:VEVENT")) {
+                enEvento = true;
+                eventoBuilder.setLength(0);
+                eventoBuilder.append(linea).append("\n");
+            } else if (linea.equals("END:VEVENT")) {
+                eventoBuilder.append(linea).append("\n");
+                EventoICS evento = parsearEvento(eventoBuilder.toString());
+                if (evento != null) {
+                    eventos.add(evento);
                 }
+                enEvento = false;
+            } else if (enEvento) {
+                eventoBuilder.append(linea).append("\n");
             }
         }
 
@@ -139,38 +141,44 @@ public class IcsService {
      * Exporta eventos del calendario local a un archivo .ics.
      */
     public void exportarCalendarioAICS(String rutaArchivo) throws IOException {
-        var eventos = eventoService.listarTodos();
-        if (eventos.isEmpty()) {
-            throw new IOException("No hay eventos para exportar");
-        }
+        Files.writeString(Paths.get(rutaArchivo), generarICS());
+    }
 
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(rutaArchivo))) {
-                writer.write("BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//EmailAI//Calendario//EN\nCALSCALE:GREGORIAN\n");
-                for (var evento : eventos) {
-                    writer.write("BEGIN:VEVENT\n");
-                    writer.write("UID:" + evento.getId() + "@emailai\n");
-                    LocalDate fecha = LocalDate.parse(evento.getFecha());
-                    LocalTime hora = evento.getHora() != null ? LocalTime.parse(evento.getHora()) : null;
-                    if (evento.isTodoElDia() || hora == null) {
-                        // Todo el día (o sin hora): valor DATE, DTEND exclusivo => +1 día
-                        writer.write("DTSTART;VALUE=DATE:" + fecha.format(DATE_FORMAT) + "\n");
-                        writer.write("DTEND;VALUE=DATE:" + fecha.plusDays(1).format(DATE_FORMAT) + "\n");
-                    } else {
-                        writer.write("DTSTART:" + formatearFechaICS(fecha, hora) + "\n");
-                        LocalDate fechaFin = evento.getFechaFin() != null ? LocalDate.parse(evento.getFechaFin()) : fecha;
-                        LocalTime horaFin = evento.getHoraFin() != null ? LocalTime.parse(evento.getHoraFin())
-                                : hora.plusHours(1);
-                        writer.write("DTEND:" + formatearFechaICS(fechaFin, horaFin) + "\n");
-                    }
-                    writer.write("DTSTAMP:" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")) + "\n");
-                    writer.write("SUMMARY:" + escapeTextoICS(evento.getTitulo()) + "\n");
-                    if (evento.getDetalle() != null && !evento.getDetalle().isBlank()) {
-                        writer.write("DESCRIPTION:" + escapeTextoICS(evento.getDetalle()) + "\n");
-                    }
-                    writer.write("END:VEVENT\n");
-                }
-                writer.write("END:VCALENDAR\n");
+    /**
+     * Genera el .ics del calendario local como texto (descarga por HTTP).
+     * Sin eventos devuelve un VCALENDAR vacío válido.
+     */
+    public String generarICS() {
+        var eventos = eventoService.listarTodos();
+        StringBuilder sb = new StringBuilder();
+        sb.append("BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//EmailAI//Calendario//EN\nCALSCALE:GREGORIAN\n");
+        for (var evento : eventos) {
+            sb.append("BEGIN:VEVENT\n");
+            sb.append("UID:").append(evento.getId()).append("@emailai\n");
+            LocalDate fecha = LocalDate.parse(evento.getFecha());
+            LocalTime hora = evento.getHora() != null ? LocalTime.parse(evento.getHora()) : null;
+            if (evento.isTodoElDia() || hora == null) {
+                // Todo el día (o sin hora): valor DATE, DTEND exclusivo => +1 día
+                sb.append("DTSTART;VALUE=DATE:").append(fecha.format(DATE_FORMAT)).append("\n");
+                sb.append("DTEND;VALUE=DATE:").append(fecha.plusDays(1).format(DATE_FORMAT)).append("\n");
+            } else {
+                sb.append("DTSTART:").append(formatearFechaICS(fecha, hora)).append("\n");
+                LocalDate fechaFin = evento.getFechaFin() != null ? LocalDate.parse(evento.getFechaFin()) : fecha;
+                LocalTime horaFin = evento.getHoraFin() != null ? LocalTime.parse(evento.getHoraFin())
+                        : hora.plusHours(1);
+                sb.append("DTEND:").append(formatearFechaICS(fechaFin, horaFin)).append("\n");
             }
+            sb.append("DTSTAMP:")
+              .append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")))
+              .append("\n");
+            sb.append("SUMMARY:").append(escapeTextoICS(evento.getTitulo())).append("\n");
+            if (evento.getDetalle() != null && !evento.getDetalle().isBlank()) {
+                sb.append("DESCRIPTION:").append(escapeTextoICS(evento.getDetalle())).append("\n");
+            }
+            sb.append("END:VEVENT\n");
+        }
+        sb.append("END:VCALENDAR\n");
+        return sb.toString();
     }
 
     private String formatearFechaICS(LocalDate fecha, LocalTime hora) {

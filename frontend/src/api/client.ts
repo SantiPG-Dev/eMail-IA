@@ -55,6 +55,12 @@ export const eventoApi = {
   update: (id: number, data: any) => api.put(`/api/calendario/${id}`, data),
   delete: (id: number) => api.delete(`/api/calendario/${id}`),
   datesWithEvents: () => api.get('/api/calendario/fechas-con-eventos'),
+  importIcs: (archivo: File) => {
+    const fd = new FormData();
+    fd.append('archivo', archivo);
+    return api.post('/api/calendario/importar', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  exportIcs: () => api.get('/api/calendario/exportar', { responseType: 'blob' }),
 };
 
 export const mensajeApi = {

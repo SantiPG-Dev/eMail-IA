@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { eventoApi } from '../api/client';
 import EventoDialog, { Evento } from '../components/EventoDialog';
 import { useAsync } from '../hooks/useAsync';
@@ -90,6 +90,9 @@ export default function CalendarioPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editando, setEditando] = useState<Evento | null>(null);
+  // Importar/exportar ICS
+  const icsRef = useRef<HTMLInputElement>(null);
+  const [icsStatus, setIcsStatus] = useState('');
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -105,6 +108,41 @@ export default function CalendarioPage() {
   const fechaStr = (d: number) => `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 
   const trasGuardar = () => { reloadDia(); reloadTodos(); };
+
+  // Auto-ocultar el aviso de ICS a los 4s
+  useEffect(() => {
+    if (!icsStatus) return;
+    const t = setTimeout(() => setIcsStatus(''), 4000);
+    return () => clearTimeout(t);
+  }, [icsStatus]);
+
+  const importarIcs = async (archivo: File) => {
+    setIcsStatus('Importando...');
+    try {
+      const r = await eventoApi.importIcs(archivo);
+      const n = r.data?.importados ?? 0;
+      setIcsStatus(n > 0 ? `✅ ${n} evento(s) importados` : 'El archivo no contiene eventos');
+      trasGuardar();
+    } catch (e: any) {
+      setIcsStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo importar'));
+    }
+  };
+
+  const exportarIcs = async () => {
+    try {
+      const r = await eventoApi.exportIcs();
+      const url = URL.createObjectURL(r.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'emailai-calendario.ics';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setIcsStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo exportar'));
+    }
+  };
 
   const borrarEvento = async (id: number) => {
     if (!window.confirm('¿Borrar el evento?')) return;
@@ -198,10 +236,31 @@ export default function CalendarioPage() {
             ))}
           </div>
           <div className="flex-1" />
+          <input ref={icsRef} type="file" accept=".ics,text/calendar" className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0];
+              if (f) importarIcs(f);
+              e.target.value = '';
+            }} />
+          <button onClick={() => icsRef.current?.click()}
+            className="px-3 py-1 text-xs font-bold rounded-lg"
+            style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)' }}
+            title="Importar eventos desde un archivo .ics">⬆ Importar ICS</button>
+          <button onClick={exportarIcs}
+            className="px-3 py-1 text-xs font-bold rounded-lg"
+            style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)' }}
+            title="Descargar el calendario en .ics">⬇ Exportar ICS</button>
           <button onClick={() => { setEditando(null); setDialogOpen(true); }}
             className="px-3 py-1 text-xs font-bold rounded-pill"
             style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>+ Nuevo evento</button>
         </div>
+
+        {icsStatus && (
+          <p className="text-xs mb-2"
+            style={{ color: icsStatus.startsWith('Error') ? '#ef4444' : 'var(--color-accent)' }}>
+            {icsStatus}
+          </p>
+        )}
 
         {vista === 'agenda' ? (
           loadingTodos ? (
