@@ -57,8 +57,9 @@ el paquete **no** borra los datos del usuario.
 - **Sin puertos fijos**: el backend escucha en un puerto efímero (127.0.0.1)
   elegido por el SO; Electron lo descubre por el ready file y expone la app
   al renderer vía protocolo interno `app://local/`.
-- **JRE jlink** (`electron/build-jre.sh`): java.se + crypto.ec + charsets +
-  localedata + zipfs + unsupported (~69 MB). Se regenera en cada build de
-  distinto SO/arquitectura — por eso cada plataforma se construye en su runner.
+- **JRE jlink** (`electron/build-jre.sh`): java.se + crypto.ec + cryptoki +
+  charsets + localedata + zipfs + unsupported (~74 MB). Se regenera en cada
+  build de distinto SO/arquitectura — por eso cada plataforma se construye en
+  su runner.
 - **RPM**: spec propio (`linux/deb-rpm/emailai-electron.spec`) porque el fpm
   1.9.3 que trae electron-builder se rompe con rpmbuild moderno.
