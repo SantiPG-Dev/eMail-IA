@@ -2,14 +2,14 @@
 
 **Cliente de correo de escritorio con IA que cuida tu privacidad.**
 
-> App de escritorio (no web) — filtro spam que aprende de ti, asistente IA, calendario y tareas. Todo local y cifrado.
+> App de escritorio (no web) — filtro spam que aprende de ti, asistente IA, calendario, tareas y envío a Todoist. Todo local y cifrado.
 > **Estado:** **Release 1.3.2** con instaladores multiplataforma: Linux (AppImage/deb/rpm/fuente), Windows (NSIS) y macOS (DMG arm64), estos dos últimos vía GitHub Actions. Desarrollo en rama `development`.
 
 ---
 
 ## 🏗️ Arquitectura del monorepo
 
-eMail-IA está migrando de JavaFX a **Spring Boot + React + Electron**. El repositorio es un monorepo con tres paquetes:
+eMail-IA nació como migración de JavaFX a **Spring Boot + React + Electron** y ya está completa. El repositorio es un monorepo con tres paquetes:
 
 ```
 eMail-IA/
@@ -30,9 +30,9 @@ eMail-IA/
 | Datos | H2 embebida cifrada + Spring Data JPA + Flyway |
 | Correo | Jakarta Mail (IMAP/SMTP/XOAUTH2) |
 | Spam IA | Weka (Naive Bayes, 100% local) |
-| Asistente IA | LangChain4j → LM Studio / OpenAI |
+| Asistente IA | LM Studio u OpenAI (API OpenAI-compatible vía `RestClient`) |
 | OAuth2 | Google + Microsoft (loopback RFC 8252) |
-| Seguridad | AES-256-GCM, PBKDF2 600k, BCrypt |
+| Seguridad | AES-GCM en credenciales, H2 con `CIPHER=AES`, JWT HMAC-SHA256, CSP |
 
 ### Decisiones de diseño
 
@@ -42,7 +42,7 @@ eMail-IA/
   carga `app://local/` (protocolo interno de Electron) y el proceso main hace de
   proxy. Cero conflictos de puertos y API inaccesible desde la LAN.
 - **Instaladores autosuficientes**: cada artefacto embebe un JRE 21 (jlink,
-  ~69 MB) — el usuario no instala Java.
+  ~74 MB) — el usuario no instala Java.
 - **Weka en Java**: el filtro spam es Java-only; el backend se mantiene en Spring Boot/Java.
 - **Mismo look & feel**: la UI React replica exactamente el JavaFX original (paleta slate+cyan, 16 temas).
 
@@ -76,6 +76,10 @@ cd electron && npm run dev             # detecta Vite y abre la ventana
 
 # Desktop (Electron) sin Vite: lanza el jar con puerto efímero + app://
 cd electron && npm run dev
+
+# Tests (backend 126, frontend 80)
+cd backend && mvn test
+cd frontend && pnpm test
 ```
 
 ---
@@ -121,17 +125,19 @@ Artefactos en `electron/release/`:
 | Artefacto | Uso |
 |---|---|
 | `emailai-electron-1.3.2-x86_64.AppImage` | **Recomendado** — `chmod +x` y ejecutar. Universal, sin instalar. |
-| `emailai-electron-1.3.2-amd64.deb` (~191 MB) | Debian/Ubuntu: `sudo apt install ./…deb` |
+| `emailai-electron-1.3.2-amd64.deb` (~194 MB) | Debian/Ubuntu: `sudo apt install ./…deb` |
 | `rpm/RPMS/x86_64/*.rpm` | Fedora/RHEL: `sudo dnf install …rpm` |
 
-El backend JAR (`emailai-backend-1.3.2.jar`) y el JRE jlink (~69 MB) se embeben
+El backend JAR (`emailai-backend-1.3.2.jar`) y el JRE jlink (~74 MB) se embeben
 en `resources/` dentro de cada artefacto.
 
 ---
 
 ## 📚 Más información
 
-- [Plan de migración completo](planes/emailia-migracion-electron.md) (vault Obsidian)
+- [Características y consumo de recursos](Caracteristicas.md) (disco, memoria, temas)
+- [Instaladores por plataforma](lanzadores/README.md)
+- Plan de migración completo (vault Obsidian `Memorias/Proyectos`)
 - Proyecto original en JavaFX (PFC): repositorio separado `PFC - eMail-IA`
 
 ---
