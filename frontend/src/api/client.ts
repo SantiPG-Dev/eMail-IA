@@ -70,6 +70,8 @@ export const mensajeApi = {
     api.get('/api/mensajes/buscar', { params: { cuentaHash, carpeta, q } }),
   get: (id: number) => api.get(`/api/mensajes/${id}`),
   delete: (id: number) => api.delete(`/api/mensajes/${id}`),
+  // Borra en el servidor (IMAP papelera) y en local; 409 si no hay credenciales.
+  deleteServer: (id: number) => api.delete(`/api/mensajes/${id}/servidor`),
   classify: (id: number, categoria?: string) =>
     api.post(`/api/mensajes/${id}/clasificar${categoria ? `?categoria=${categoria}` : ''}`),
   descargarAdjunto: (id: number, adjuntoId: number) =>

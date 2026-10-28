@@ -29,6 +29,8 @@ interface Mensaje {
 	prioridad: string;
 	fechaRecepcion: string;
 	destinatarios?: string;
+	cc?: string;
+	cco?: string;
 	adjuntos?: Adjunto[];
 }
 
@@ -121,10 +123,33 @@ export default function CorreoPage() {
 	const [cuentaEmail, setCuentaEmail] = useState("");
 	const [composeOpen, setComposeOpen] = useState(false);
 	const [composeMode, setComposeMode] = useState<
-		"nuevo" | "responder" | "reenviar"
+		"nuevo" | "responder" | "responderTodos" | "reenviar"
 	>("nuevo");
 	const [composeTo, setComposeTo] = useState("");
+	const [composeCc, setComposeCc] = useState("");
 	const [feedback, setFeedback] = useState("");
+	const [iaTexto, setIaTexto] = useState("");
+	const [iaCargando, setIaCargando] = useState<"" | "resumen" | "sugerir">("");
+
+	// Resumen / respuesta sugerida por IA del mensaje abierto
+	const pedirIa = async (tipo: "resumen" | "sugerir") => {
+		if (!selected) return;
+		setIaCargando(tipo);
+		setIaTexto("");
+		try {
+			const res =
+				tipo === "resumen"
+					? await mensajeApi.summarize(selected.id)
+					: await mensajeApi.suggest(selected.id);
+			setIaTexto(String(res.data || ""));
+		} catch (e: any) {
+			setIaTexto(
+				"Error: " + (e?.response?.data?.error || e?.message || "sin respuesta"),
+			);
+		} finally {
+			setIaCargando("");
+		}
+	};
 
 	// Conservar la posición de la lista al reclasificar/sincronizar: se ancla el
 	// primer mensaje visible y se restaura tras el reload. Si el usuario está al
@@ -315,25 +340,61 @@ export default function CorreoPage() {
 
 	const eliminarMensaje = async () => {
 		if (!selected) return;
-		if (!window.confirm("¿Borrar el mensaje seleccionado?")) return;
+		if (
+			!window.confirm(
+				"¿Borrar el mensaje seleccionado? Se intentara tambien en el servidor.",
+			)
+		)
+			return;
+		const id = selected.id;
+		let enServidor = false;
 		try {
-			await mensajeApi.delete(selected.id);
-			setMensajes((prev) => prev.filter((m) => m.id !== selected.id));
-			setSelected(null);
-		} catch (e: any) {
-			setErrorMensajes(
-				e?.response?.data?.error || e?.message || "No se pudo borrar el mensaje",
-			);
+			await mensajeApi.deleteServer(id);
+			enServidor = true;
+		} catch {
+			// Sin credenciales IMAP o sin red: el backend local sigue disponible.
+			try {
+				await mensajeApi.delete(id);
+			} catch (e: any) {
+				setErrorMensajes(
+					e?.response?.data?.error || e?.message || "No se pudo borrar el mensaje",
+				);
+				return;
+			}
 		}
+		setMensajes((prev) => prev.filter((m) => m.id !== id));
+		setSelected(null);
+		setFeedback(
+			enServidor
+				? "Borrado del servidor"
+				: "Borrado solo en local (sin conexion IMAP)",
+		);
+		setTimeout(() => setFeedback(""), 4000);
 	};
 
-	const abrirCompose = (mode: "nuevo" | "responder" | "reenviar") => {
-		if (mode === "responder" && selected) {
+	const abrirCompose = (
+		mode: "nuevo" | "responder" | "responderTodos" | "reenviar",
+	) => {
+		if ((mode === "responder" || mode === "responderTodos") && selected) {
 			setComposeTo(selected.remitente || "");
-		} else if (mode === "reenviar" && selected) {
-			setComposeTo("");
+			if (mode === "responderTodos") {
+				// Todos menos el remitente y la cuenta propia (se responde una vez a cada uno)
+				const ya = new Set(
+					[selected.remitente, cuentaEmail]
+						.filter(Boolean)
+						.map((e) => String(e).toLowerCase()),
+				);
+				const cc = `${selected.destinatarios || ""},${selected.cc || ""}`
+					.split(",")
+					.map((e) => e.trim())
+					.filter((e) => e && e.includes("@") && !ya.has(e.toLowerCase()));
+				setComposeCc(Array.from(new Set(cc)).join(", "));
+			} else {
+				setComposeCc("");
+			}
 		} else {
 			setComposeTo("");
+			setComposeCc("");
 		}
 		setComposeMode(mode);
 		setComposeOpen(true);
@@ -368,13 +429,15 @@ export default function CorreoPage() {
 			<ComposePage
 				mode={composeMode}
 				to={composeTo}
+				cc={composeCc}
 				cuenta={cuentaEmail}
 				subject={
-					composeMode === "responder"
-						? selected
-							? "Re: " + selected.asunto
+					(composeMode === "responder" || composeMode === "responderTodos") &&
+					selected
+						? "Re: " + selected.asunto
+						: composeMode === "reenviar" && selected
+							? "Fwd: " + selected.asunto
 							: ""
-						: ""
 				}
 				body={
 					composeMode === "reenviar" && selected
@@ -518,7 +581,10 @@ export default function CorreoPage() {
 							<div
 								key={m.id}
 								data-mid={m.id}
-								onClick={() => setSelected(m)}
+								onClick={() => {
+									setSelected(m);
+									setIaTexto("");
+								}}
 								onContextMenu={(e) => {
 									e.preventDefault();
 									setMenu({ x: e.clientX, y: e.clientY, mensaje: m });
@@ -609,7 +675,7 @@ export default function CorreoPage() {
 									Responder
 								</button>
 								<button
-									onClick={() => abrirCompose("responder")}
+									onClick={() => abrirCompose("responderTodos")}
 									className="px-3 py-1 text-xs rounded-pill"
 									style={{
 										backgroundColor: "var(--color-bg-elevated)",
@@ -693,7 +759,7 @@ export default function CorreoPage() {
 							style={{ backgroundColor: "var(--color-bg-card)" }}
 						>
 							{/* Botones IA a la izquierda */}
-							<div className="flex-1">
+							<div className="flex-1 min-w-0">
 								<p
 									className="text-[10px] mb-1"
 									style={{ color: "var(--color-text-secondary)" }}
@@ -701,19 +767,46 @@ export default function CorreoPage() {
 									Respuestas IA
 								</p>
 								<div className="flex gap-1.5">
-									{["Responder", "Agradecer", "+Info"].map((s) => (
+									{(
+										[
+											["resumen", "Resumir"],
+											["sugerir", "Sugerir respuesta"],
+										] as const
+									).map(([tipo, label]) => (
 										<button
-											key={s}
-											className="text-[10px] px-2.5 py-1 rounded-pill font-bold"
+											key={tipo}
+											onClick={() => pedirIa(tipo)}
+											disabled={!!iaCargando}
+											className="text-[10px] px-2.5 py-1 rounded-pill font-bold disabled:opacity-50"
 											style={{
 												backgroundColor: "var(--color-accent)",
 												color: "#0F172A",
 											}}
 										>
-											{s}
+											{iaCargando === tipo ? "..." : label}
 										</button>
 									))}
 								</div>
+								{iaTexto && (
+									<div className="mt-1.5">
+										<pre
+											className="text-[11px] whitespace-pre-wrap font-sans max-h-32 overflow-auto rounded-lg p-2"
+											style={{
+												backgroundColor: "var(--color-bg-elevated)",
+												color: "var(--color-text)",
+											}}
+										>
+											{iaTexto}
+										</pre>
+										<button
+											onClick={() => setIaTexto("")}
+											className="text-[10px] mt-1"
+											style={{ color: "var(--color-text-secondary)" }}
+										>
+											Ocultar
+										</button>
+									</div>
+								)}
 							</div>
 							{/* SPAM/Legít a la derecha, apilados verticalmente */}
 							<div className="flex flex-col gap-1 shrink-0">

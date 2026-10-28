@@ -28,13 +28,24 @@ const PROVIDERS_LOOKUP: Record<string, { imap: { host: string; port: number }; p
   other: { imap: { host: '', port: 993 }, pop3: { host: '', port: 995 } },
 };
 
-// Opciones de resalte (accent)
+// Opciones de resalte (accent): los 16 temas de ThemeContext
 const RESALTE_OPCIONES = [
   { key: 'emailIA', label: 'email-IA', color: '#22D3EE' },
   { key: 'deep-navy-lime', label: 'Lime', color: '#84CC16' },
   { key: 'arctic-blue', label: 'Azul', color: '#60A5FA' },
   { key: 'ruby-ink', label: 'Rubí', color: '#F87171' },
   { key: 'violet-smoke', label: 'Violeta', color: '#A78BFA' },
+  { key: 'amber-slate', label: 'Ámbar', color: '#F59E0B' },
+  { key: 'emerald-paper', label: 'Esmeralda', color: '#34D399' },
+  { key: 'forest-stone', label: 'Piedra', color: '#A8A29E' },
+  { key: 'graphite-mint', label: 'Menta', color: '#5EEAD4' },
+  { key: 'indigo-mist', label: 'Índigo', color: '#818CF8' },
+  { key: 'midnight-rose', label: 'Rosa', color: '#FB7185' },
+  { key: 'neutral-cyan', label: 'Cian', color: '#22D3EE' },
+  { key: 'ocean-teal', label: 'Océano', color: '#14B8A6' },
+  { key: 'sand-coral', label: 'Coral', color: '#FDA4AF' },
+  { key: 'slate-gold', label: 'Oro', color: '#EAB308' },
+  { key: 'warm-beige-teal', label: 'Beige', color: '#2DD4BF' },
 ];
 
 // Opciones de fondo

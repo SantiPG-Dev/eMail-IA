@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { enviarApi } from '../api/client';
 
 interface Props {
-  mode: 'nuevo' | 'responder' | 'reenviar';
+  mode: 'nuevo' | 'responder' | 'responderTodos' | 'reenviar';
   to?: string;
   cc?: string;
   subject?: string;
@@ -48,9 +48,19 @@ export default function ComposePage({ mode, to, cc: ccInicial, subject, body, cu
     <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--color-bg)' }}>
       <div className="flex items-center justify-between px-4 py-2 border-b"
         style={{ borderColor: 'var(--color-border)' }}>
-        <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
-          {mode === 'nuevo' ? 'Nuevo mensaje' : mode === 'responder' ? 'Responder' : 'Reenviar'}
-        </h3>
+        <div>
+          <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
+            {mode === 'nuevo' ? 'Nuevo mensaje'
+              : mode === 'responder' ? 'Responder'
+              : mode === 'responderTodos' ? 'Responder a todos'
+              : 'Reenviar'}
+          </h3>
+          {cuenta && (
+            <p className="text-[10px]" style={{ color: 'var(--color-text-secondary)' }}>
+              Desde: {cuenta}
+            </p>
+          )}
+        </div>
         <button onClick={onClose}
           className="text-xs px-2 py-1 rounded-lg"
           style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)' }}>
