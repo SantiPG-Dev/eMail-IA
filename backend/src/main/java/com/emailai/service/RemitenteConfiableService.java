@@ -29,8 +29,13 @@ public class RemitenteConfiableService {
     }
 
     @Transactional(readOnly = true)
+    public List<RemitenteConfiable> listarRegistros() {
+        return repo.findAll();
+    }
+
+    @Transactional(readOnly = true)
     public boolean esConfiable(String remitente) {
-        return repo.findByRemitente(remitente)
+        return repo.findByRemitenteIgnoreCase(remitente)
                 .map(r -> "LEGITIMO".equals(r.getCategoria()))
                 .orElse(false);
     }
@@ -38,7 +43,7 @@ public class RemitenteConfiableService {
     /** Categoría manual del remitente (vacio si no está clasificado). */
     @Transactional(readOnly = true)
     public java.util.Optional<String> categoriaDe(String remitente) {
-        return repo.findByRemitente(remitente).map(RemitenteConfiable::getCategoria);
+        return repo.findByRemitenteIgnoreCase(remitente).map(RemitenteConfiable::getCategoria);
     }
 
     public void agregar(String remitente) {
@@ -47,8 +52,9 @@ public class RemitenteConfiableService {
 
     /** Upsert: si el remitente ya existía, actualiza su categoría. */
     public void agregar(String remitente, String categoria) {
-        RemitenteConfiable r = repo.findByRemitente(remitente).orElseGet(() -> {
-            RemitenteConfiable nuevo = new RemitenteConfiable(remitente);
+        String limpio = remitente.trim();
+        RemitenteConfiable r = repo.findByRemitenteIgnoreCase(limpio).orElseGet(() -> {
+            RemitenteConfiable nuevo = new RemitenteConfiable(limpio);
             return repo.save(nuevo);
         });
         r.setCategoria(categoria);
@@ -56,6 +62,6 @@ public class RemitenteConfiableService {
     }
 
     public void eliminar(String remitente) {
-        repo.findByRemitente(remitente).ifPresent(repo::delete);
+        repo.findByRemitenteIgnoreCase(remitente).ifPresent(repo::delete);
     }
 }

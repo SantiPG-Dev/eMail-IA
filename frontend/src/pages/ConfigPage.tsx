@@ -1,28 +1,43 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { cuentaApi, iaApi } from '../api/client';
+import { cuentaApi, iaApi, remitenteApi, todoistApi } from '../api/client';
 import AccountSetupModal from '../components/AccountSetupModal';
+import AccountForm from '../components/AccountForm';
+import type { AccountFormData } from '../components/AccountForm';
 import { Spinner, EmptyState } from '../components/StateViews';
 import { FORMATOS_FECHA } from '../utils/fechas';
 import { mensajeDeError } from '../utils/error';
 
 // Pantalla de configuración con secciones: General, Cuentas, IA y Temas (16 temas).
-type Section = 'general' | 'cuentas' | 'ia' | 'temas';
+type Section = 'general' | 'cuentas' | 'remitentes' | 'ia' | 'integraciones' | 'temas';
 const SECTIONS: { key: Section; label: string }[] = [
   { key: 'general', label: 'General' },
   { key: 'cuentas', label: '📬 Cuentas' },
+  { key: 'remitentes', label: '🚫 Remitentes' },
   { key: 'ia', label: '🤖 IA' },
+  { key: 'integraciones', label: '🔗 Integraciones' },
   { key: 'temas', label: '🎨 Temas' },
 ];
 
 
-// Opciones de resalte (accent)
+// Opciones de resalte (accent): los 16 temas de ThemeContext
 const RESALTE_OPCIONES = [
   { key: 'emailIA', label: 'email-IA', color: '#22D3EE' },
   { key: 'deep-navy-lime', label: 'Lime', color: '#84CC16' },
   { key: 'arctic-blue', label: 'Azul', color: '#60A5FA' },
   { key: 'ruby-ink', label: 'Rubí', color: '#F87171' },
   { key: 'violet-smoke', label: 'Violeta', color: '#A78BFA' },
+  { key: 'amber-slate', label: 'Ámbar', color: '#F59E0B' },
+  { key: 'emerald-paper', label: 'Esmeralda', color: '#34D399' },
+  { key: 'forest-stone', label: 'Piedra', color: '#A8A29E' },
+  { key: 'graphite-mint', label: 'Menta', color: '#5EEAD4' },
+  { key: 'indigo-mist', label: 'Índigo', color: '#818CF8' },
+  { key: 'midnight-rose', label: 'Rosa', color: '#FB7185' },
+  { key: 'neutral-cyan', label: 'Cian', color: '#22D3EE' },
+  { key: 'ocean-teal', label: 'Océano', color: '#14B8A6' },
+  { key: 'sand-coral', label: 'Coral', color: '#FDA4AF' },
+  { key: 'slate-gold', label: 'Oro', color: '#EAB308' },
+  { key: 'warm-beige-teal', label: 'Beige', color: '#2DD4BF' },
 ];
 
 // Opciones de fondo
@@ -40,7 +55,11 @@ const FUENTES_FALLBACK = [
   'Ubuntu', 'Cantarell', 'Fira Sans', 'Source Sans Pro',
 ];
 
-interface CuentaConfig { id: number; nombre: string; email: string; servidor: string }
+interface CuentaConfig {
+  id: number; nombre: string; email: string; servidor: string;
+  puerto?: number; esDefault?: boolean; tipoConexion?: string;
+  oauthProvider?: string | null;
+}
 
 export default function ConfigPage() {
   const { theme, setTheme, mode, toggleMode } = useTheme();
@@ -51,6 +70,18 @@ export default function ConfigPage() {
   const [loadingCuentas, setLoadingCuentas] = useState(true);
   const [errorCuentas, setErrorCuentas] = useState('');
   const [status, setStatus] = useState('');
+  const [cuentaEditando, setCuentaEditando] = useState<any | null>(null);
+
+  // Lista de remitentes clasificados a mano
+  const [remitentes, setRemitentes] = useState<{ remitente: string; categoria: string }[]>([]);
+  const [nuevoRemitente, setNuevoRemitente] = useState('');
+  const [nuevaCategoria, setNuevaCategoria] = useState('LEGITIMO');
+
+  // Todoist (key cifrada en el backend; la UI nunca la lee)
+  const [todoistConfigurado, setTodoistConfigurado] = useState(false);
+  const [todoistKey, setTodoistKey] = useState('');
+  const [todoistStatus, setTodoistStatus] = useState('');
+  const [probandoTodoist, setProbandoTodoist] = useState(false);
 
   // Auto-ocultar el banner de status tras 4s
   useEffect(() => {
@@ -107,6 +138,70 @@ export default function ConfigPage() {
 
   useEffect(() => { cargarCuentas(); }, []);
 
+  const cargarRemitentes = async () => {
+    try { const r = await remitenteApi.list(); setRemitentes(r.data || []); }
+    catch { setRemitentes([]); }
+  };
+
+  useEffect(() => {
+    if (section === 'remitentes') cargarRemitentes();
+    if (section === 'integraciones') {
+      todoistApi.estado()
+        .then(r => setTodoistConfigurado(!!r.data?.configurado))
+        .catch(() => setTodoistConfigurado(false));
+    }
+  }, [section]);
+
+  const guardarTodoist = async () => {
+    try {
+      const r = await todoistApi.guardarKey(todoistKey.trim());
+      setTodoistConfigurado(!!r.data?.configurado);
+      setTodoistKey('');
+      setTodoistStatus(r.data?.configurado ? '✅ Key guardada' : 'Key borrada');
+    } catch (e: any) {
+      setTodoistStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo guardar'));
+    }
+  };
+
+  const probarTodoist = async () => {
+    setProbandoTodoist(true);
+    setTodoistStatus('');
+    try {
+      const r = await todoistApi.probar();
+      setTodoistStatus(`✅ Conectado — ${r.data?.tareas ?? 0} tarea(s) en la primera página`);
+    } catch (e: any) {
+      setTodoistStatus('Error: ' + (e?.response?.data?.error || e?.message || 'sin conexión'));
+    } finally {
+      setProbandoTodoist(false);
+    }
+  };
+
+  const anadirRemitente = async () => {
+    const email = nuevoRemitente.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setStatus('Error: escribe un email válido');
+      return;
+    }
+    try {
+      await remitenteApi.save(email, nuevaCategoria);
+      setNuevoRemitente('');
+      setStatus('✅ Remitente guardado');
+      cargarRemitentes();
+    } catch (e: any) {
+      setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo guardar'));
+    }
+  };
+
+  const borrarRemitente = async (remitente: string) => {
+    try {
+      await remitenteApi.remove(remitente);
+      setStatus('✅ Remitente eliminado');
+      cargarRemitentes();
+    } catch (e: any) {
+      setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo eliminar'));
+    }
+  };
+
   useEffect(() => {
     iaApi.config()
       .then(r => { setIaBaseUrl(r.data.baseUrl); setIaModel(r.data.model); setIaPrompt(r.data.prompt); })
@@ -150,6 +245,36 @@ export default function ConfigPage() {
     } finally { setLoadingCuentas(false); }
   };
 
+
+  const actualizarCuenta = async (data: AccountFormData) => {
+    const c = cuentaEditando;
+    if (!c) return;
+    await cuentaApi.update(c.id, {
+      nombre: data.nombre, email: c.email, servidor: c.servidor, puerto: c.puerto,
+      usuario: c.email, password: data.password ?? undefined, tipoConexion: data.tipoConexion,
+      esDefault: c.esDefault, oauthProvider: c.oauthProvider,
+      oauthAccessToken: null, oauthRefreshToken: null, oauthExpiresAt: null,
+    });
+    setCuentaEditando(null);
+    setStatus('✅ Cuenta actualizada');
+    cargarCuentas();
+  };
+
+  // Marca la cuenta como predeterminada (la que envía correo si no se elige otra)
+  const marcarDefault = async (c: any) => {
+    try {
+      await cuentaApi.update(c.id, {
+        nombre: c.nombre, email: c.email, servidor: c.servidor, puerto: c.puerto,
+        usuario: c.email, tipoConexion: c.tipoConexion,
+        esDefault: true, oauthProvider: c.oauthProvider,
+        oauthAccessToken: null, oauthRefreshToken: null, oauthExpiresAt: null,
+      });
+      setStatus('✅ Cuenta predeterminada actualizada');
+      cargarCuentas();
+    } catch (e: any) {
+      setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo actualizar'));
+    }
+  };
 
   const eliminarCuenta = async (id: number) => {
     if (!window.confirm('¿Eliminar la cuenta? Se borrarán sus correos sincronizados.')) return;
@@ -212,7 +337,7 @@ export default function ConfigPage() {
             <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>General</h3>
             <div className="p-3 rounded-lg border-l-4"
               style={{ backgroundColor: 'var(--color-bg-card)', borderColor: 'var(--color-accent-selected)' }}>
-              <p className="text-sm" style={{ color: 'var(--color-text)' }}>eMail-IA v1.0 · Cliente de correo con IA local</p>
+              <p className="text-sm" style={{ color: 'var(--color-text)' }}>eMail-IA v{__APP_VERSION__} · Cliente de correo con IA local</p>
             </div>
             <div className="p-3 rounded-lg border-l-4"
               style={{ backgroundColor: 'var(--color-bg-card)', borderColor: 'var(--color-accent-selected)' }}>
@@ -250,14 +375,31 @@ export default function ConfigPage() {
                   {cuentas.map(c => (
                     <div key={c.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg text-sm"
                       style={{ backgroundColor: 'var(--color-bg)' }}>
-                      <div>
+                      <div className="min-w-0">
                         <span style={{ color: 'var(--color-text)' }}>{c.nombre}</span>
+                        {c.esDefault && (
+                          <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                            style={{ backgroundColor: 'var(--color-accent-selected)', color: '#0F172A' }}>
+                            predeterminada
+                          </span>
+                        )}
                         <span className="ml-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                           {c.email} · {c.servidor}</span>
                       </div>
-                      <button onClick={() => eliminarCuenta(c.id)}
-                        className="text-xs px-2 py-0.5 rounded"
-                        style={{ backgroundColor: '#ef4444', color: 'white' }}>Eliminar</button>
+                      <div className="flex gap-1.5 shrink-0">
+                        {!c.esDefault && (
+                          <button onClick={() => marcarDefault(c)}
+                            className="text-xs px-2 py-0.5 rounded"
+                            style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>
+                            Predeterminada</button>
+                        )}
+                        <button onClick={() => setCuentaEditando(c)}
+                          className="text-xs px-2 py-0.5 rounded"
+                          style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Editar</button>
+                        <button onClick={() => eliminarCuenta(c.id)}
+                          className="text-xs px-2 py-0.5 rounded"
+                          style={{ backgroundColor: '#ef4444', color: 'white' }}>Eliminar</button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -275,6 +417,91 @@ export default function ConfigPage() {
                 style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>
                 + Añadir cuenta
               </button>
+            </div>
+
+            {/* Modal de edición */}
+            {cuentaEditando && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+                onClick={() => setCuentaEditando(null)}>
+                <div className="w-full max-w-md max-h-[85vh] overflow-auto rounded-2xl p-5 shadow-2xl"
+                  style={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+                  onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
+                      Editar {cuentaEditando.nombre}
+                    </h3>
+                    <button onClick={() => setCuentaEditando(null)}
+                      className="text-xs px-2 py-1 rounded-lg"
+                      style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)' }}>✕</button>
+                  </div>
+                  <AccountForm
+                    initial={{
+                      nombre: cuentaEditando.nombre,
+                      email: cuentaEditando.email,
+                      tipoConexion: cuentaEditando.tipoConexion === 'POP3' ? 'POP3' : 'IMAP',
+                    }}
+                    onSave={actualizarCuenta}
+                    onCancel={() => setCuentaEditando(null)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Remitentes ── */}
+        {section === 'remitentes' && (
+          <div className="space-y-4 max-w-2xl">
+            <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>Remitentes clasificados a mano</h3>
+            <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+              Esta lista manda sobre el filtro Weka: un remitente LEGITIMO nunca cae en spam.
+              Se aplica al clasificar correos nuevos; los ya clasificados se cambian desde el correo.
+            </p>
+            <div className="p-3 rounded-lg space-y-2" style={{ backgroundColor: 'var(--color-bg-card)' }}>
+              {remitentes.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  Sin remitentes. Añade uno abajo o marca un correo como SPAM/Legítimo.</p>
+              ) : remitentes.map(r => (
+                <div key={r.remitente} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-sm"
+                  style={{ backgroundColor: 'var(--color-bg)' }}>
+                  <span className="truncate" style={{ color: 'var(--color-text)' }}>{r.remitente}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] px-2 py-0.5 rounded font-bold"
+                      style={{
+                        backgroundColor: r.categoria === 'LEGITIMO' ? '#166534'
+                          : r.categoria === 'PHISHING' ? '#7f1d1d' : '#dc2626',
+                        color: 'white',
+                      }}>{r.categoria}</span>
+                    <button onClick={() => borrarRemitente(r.remitente)}
+                      className="text-xs px-2 py-0.5 rounded"
+                      style={{ backgroundColor: '#ef4444', color: 'white' }}>Quitar</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Email del remitente</label>
+                <input value={nuevoRemitente} onChange={e => setNuevoRemitente(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && anadirRemitente()}
+                  placeholder="spam@dominio.com"
+                  className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
+                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+              </div>
+              <div>
+                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Categoría</label>
+                <select value={nuevaCategoria} onChange={e => setNuevaCategoria(e.target.value)}
+                  className="px-2 py-1.5 text-sm rounded-lg border outline-none cursor-pointer"
+                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }}>
+                  <option value="LEGITIMO">LEGITIMO</option>
+                  <option value="SPAM">SPAM</option>
+                  <option value="PHISHING">PHISHING</option>
+                </select>
+              </div>
+              <button onClick={anadirRemitente}
+                className="px-4 py-1.5 text-sm font-bold rounded-lg"
+                style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Añadir</button>
             </div>
           </div>
         )}
@@ -321,6 +548,51 @@ export default function ConfigPage() {
               <button onClick={guardarIA}
                 className="px-4 py-1.5 text-sm font-bold rounded-lg"
                 style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Guardar</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Integraciones ── */}
+        {section === 'integraciones' && (
+          <div className="space-y-4 max-w-xl">
+            <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>Integraciones</h3>
+            <div className="p-3 rounded-lg space-y-3" style={{ backgroundColor: 'var(--color-bg-card)' }}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>Todoist</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                  style={{
+                    backgroundColor: todoistConfigurado ? '#166534' : 'var(--color-bg-elevated)',
+                    color: todoistConfigurado ? 'white' : 'var(--color-text-secondary)',
+                  }}>
+                  {todoistConfigurado ? 'configurado' : 'sin configurar'}
+                </span>
+              </div>
+              <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                API key personal de Todoist (Ajustes → Integraciones → API token).
+                Se guarda cifrada en el equipo y nunca se devuelve a la interfaz.
+              </p>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>
+                    API key
+                  </label>
+                  <input type="password" value={todoistKey} onChange={e => setTodoistKey(e.target.value)}
+                    placeholder={todoistConfigurado ? '•••••• (escribe otra para cambiarla)' : 'Pega tu API key'}
+                    className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
+                    style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+                </div>
+                <button onClick={guardarTodoist}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg"
+                  style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Guardar</button>
+                <button onClick={probarTodoist} disabled={probandoTodoist || !todoistConfigurado}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg disabled:opacity-40"
+                  style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text)' }}>
+                  {probandoTodoist ? 'Probando...' : 'Probar'}</button>
+              </div>
+              {todoistStatus && (
+                <p className="text-xs" style={{ color: todoistStatus.startsWith('Error') ? '#ef4444' : '#22c55e' }}>
+                  {todoistStatus}</p>
+              )}
             </div>
           </div>
         )}

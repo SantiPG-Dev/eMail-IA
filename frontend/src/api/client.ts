@@ -51,12 +51,8 @@ export interface CuentaPayload {
 }
 
 // Módulos de API específicos por recurso
-export const authApi = {
-  status: () => api.get('/api/auth/status'),
-  setup: (password: string) => api.post('/api/auth/setup', { masterPassword: password }),
-  login: (password: string) => api.post('/api/auth/login', { masterPassword: password }),
-};
-
+// Login/status/logout los maneja AuthContext: no hay contraseña maestra
+// separada, así que no existe /api/auth/setup.
 export const tareaApi = {
   list: () => api.get('/api/tareas'),
   get: (id: number) => api.get(`/api/tareas/${id}`),
@@ -80,6 +76,12 @@ export const eventoApi = {
   update: (id: number, data: EventoPayload) => api.put(`/api/calendario/${id}`, data),
   delete: (id: number) => api.delete(`/api/calendario/${id}`),
   datesWithEvents: () => api.get('/api/calendario/fechas-con-eventos'),
+  importIcs: (archivo: File) => {
+    const fd = new FormData();
+    fd.append('archivo', archivo);
+    return api.post('/api/calendario/importar', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  exportIcs: () => api.get('/api/calendario/exportar', { responseType: 'blob' }),
 };
 
 export const mensajeApi = {
@@ -105,6 +107,7 @@ export const cuentaApi = {
   list: () => api.get('/api/cuentas'),
   get: (id: number) => api.get(`/api/cuentas/${id}`),
   create: (data: CuentaPayload) => api.post('/api/cuentas', data),
+  update: (id: number, data: CuentaPayload) => api.put(`/api/cuentas/${id}`, data),
   delete: (id: number) => api.delete(`/api/cuentas/${id}`),
   sync: (id: number) => api.post(`/api/cuentas/${id}/sync`),
   carpetas: (id: number) => api.get(`/api/cuentas/${id}/carpetas`),
@@ -131,7 +134,7 @@ export const configApi = {
 };
 
 export const enviarApi = {
-  send: (data: { para: string; cc?: string; asunto: string; cuerpo: string }) =>
+  send: (data: { para: string; cc?: string; asunto: string; cuerpo: string; cuenta?: string }) =>
     api.post('/api/enviar', data),
 };
 
@@ -139,6 +142,20 @@ export const oauthApi = {
   iniciar: (proveedor: string) => api.post('/api/oauth/iniciar', null, { params: { proveedor } }),
   // Polling del estado del flujo: PENDIENTE | COMPLETADO | TIMEOUT | ERROR
   estado: (flujoId: string) => api.get(`/api/oauth/estado/${flujoId}`),
+};
+
+export const todoistApi = {
+  estado: () => api.get('/api/todoist/estado'),
+  guardarKey: (apiKey: string) => api.post('/api/todoist/config', null, { params: { apiKey } }),
+  probar: () => api.post('/api/todoist/probar'),
+  enviar: (id: number) => api.post(`/api/todoist/tareas/${id}`),
+};
+
+export const remitenteApi = {
+  list: () => api.get('/api/remitentes'),
+  save: (remitente: string, categoria: string) =>
+    api.post('/api/remitentes', { remitente, categoria }),
+  remove: (remitente: string) => api.delete('/api/remitentes', { params: { remitente } }),
 };
 
 export const utilApi = {

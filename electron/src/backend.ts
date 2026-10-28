@@ -135,16 +135,18 @@ function findJar(): string | null {
   const jarArg = process.argv.find((a) => a.startsWith("--jar="));
   if (jarArg) return jarArg.slice("--jar=".length);
 
-  // 2) Desarrollo: JAR compilado en backend/target/
-  const devJar = path.resolve(
-    __dirname,
-    "..",
-    "..",
-    "backend",
-    "target",
-    "emailai-backend-1.0.0.jar",
-  );
-  if (fs.existsSync(devJar)) return devJar;
+  // 2) Desarrollo: JAR compilado en backend/target/. Se busca por patrón para
+  //    no volver a clavar la versión (estuvo pidiendo 1.0.0 con el JAR en 1.3.0).
+  const targetDir = path.resolve(__dirname, "..", "..", "backend", "target");
+  const devJar =
+    fs.existsSync(targetDir) &&
+    fs
+      .readdirSync(targetDir)
+      .filter((f) => /^emailai-backend-.*\.jar$/.test(f))
+      .sort()
+      .map((f) => path.join(targetDir, f))
+      .pop();
+  if (devJar) return devJar;
 
   // 3) Producción: JAR en resources/
   const prodJar = path.join(process.resourcesPath || "", "backend.jar");

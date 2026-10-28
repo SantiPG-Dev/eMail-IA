@@ -10,5 +10,8 @@ public interface RemitenteConfiableRepository extends JpaRepository<RemitenteCon
 
     Optional<RemitenteConfiable> findByRemitente(String remitente);
 
+    // Emails sin distinguir mayúsculas ("Juan@X.com" == "juan@x.com")
+    Optional<RemitenteConfiable> findByRemitenteIgnoreCase(String remitente);
+
     boolean existsByRemitente(String remitente);
 }

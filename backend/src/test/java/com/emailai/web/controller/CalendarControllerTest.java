@@ -5,11 +5,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -74,5 +78,33 @@ class CalendarControllerTest {
 
         mockMvc.perform(delete("/api/calendario/" + id))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void importarIcs_guardaEventos() throws Exception {
+        String ics = """
+                BEGIN:VCALENDAR
+                VERSION:2.0
+                BEGIN:VEVENT
+                DTSTART:20261225T100000
+                DTEND:20261225T110000
+                SUMMARY:Prueba ICS
+                END:VEVENT
+                END:VCALENDAR
+                """;
+        MockMultipartFile archivo = new MockMultipartFile(
+                "archivo", "test.ics", "text/calendar", ics.getBytes(StandardCharsets.UTF_8));
+
+        mockMvc.perform(multipart("/api/calendario/importar").file(archivo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.importados").value(1));
+    }
+
+    @Test
+    void exportarIcs_200_vcalendar() throws Exception {
+        mockMvc.perform(get("/api/calendario/exportar"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("BEGIN:VCALENDAR")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("END:VCALENDAR")));
     }
 }

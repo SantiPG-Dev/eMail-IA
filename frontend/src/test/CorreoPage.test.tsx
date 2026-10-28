@@ -167,7 +167,8 @@ describe('CorreoPage — borrar en servidor', () => {
 		fireEvent.click(screen.getByText('Borrar'));
 
 		await waitFor(() => expect(screen.getByText(/re-autentica OAuth/)).toBeTruthy());
-		expect(screen.getByText('Hola')).toBeTruthy();
+		// El correo sigue en la lista (y en el detalle): no se borra en local
+		expect(screen.getAllByText('Hola').length).toBeGreaterThan(0);
 	});
 });
 

@@ -6,6 +6,13 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock('../api/client', () => ({
   tareaApi: { list: api.list, create: api.create, update: api.update, delete: api.delete },
+  // TareasPage ofrece enviar la tarea a Todoist (integración añadida en 1.3.1)
+  todoistApi: {
+    estado: vi.fn().mockResolvedValue({ data: { configurado: false } }),
+    guardarKey: vi.fn(),
+    probar: vi.fn(),
+    enviar: vi.fn(),
+  },
 }));
 
 import TareasPage from '../pages/TareasPage';

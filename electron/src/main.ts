@@ -110,11 +110,12 @@ function showSplash() {
 
 // ── Ventana principal ────────────────────────────────────────────
 async function createWindow() {
+  // Purga solo la cache HTTP (anti-tracking). NO tocar localStorage: ahi viven
+  // el token de sesion, el tema y la cuenta activa; borrarlo obligaba a meter
+  // la contraseña en cada arranque.
   await session.defaultSession.clearCache().catch(() => {});
   await session.defaultSession
-    .clearStorageData({
-      storages: ["localstorage", "serviceworkers", "cachestorage"],
-    })
+    .clearStorageData({ storages: ["serviceworkers", "cachestorage"] })
     .catch(() => {});
 
   // Mostrar splash mientras carga

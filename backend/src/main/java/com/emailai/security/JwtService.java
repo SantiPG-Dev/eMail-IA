@@ -1,7 +1,9 @@
 package com.emailai.security;
 
 // JWT con HMAC-SHA256. Clave de 256 bits generada aleatoriamente (no hardcodeada).
-// Tokens de 24h, incluyen subject (email) y fecha de expiración.
+// Tokens JWT de larga duracion (720h = 30 dias por defecto) para que la app de
+// escritorio no pida la contraseña en cada arranque. Incluyen subject (email)
+// y fecha de expiracion.
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -40,7 +42,7 @@ public class JwtService {
 
     public JwtService(
             @Value("${emailai.security.jwt.secret:}") String envSecret,
-            @Value("${emailai.security.jwt.expiration-hours:24}") int expirationHours,
+            @Value("${emailai.security.jwt.expiration-hours:720}") int expirationHours,
             @Value("${emailai.data-dir:DB}") String dataDir) {
         String key = resolveSigningKey(envSecret, dataDir);
         byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);

@@ -47,11 +47,33 @@ public class AuthController {
 
     /**
      * Estado de la app: si hay cuentas configuradas, se puede iniciar sesión.
+     *
+     * <p>Un JWT vigente cuenta como sesión activa: la clave de firma se guarda
+     * en {@code <data-dir>/jwt.key}, así que el token sobrevive a los reinicios
+     * del backend y la app no pide la contraseña en cada arranque.
      */
     @GetMapping("/status")
-    public Map<String, Object> status() {
+    public Map<String, Object> status(jakarta.servlet.http.HttpServletRequest req) {
         boolean hayCuentas = !cuentaService.listarTodas().isEmpty();
-        return Map.of("configurada", hayCuentas, "sesionActiva", sessionManager.isActive());
+        boolean sesion = sessionManager.isActive() || tokenValido(req);
+        return Map.of("configurada", hayCuentas, "sesionActiva", sesion);
+    }
+
+    /** ¿El Bearer token es válido y su cuenta sigue existiendo? */
+    private boolean tokenValido(jakarta.servlet.http.HttpServletRequest req) {
+        String header = req.getHeader("Authorization");
+        if (header == null || !header.startsWith("Bearer ")) return false;
+        String token = header.substring(7);
+        try {
+            if (!jwtService.isValid(token)) return false;
+            String email = jwtService.extractSubject(token);
+            if (email == null || cuentaService.buscarPorEmail(email).isEmpty()) return false;
+            // Reanuda el sync automático tras reiniciar el backend.
+            sessionManager.iniciarSesion();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**
