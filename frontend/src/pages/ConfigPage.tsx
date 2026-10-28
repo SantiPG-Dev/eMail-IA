@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { cuentaApi, iaApi } from '../api/client';
+import { cuentaApi, iaApi, remitenteApi } from '../api/client';
 import AccountForm from '../components/AccountForm';
 import type { AccountFormData } from '../components/AccountForm';
 import { Spinner, EmptyState } from '../components/StateViews';
 import { FORMATOS_FECHA } from '../utils/fechas';
 
 // Pantalla de configuración con secciones: General, Cuentas, IA y Temas (16 temas).
-type Section = 'general' | 'cuentas' | 'ia' | 'temas';
+type Section = 'general' | 'cuentas' | 'remitentes' | 'ia' | 'temas';
 const SECTIONS: { key: Section; label: string }[] = [
   { key: 'general', label: 'General' },
   { key: 'cuentas', label: '📬 Cuentas' },
+  { key: 'remitentes', label: '🚫 Remitentes' },
   { key: 'ia', label: '🤖 IA' },
   { key: 'temas', label: '🎨 Temas' },
 ];
@@ -59,6 +60,11 @@ export default function ConfigPage() {
   const [errorCuentas, setErrorCuentas] = useState('');
   const [status, setStatus] = useState('');
   const [cuentaEditando, setCuentaEditando] = useState<any | null>(null);
+
+  // Lista de remitentes clasificados a mano
+  const [remitentes, setRemitentes] = useState<{ remitente: string; categoria: string }[]>([]);
+  const [nuevoRemitente, setNuevoRemitente] = useState('');
+  const [nuevaCategoria, setNuevaCategoria] = useState('LEGITIMO');
 
   // Auto-ocultar el banner de status tras 4s
   useEffect(() => {
@@ -114,6 +120,41 @@ export default function ConfigPage() {
   }, []);
 
   useEffect(() => { cargarCuentas(); }, []);
+
+  const cargarRemitentes = async () => {
+    try { const r = await remitenteApi.list(); setRemitentes(r.data || []); }
+    catch { setRemitentes([]); }
+  };
+
+  useEffect(() => {
+    if (section === 'remitentes') cargarRemitentes();
+  }, [section]);
+
+  const anadirRemitente = async () => {
+    const email = nuevoRemitente.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setStatus('Error: escribe un email válido');
+      return;
+    }
+    try {
+      await remitenteApi.save(email, nuevaCategoria);
+      setNuevoRemitente('');
+      setStatus('✅ Remitente guardado');
+      cargarRemitentes();
+    } catch (e: any) {
+      setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo guardar'));
+    }
+  };
+
+  const borrarRemitente = async (remitente: string) => {
+    try {
+      await remitenteApi.remove(remitente);
+      setStatus('✅ Remitente eliminado');
+      cargarRemitentes();
+    } catch (e: any) {
+      setStatus('Error: ' + (e?.response?.data?.error || e?.message || 'no se pudo eliminar'));
+    }
+  };
 
   useEffect(() => {
     iaApi.config()
@@ -370,6 +411,62 @@ export default function ConfigPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Remitentes ── */}
+        {section === 'remitentes' && (
+          <div className="space-y-4 max-w-2xl">
+            <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>Remitentes clasificados a mano</h3>
+            <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+              Esta lista manda sobre el filtro Weka: un remitente LEGITIMO nunca cae en spam.
+              Se aplica al clasificar correos nuevos; los ya clasificados se cambian desde el correo.
+            </p>
+            <div className="p-3 rounded-lg space-y-2" style={{ backgroundColor: 'var(--color-bg-card)' }}>
+              {remitentes.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  Sin remitentes. Añade uno abajo o marca un correo como SPAM/Legítimo.</p>
+              ) : remitentes.map(r => (
+                <div key={r.remitente} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-sm"
+                  style={{ backgroundColor: 'var(--color-bg)' }}>
+                  <span className="truncate" style={{ color: 'var(--color-text)' }}>{r.remitente}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] px-2 py-0.5 rounded font-bold"
+                      style={{
+                        backgroundColor: r.categoria === 'LEGITIMO' ? '#166534'
+                          : r.categoria === 'PHISHING' ? '#7f1d1d' : '#dc2626',
+                        color: 'white',
+                      }}>{r.categoria}</span>
+                    <button onClick={() => borrarRemitente(r.remitente)}
+                      className="text-xs px-2 py-0.5 rounded"
+                      style={{ backgroundColor: '#ef4444', color: 'white' }}>Quitar</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Email del remitente</label>
+                <input value={nuevoRemitente} onChange={e => setNuevoRemitente(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && anadirRemitente()}
+                  placeholder="spam@dominio.com"
+                  className="w-full px-2 py-1.5 text-sm rounded-lg border outline-none"
+                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} />
+              </div>
+              <div>
+                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Categoría</label>
+                <select value={nuevaCategoria} onChange={e => setNuevaCategoria(e.target.value)}
+                  className="px-2 py-1.5 text-sm rounded-lg border outline-none cursor-pointer"
+                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }}>
+                  <option value="LEGITIMO">LEGITIMO</option>
+                  <option value="SPAM">SPAM</option>
+                  <option value="PHISHING">PHISHING</option>
+                </select>
+              </div>
+              <button onClick={anadirRemitente}
+                className="px-4 py-1.5 text-sm font-bold rounded-lg"
+                style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>Añadir</button>
+            </div>
           </div>
         )}
 

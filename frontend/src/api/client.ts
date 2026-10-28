@@ -119,6 +119,13 @@ export const oauthApi = {
   estado: (flujoId: string) => api.get(`/api/oauth/estado/${flujoId}`),
 };
 
+export const remitenteApi = {
+  list: () => api.get('/api/remitentes'),
+  save: (remitente: string, categoria: string) =>
+    api.post('/api/remitentes', { remitente, categoria }),
+  remove: (remitente: string) => api.delete('/api/remitentes', { params: { remitente } }),
+};
+
 export const utilApi = {
   syncAll: () => api.post('/api/util/sync-all'),
 };
