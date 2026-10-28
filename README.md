@@ -3,7 +3,7 @@
 **Cliente de correo de escritorio con IA que cuida tu privacidad.**
 
 > App de escritorio (no web) — filtro spam que aprende de ti, asistente IA, calendario y tareas. Todo local y cifrado.
-> **Estado:** **Release 1.3.1** con instaladores multiplataforma: Linux (AppImage/deb/rpm/fuente), Windows (NSIS) y macOS (DMG arm64), estos dos últimos vía GitHub Actions. Desarrollo en rama `development`.
+> **Estado:** **Release 1.3.2** con instaladores multiplataforma: Linux (AppImage/deb/rpm/fuente), Windows (NSIS) y macOS (DMG arm64), estos dos últimos vía GitHub Actions. Desarrollo en rama `development`.
 
 ---
 
@@ -101,7 +101,7 @@ cifrada, config, `oauth-config.json`) — desinstalar la app no los borra.
 
 ---
 
-## 📦 Empaquetado 1.3.1 (multiplataforma)
+## 📦 Empaquetado 1.3.2 (multiplataforma)
 
 Todos los artefactos son **autosuficientes**: Electron + backend.jar + JRE 21
 (jlink) — sin Java en el sistema. Ver [`lanzadores/README.md`](lanzadores/README.md)
@@ -111,7 +111,7 @@ para la matriz completa (Linux AppImage/deb/rpm/fuente, Windows NSIS, macOS DMG
 Pipeline Linux (backend + frontend + electron TS):
 
 ```bash
-bash lanzadores/linux/sourcecode/build-package.sh --skip-tests   # JAR 1.3.1 + frontend dist + electron dist
+bash lanzadores/linux/sourcecode/build-package.sh --skip-tests   # JAR 1.3.2 + frontend dist + electron dist
 cd electron && npm run dist:linux          # JRE jlink + AppImage + .deb (autosuficientes)
 bash ../lanzadores/linux/deb-rpm/build-rpm.sh   # .rpm (spec propio, rpmbuild nativo)
 ```
@@ -120,11 +120,11 @@ Artefactos en `electron/release/`:
 
 | Artefacto | Uso |
 |---|---|
-| `emailai-electron-1.3.1-x86_64.AppImage` | **Recomendado** — `chmod +x` y ejecutar. Universal, sin instalar. |
-| `emailai-electron-1.3.1-amd64.deb` (~191 MB) | Debian/Ubuntu: `sudo apt install ./…deb` |
+| `emailai-electron-1.3.2-x86_64.AppImage` | **Recomendado** — `chmod +x` y ejecutar. Universal, sin instalar. |
+| `emailai-electron-1.3.2-amd64.deb` (~191 MB) | Debian/Ubuntu: `sudo apt install ./…deb` |
 | `rpm/RPMS/x86_64/*.rpm` | Fedora/RHEL: `sudo dnf install …rpm` |
 
-El backend JAR (`emailai-backend-1.3.1.jar`) y el JRE jlink (~69 MB) se embeben
+El backend JAR (`emailai-backend-1.3.2.jar`) y el JRE jlink (~69 MB) se embeben
 en `resources/` dentro de cada artefacto.
 
 ---

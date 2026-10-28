@@ -1,6 +1,6 @@
 # Windows — instalador NSIS (x64)
 
-Genera `emailai-electron-1.3.1-x64.exe`: instalador clásico de Windows con
+Genera `emailai-electron-1.3.2-x64.exe`: instalador clásico de Windows con
 atajo en menú Inicio y desinstalador. Autónomo: Electron + backend.jar +
 JRE 21 jlink (no instala Java).
 
@@ -21,7 +21,7 @@ Dos opciones:
    bash build-jre.sh        # git-bash (viene con Git para Windows)
    npx tsc
    npx electron-builder --win nsis
-   # → release\emailai-electron-1.3.1-x64.exe
+   # → release\emailai-electron-1.3.2-x64.exe
    ```
 
 ## Notas técnicas

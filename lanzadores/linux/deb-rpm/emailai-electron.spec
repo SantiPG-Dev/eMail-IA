@@ -1,5 +1,5 @@
 Name:           emailai-electron
-Version:        1.3.1
+Version:        1.3.2
 Release:        1%{?dist}
 Summary:        eMail-IA Desktop App (Electron wrapper)
 License:        Proprietary
@@ -62,6 +62,9 @@ install -m 0644 "%{emailai_svg}" %{buildroot}%{_datadir}/icons/hicolor/scalable/
 %{_datadir}/icons/hicolor/scalable/apps/emailai-electron.svg
 
 %changelog
+* Wed Oct 28 2026 Santiago Pérez Gómez <SantiPG-Dev@gmx.com> - 1.3.2-1
+- 1.3.2: Correo por defecto al entrar y refresco automatico cada 5 s.
+
 * Wed Oct 28 2026 Santiago Pérez Gómez <SantiPG-Dev@gmx.com> - 1.3.1-1
 - 1.3.1: editar y elegir cuenta, ICS por HTTP, remitentes, Todoist v1, IA y borrado en servidor, sesion persistente.
 * Mon Jul 27 2026 Santiago Pérez Gómez <SantiPG-Dev@gmx.com> - 1.0.0-1
