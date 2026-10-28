@@ -52,10 +52,8 @@ export default function App() {
                 </SyncProvider>
               </ProtectedRoute>
             }>
-              <Route index element={<div className="flex items-center justify-center h-full text-sm"
-                style={{ color: 'var(--color-text-secondary)' }}>
-                <p>Selecciona una sección del menú lateral</p>
-              </div>} />
+              {/* Al entrar (o tras el login) se abre Correo por defecto */}
+              <Route index element={<Navigate to="/correo" replace />} />
               <Route path="correo" element={<CorreoPage />} />
               <Route path="calendario" element={<CalendarioPage />} />
               <Route path="contactos" element={<ContactosPage />} />
