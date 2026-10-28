@@ -52,7 +52,8 @@ emailai:
     jwt:
       # Sin fallback: si no hay EMAILAI_JWT_SECRET, JwtService genera y persiste en data-dir/jwt.key
       secret: ${EMAILAI_JWT_SECRET:}
-      expiration-hours: 24
+      # 30 dias: la app de escritorio no debe pedir la contraseña en cada arranque
+      expiration-hours: ${EMAILAI_JWT_EXPIRATION_HOURS:720}
 
 logging:
   level:

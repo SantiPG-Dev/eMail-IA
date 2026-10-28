@@ -3,13 +3,19 @@ package com.emailai.web.controller;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.emailai.domain.entities.Cuenta;
+import com.emailai.repository.CuentaRepository;
+import com.emailai.security.JwtService;
+import com.emailai.security.SecureSessionManager;
 import com.emailai.service.CuentaService;
 
 /**
@@ -27,6 +33,52 @@ class AuthControllerTest {
 
     @Autowired
     private CuentaService cuentaService;
+
+    @Autowired
+    private CuentaRepository cuentaRepository;
+
+    @Autowired
+    private JwtService jwtService;
+
+    @Autowired
+    private SecureSessionManager sessionManager;
+
+    // tokenValido() marca la sesión como activa; se limpia para no afectar a statusSinCuentas.
+    @AfterEach
+    void cerrarSesion() {
+        sessionManager.cerrarSesion();
+    }
+
+    @Test
+    @Transactional
+    void statusConTokenValidoMantieneLaSesionEntreArranques() throws Exception {
+        Cuenta c = new Cuenta();
+        c.setNombre("Persistente");
+        c.setEmail("persistente@example.com");
+        c.setTipoConexion("IMAP");
+        c.setEsDefault(false);
+        cuentaRepository.save(c);
+
+        String token = jwtService.generateToken("persistente@example.com");
+        mockMvc.perform(get("/api/auth/status").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sesionActiva").value(true));
+    }
+
+    @Test
+    void statusConTokenInvalidoNoAbreSesion() throws Exception {
+        mockMvc.perform(get("/api/auth/status").header("Authorization", "Bearer no-es-un-jwt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sesionActiva").value(false));
+    }
+
+    @Test
+    void statusConTokenDeCuentaBorradaNoAbreSesion() throws Exception {
+        String token = jwtService.generateToken("fantasma@example.com");
+        mockMvc.perform(get("/api/auth/status").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sesionActiva").value(false));
+    }
 
     @Test
     void loginSinCuentasDevuelveNotFound() throws Exception {
