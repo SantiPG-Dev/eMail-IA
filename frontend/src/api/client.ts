@@ -30,12 +30,8 @@ api.interceptors.response.use(
 export default api;
 
 // Módulos de API específicos por recurso
-export const authApi = {
-  status: () => api.get('/api/auth/status'),
-  setup: (password: string) => api.post('/api/auth/setup', { masterPassword: password }),
-  login: (password: string) => api.post('/api/auth/login', { masterPassword: password }),
-};
-
+// Login/status/logout los maneja AuthContext: no hay contraseña maestra
+// separada, así que no existe /api/auth/setup.
 export const tareaApi = {
   list: () => api.get('/api/tareas'),
   get: (id: number) => api.get(`/api/tareas/${id}`),
