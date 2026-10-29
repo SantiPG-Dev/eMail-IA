@@ -37,7 +37,7 @@ backend/
 ```bash
 mvn spring-boot:run   # API en localhost:8080
 mvn test              # 126 tests
-mvn package           # emailai-backend-1.3.3.jar (embebe frontend/dist en static/)
+mvn package           # emailai-backend-1.3.4.jar (embebe frontend/dist en static/)
 ```
 
 `mvn package` necesita `frontend/dist` ya construido; `lanzadores/linux/sourcecode/build-package.sh` lo hace en orden.
