@@ -1,44 +1,39 @@
 # Frontend — eMail-IA (React)
 
-Frontend de eMail-IA migrado a **React 19 + Vite + TypeScript + Tailwind CSS**.
+UI de eMail-IA: **React 19 + Vite 6 + TypeScript 5 + Tailwind CSS**.
 
-## Stack previsto (Fase 6+)
+## Stack
 
-- **React 19** + Vite + TypeScript
-- **Tailwind CSS** (paleta slate+cyan idéntica al JavaFX original)
-- **Sistema de 16 temas** (CSS variables + `data-theme`/`data-mode`)
-- Build estático servido por el backend Spring Boot
+- **React 19** + Vite 6 + TypeScript
+- **Tailwind CSS** (paleta slate+cyan, la misma del JavaFX original)
+- **16 temas** con variante dark/light (`data-theme` + `data-mode`)
+- Build estático que el backend embebe en el jar (`classpath:/static/`)
 
-## Replicación visual
+## Estructura
 
-El objetivo es que la UI se vea **idéntica** al JavaFX actual (en `legacy/emailAI/src/main/resources/`).
+```
+frontend/src/
+├── api/         # cliente axios + SSE
+├── components/  # Layout, AccountForm, diálogos, StateViews, ErrorBoundary
+├── context/     # Auth, Sync, Theme
+├── hooks/       # useAsync
+├── pages/       # Correo, Compose, Config, ChatIA, Calendario, Contactos, Tareas, Login
+├── test/        # Vitest + Testing Library
+├── utils/       # fechas, correo (sanitizado/anti-tracking), error
+└── App.tsx      # rutas (Correo por defecto)
+```
 
-### Paleta (tema emailIA oscuro, por defecto)
+## Ejecutar y probar
 
-| Token | Valor | Tailwind |
-|-------|-------|----------|
-| Fondo app | `#0F172A` | slate-900 |
-| Fondo sidebar | `#0B1220` | custom |
-| Card/panel | `#1E293B` | slate-800 |
-| Elevado | `#334155` | slate-700 |
-| Texto | `#F1F5F9` | slate-100 |
-| Secundario | `#94A3B8` | slate-400 |
-| Acento | `#22D3EE` | cyan-400 |
-| Selección | `#38BDF8` | sky-400 |
-| Glow IA | `#00F0FF` | cyan glow |
+```bash
+pnpm install
+pnpm dev      # Vite :5173 con proxy /api → :8080
+pnpm test     # 80 tests en 15 ficheros
+pnpm build    # tsc -b + vite build → dist/
+```
 
-### Vistas a replicar
+## Anti-tracking
 
-| JavaFX (legacy) | React |
-|-----------------|-------|
-| `main-view.fxml` | `Layout.tsx` (sidebar + Outlet) |
-| `correo-view.fxml` | `CorreoPage.tsx` (split-pane + iframe HTML) |
-| `login-view.fxml` | `LoginPage.tsx` |
-| `chatIA-view.fxml` | `ChatIAPage.tsx` |
-| `compose-view.fxml` | `ComposePage.tsx` |
-| `config-view.fxml` | `ConfigPage.tsx` |
-| `calendario-view.fxml` | `CalendarioPage.tsx` |
-| `contactos-view.fxml` | `ContactosPage.tsx` |
-| `tareas-view.fxml` | `TareasPage.tsx` |
-
-> Fase 0 completada — scaffolding. La implementación empieza en Fase 6.
+`htmlSegunCategoria()` sanitiza el HTML con DOMPurify y bloquea imágenes
+remotas (web beacons) salvo en correos `LEGITIMO`; los enlaces se reescriben
+a `target=_blank`.
