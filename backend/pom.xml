@@ -15,7 +15,7 @@
 
     <groupId>com.emailai</groupId>
     <artifactId>emailai-backend</artifactId>
-    <version>1.3.4</version>
+    <version>1.3.5</version>
     <name>eMail-IA Backend</name>
     <description>eMail-IA — Backend REST (correo, IA, calendario, tareas) con Spring Boot</description>
 
