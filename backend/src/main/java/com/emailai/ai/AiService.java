@@ -168,7 +168,25 @@ public class AiService {
      * Configuración → IA (ia.prompt) para afinar el tono del asistente.
      */
     public String chat(String mensaje) {
-        return chatString(promptDeChat(), mensaje);
+        return chat(mensaje, "");
+    }
+
+    /**
+     * Chat con raíles: además del prompt configurable se inyecta el contexto
+     * de los correos en memoria y se le prohíbe al modelo inventar correos
+     * o desviarse a temas ajenos a la bandeja del usuario.
+     */
+    public String chat(String mensaje, String contextoCorreos) {
+        String system = promptDeChat();
+        if (contextoCorreos == null || contextoCorreos.isBlank()) {
+            system += "\n\nEl usuario aún no tiene correos sincronizados: dilo y no inventes correos.";
+        } else {
+            system += "\n\nRespondes ÚNICAMENTE sobre los correos del usuario listados abajo. "
+                    + "Si la pregunta no va sobre ellos, dilo y ofrece resumirlos o analizarlos. "
+                    + "No inventes correos, remitentes ni contenidos que no estén en la lista.\n\n"
+                    + contextoCorreos;
+        }
+        return chatString(system, mensaje);
     }
 
     private String promptDeChat() {

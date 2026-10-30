@@ -30,6 +30,8 @@ public class MensajeService {
     public Mensaje guardarOActualizar(Mensaje mensaje) {
         Optional<Mensaje> existente = repo.findByUidAndCuentaHashAndCarpetaImap(
                 mensaje.getUid(), mensaje.getCuentaHash(), mensaje.getCarpetaImap());
+        // Nota: leido NO se copia en el upsert — es estado local del usuario
+        // y un re-sync no debe marcar como no leído lo ya leído.
         if (existente.isPresent()) {
             Mensaje m = existente.get();
             m.setRemitente(mensaje.getRemitente());
@@ -45,6 +47,11 @@ public class MensajeService {
             return repo.save(m);
         }
         return repo.save(mensaje);
+    }
+
+    /** Guarda directo, sin upsert: persista cambios locales como el leído. */
+    public Mensaje guardar(Mensaje m) {
+        return repo.save(m);
     }
 
     @Transactional(readOnly = true)
@@ -101,5 +108,31 @@ public class MensajeService {
      */
     public void limpiarAntiguos(String cuentaHash, String carpetaImap) {
         repo.eliminarAntiguos(cuentaHash, carpetaImap, MAX_MENSAJES_POR_CARPETA);
+    }
+
+    /**
+     * Contexto compacto con los correos recientes para el chat de IA: los
+     * últimos legítimos (sin spam/phishing) con fecha, remitente, asunto y
+     * un fragmento del cuerpo. Vacío si no hay correos sincronizados.
+     */
+    @Transactional(readOnly = true)
+    public String contextoCorreosIa() {
+        List<Mensaje> recientes = repo.findTop40ByOrderByFechaRecepcionDescIdDesc().stream()
+                .filter(m -> !"SPAM".equals(m.getCategoria()) && !"PHISHING".equals(m.getCategoria()))
+                .limit(25)
+                .toList();
+        StringBuilder sb = new StringBuilder();
+        for (Mensaje m : recientes) {
+            String cuerpo = m.getCuerpo() == null ? "" : m.getCuerpo().replaceAll("\\s+", " ").trim();
+            sb.append('[').append(m.getFechaRecepcion()).append("] De: ")
+              .append(m.getRemitente() == null ? "" : m.getRemitente())
+              .append(" — Asunto: ")
+              .append(m.getAsunto() == null ? "" : m.getAsunto())
+              .append('\n');
+            if (!cuerpo.isEmpty()) {
+                sb.append("  ").append(cuerpo, 0, Math.min(cuerpo.length(), 200)).append('\n');
+            }
+        }
+        return sb.toString();
     }
 }

@@ -1,18 +1,21 @@
 import { useState } from 'react';
 import { enviarApi } from '../api/client';
+import { mensajeDeError } from '../utils/error';
 
 interface Props {
-  mode: 'nuevo' | 'responder' | 'reenviar';
+  mode: 'nuevo' | 'responder' | 'responderTodos' | 'reenviar';
   to?: string;
+  cc?: string;
   subject?: string;
   body?: string;
+  cuenta?: string;   // email de la cuenta activa (multi-cuenta)
   onClose: () => void;
 }
 
-// Diálogo de redacción de correo. Modos: nuevo, responder, reenviar.
-export default function ComposePage({ mode, to, subject, body, onClose }: Props) {
+// Diálogo de redacción de correo. Modos: nuevo, responder, responderTodos, reenviar.
+export default function ComposePage({ mode, to, cc: ccInicial, subject, body, cuenta, onClose }: Props) {
   const [para, setPara] = useState(to || '');
-  const [cc, setCc] = useState('');
+  const [cc, setCc] = useState(ccInicial || '');
   const [asunto, setAsunto] = useState(subject || '');
   const [cuerpo, setCuerpo] = useState(body || '');
   const [status, setStatus] = useState('');
@@ -28,15 +31,15 @@ export default function ComposePage({ mode, to, subject, body, onClose }: Props)
     setSending(true);
     setStatus('Enviando...');
     try {
-      const res = await enviarApi.send({ para: emails.join(', '), cc, asunto: asunto.trim(), cuerpo });
+      const res = await enviarApi.send({ para: emails.join(', '), cc, asunto: asunto.trim(), cuerpo, cuenta });
       if (res.data.ok) {
         setStatus('✅ Enviado correctamente');
         setTimeout(() => onClose(), 1500);
       } else {
         setStatus('Error: ' + (res.data.error || 'desconocido'));
       }
-    } catch (err: any) {
-      setStatus('Error: ' + (err.response?.data?.error || err.message || 'desconocido'));
+    } catch (err) {
+      setStatus('Error: ' + mensajeDeError(err, 'desconocido'));
     } finally {
       setSending(false);
     }
@@ -46,9 +49,22 @@ export default function ComposePage({ mode, to, subject, body, onClose }: Props)
     <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--color-bg)' }}>
       <div className="flex items-center justify-between px-4 py-2 border-b"
         style={{ borderColor: 'var(--color-border)' }}>
-        <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
-          {mode === 'nuevo' ? 'Nuevo mensaje' : mode === 'responder' ? 'Responder' : 'Reenviar'}
-        </h3>
+        <div>
+          <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
+            {mode === 'nuevo'
+              ? 'Nuevo mensaje'
+              : mode === 'responderTodos'
+                ? 'Responder a todos'
+                : mode === 'responder'
+                  ? 'Responder'
+                  : 'Reenviar'}
+          </h3>
+          {cuenta && (
+            <p className="text-[10px]" style={{ color: 'var(--color-text-secondary)' }}>
+              Desde: {cuenta}
+            </p>
+          )}
+        </div>
         <button onClick={onClose}
           className="text-xs px-2 py-1 rounded-lg"
           style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)' }}>

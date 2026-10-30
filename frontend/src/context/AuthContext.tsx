@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import api from '../api/client';
+import { mensajeDeError } from '../utils/error';
 
 interface AuthState {
   token: string | null;
@@ -69,9 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('emailai_token', t);
       setState({ token: t, isAuthenticated: true, loading: false });
       return true;
-    } catch (err: any) {
+    } catch (err) {
       // Mostrar el mensaje real del backend (401 contraseña, 404 sin cuenta, 503 IMAP caído...)
-      const msg = err?.response?.data?.error || err?.message || null;
+      const msg = mensajeDeError(err, '') || null;
       setLoginError(msg);
       setState(s => ({ ...s, loading: false }));
       return false;

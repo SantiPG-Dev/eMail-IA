@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { mensajeDeError } from '../utils/error';
 
 // Hook para el patrón "fetch lista + loading + error" que repetían todas las páginas.
 // Sustituye a: useState([]) + useEffect(() => api.list().then(set).catch(()=>{}), [])
@@ -13,8 +14,8 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
     setError(null);
     return fn()
       .then((d) => { setData(d); setLoading(false); })
-      .catch((e: any) => {
-        setError(e?.response?.data?.error || e?.message || 'Error al cargar los datos');
+      .catch((e) => {
+        setError(mensajeDeError(e, 'Error al cargar los datos'));
         setLoading(false);
       });
     // fn se recrea cada render; estabilizamos solo con deps (las del caller).

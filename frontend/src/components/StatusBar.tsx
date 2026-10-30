@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSync } from '../context/SyncContext';
 import api from '../api/client';
+import { mensajeDeError } from '../utils/error';
 
 type BackendState = {
   online: boolean;
@@ -36,9 +37,9 @@ export default function StatusBar() {
           });
           setBackendErr('');
         }
-      } catch (e: any) {
+      } catch (e) {
         if (mounted) {
-          const msg = e?.message || 'sin conexión';
+          const msg = mensajeDeError(e, 'sin conexión');
           setBackend(s => ({ ...s, online: false }));
           setBackendErr(msg);
         }

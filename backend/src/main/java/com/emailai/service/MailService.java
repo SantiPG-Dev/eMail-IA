@@ -483,8 +483,11 @@ public class MailService {
             log.info("Correo enviado a {} desde {}", to, user);
             return true;
         } catch (Exception e) {
+            // Se relanza para que EnviarController devuelva el motivo real
+            // (auth rechazada, dirección inválida, timeout...): antes se tragaba
+            // aquí y en la UI solo se veía un "desconocido" sin información.
             log.error("Error enviando correo: {}", e.getMessage());
-            return false;
+            throw new RuntimeException("No se pudo enviar el correo: " + e.getMessage(), e);
         }
     }
 

@@ -55,9 +55,8 @@ function nombreCarpetaLegible(nombre: string): string {
 
 const NAV_ITEMS = [
   { to: '/correo', label: '📬 Correo', key: 'correo' },
-  { to: '/calendario', label: '📅 Calendario', key: 'calendario' },
+  { to: '/eventos', label: '📅 Eventos', key: 'eventos' },
   { to: '/contactos', label: '👤 Contactos', key: 'contactos' },
-  { to: '/tareas', label: '✅ Tareas', key: 'tareas' },
 ];
 
 const BOTTOM_ITEMS = [
@@ -391,7 +390,7 @@ export default function Layout() {
       </aside>
 
       {/* Contenido principal */}
-      <main className="flex-1 overflow-hidden flex flex-col">
+      <main className="flex-1 min-w-0 overflow-hidden flex flex-col">
         <div className="flex-1 overflow-hidden">
           <Outlet />
         </div>

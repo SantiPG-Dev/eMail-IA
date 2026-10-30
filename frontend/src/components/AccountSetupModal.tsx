@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import AccountForm, { type AccountFormData } from './AccountForm';
 import { cuentaApi, oauthApi } from '../api/client';
+import { mensajeDeError } from '../utils/error';
 
 interface Props {
   open: boolean;
   onClose: (result?: { email: string; password: string }) => void;
+  // Cuenta creada como default: el login la deja true (es la primera vez que
+  // se crea); desde Configuración solo interesa si aún no hay ninguna.
+  esDefault?: boolean;
 }
 
 // Modal de creación de cuenta. Para Gmail/Outlook usa OAuth2,
@@ -23,10 +27,13 @@ const PROVIDERS_LOOKUP: Record<string, { imap: { host: string; port: number }; p
 // Proveedores que usan OAuth
 const OAUTH_PROVIDERS = ['gmail', 'outlook'];
 
-export default function AccountSetupModal({ open, onClose }: Props) {
+export default function AccountSetupModal({ open, onClose, esDefault }: Props) {
   const [saved, setSaved] = useState(false);
   const [status, setStatus] = useState('');
   const [oauthInProgress, setOauthInProgress] = useState(false);
+  // Identifica el intento OAuth vigente: si se cancela y se vuelve a empezar,
+  // el intento anterior deja de contar aunque su polling siguiera dormido.
+  const intentoOauth = useRef(0);
 
   // ── Guardar cuenta normal (password IMAP/POP3) ──────────
   const handleSave = async (data: AccountFormData) => {
@@ -41,7 +48,7 @@ export default function AccountSetupModal({ open, onClose }: Props) {
       usuario: data.email,
       password: data.password,
       tipoConexion: data.tipoConexion,
-      esDefault: true,
+      esDefault: esDefault ?? true,
       oauthProvider: null,
       oauthAccessToken: null,
       oauthRefreshToken: null,
@@ -58,6 +65,8 @@ export default function AccountSetupModal({ open, onClose }: Props) {
     setOauthInProgress(true);
     setStatus('');
 
+    const intento = ++intentoOauth.current;
+
     try {
       // 1. Pedir URL de autorización al backend (arranca la escucha en background)
       const authRes = await oauthApi.iniciar(proveedor);
@@ -71,9 +80,10 @@ export default function AccountSetupModal({ open, onClose }: Props) {
       }
 
       // 3. Polling del estado hasta COMPLETADO/TIMEOUT/ERROR (máx 2,5 min)
-      let session: any = null;
+      let session: { email?: string; accessToken: string; refreshToken?: string; expiresAt?: string } | null = null;
       const deadline = Date.now() + 150_000;
       while (Date.now() < deadline) {
+        if (intentoOauth.current !== intento) return; // cancelado o relanzado
         await new Promise(r => setTimeout(r, 2000));
         const res = await oauthApi.estado(flujoId);
         if (res.status === 200 && res.data.accessToken) {
@@ -95,13 +105,13 @@ export default function AccountSetupModal({ open, onClose }: Props) {
 
       await cuentaApi.create({
         nombre: session.email || proveedor,
-        email: session.email,
+        email: session.email ?? ``,
         servidor: host.imap,
         puerto: 993,
-        usuario: session.email,
+        usuario: session.email ?? ``,
         password: '',  // No hace falta para OAuth
         tipoConexion: 'IMAP',
-        esDefault: true,
+        esDefault: esDefault ?? true,
         oauthProvider: proveedorUpper,
         oauthAccessToken: session.accessToken,
         oauthRefreshToken: session.refreshToken || '',
@@ -110,12 +120,21 @@ export default function AccountSetupModal({ open, onClose }: Props) {
 
       setSaved(true);
       setTimeout(() => onClose(), 1500);
-    } catch (err: any) {
-      const msg = err?.response?.data?.error || err.message || 'Error en autenticación OAuth';
+    } catch (err) {
+      const msg = mensajeDeError(err, 'Error en autenticación OAuth');
       setStatus('❌ ' + msg);
     } finally {
       setOauthInProgress(false);
     }
+  };
+
+  // Cancelar cierra el modal y descarta un OAuth en marcha: no crea la
+  // cuenta aunque el navegador acabe autorizando después.
+  const handleCancelar = () => {
+    intentoOauth.current++;
+    setOauthInProgress(false);
+    setStatus('');
+    onClose();
   };
 
   if (!open) return null;
@@ -153,7 +172,7 @@ export default function AccountSetupModal({ open, onClose }: Props) {
         <AccountForm
           onSave={handleSave}
           onOAuthStart={handleOAuthStart}
-          onCancel={onClose}
+          onCancel={handleCancelar}
           status={status}
           oauthInProgress={oauthInProgress}
         />

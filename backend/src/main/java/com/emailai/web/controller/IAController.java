@@ -77,7 +77,9 @@ public class IAController {
             Mensaje m = mensajeService.buscarPorId(req.mensajeId());
             return new IAChatResponse(mailService.sugerirRespuesta(m), aiService.isAvailable());
         }
-        return new IAChatResponse(aiService.chat(req.mensaje()), aiService.isAvailable());
+        return new IAChatResponse(
+                aiService.chat(req.mensaje(), mensajeService.contextoCorreosIa()),
+                aiService.isAvailable());
     }
 
     @PostMapping("/reentrenar")

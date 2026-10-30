@@ -1,107 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import DOMPurify from "dompurify";
 import api, { mensajeApi, cuentaApi } from "../api/client";
 import { useSync } from "../context/SyncContext";
 import { Spinner, EmptyState, ErrorState } from "../components/StateViews";
 import ComposePage from "./ComposePage";
 import ContextMenu from "../components/ContextMenu";
-import { formatearFecha } from "../utils/fechas";
+import { formatearFecha, detectarFechaHora } from "../utils/fechas";
 import EventoDialog from "../components/EventoDialog";
 import TareaDialog from "../components/TareaDialog";
-import { detectarFechaHora } from "../utils/fechas";
-
-interface Adjunto {
-	id: number;
-	nombre: string;
-	mimeType?: string;
-	tamanoBytes?: number;
-}
-
-interface Mensaje {
-	id: number;
-	uid: string;
-	remitente: string;
-	asunto: string;
-	cuerpo: string;
-	html: string;
-	categoria: string;
-	prioridad: string;
-	fechaRecepcion: string;
-	destinatarios?: string;
-	adjuntos?: Adjunto[];
-}
-
-// Política anti-tracking: SOLO los correos LEGITIMOS cargan imágenes remotas.
-// SPAM / PHISHING / DESCONOCIDO las bloquean (los <img> remotos son web beacons que
-// confirman al remitente que abriste el correo). Al reclasificar (ej. marcar SPAM),
-// cambia selected.categoria y el iframe se re-renderiza sin imágenes -> desaparecen.
-// DOMPurify sanitiza ANTES de inyectar (capa extra sobre el sandbox del iframe):
-// elimina <script>, handlers on* y javascript: aunque el atributo sandbox falle.
-// Todos los enlaces se reescriben a target=_blank: el sandbox del iframe (sin
-// allow-top-navigation) bloquearía la navegación interna, y así el click llega al
-// setWindowOpenHandler de Electron -> shell.openExternal (navegador del sistema).
-export function htmlSegunCategoria(html: string, categoria?: string): string {
-	if (!html) return "";
-	const sane = DOMPurify.sanitize(html, {
-		WHOLE_DOCUMENT: true, // conserva <head> (estilos del correo)
-		ADD_TAGS: ["link"], // hojas de estilo remotas del correo
-		ADD_ATTR: ["target"],
-	});
-	let doc: Document;
-	try {
-		doc = new DOMParser().parseFromString(sane, "text/html");
-	} catch {
-		return sane;
-	}
-	doc.querySelectorAll("a[href]").forEach((a) => {
-		a.setAttribute("target", "_blank");
-		a.setAttribute("rel", "noreferrer noopener");
-	});
-	if (categoria === "LEGITIMO") {
-		// los legítimos cargan todo
-		return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
-	}
-	// No legítimo: CSP img-src 'none' bloquea TODAS las imágenes (http, data URIs,
-	// CSS background-image) a nivel navegador. Más robusto que quitar <img src> a mano,
-	// que se dejaba las data: y los background-image (por eso seguían viéndose).
-	const meta = doc.createElement("meta");
-	meta.setAttribute("http-equiv", "Content-Security-Policy");
-	meta.setAttribute("content", "img-src 'none';");
-	doc.head.prepend(meta);
-	return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
-}
-
-export function formatBytes(n?: number): string {
-	if (!n || n <= 0) return "";
-	if (n < 1024) return n + " B";
-	if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
-	return (n / (1024 * 1024)).toFixed(1) + " MB";
-}
-
-// Descarga un adjunto vía API (con el JWT del interceptor) y lo guarda en disco.
-async function descargarAdjunto(
-	mensajeId: number,
-	adj: Adjunto,
-): Promise<void> {
-	try {
-		const res = await mensajeApi.descargarAdjunto(mensajeId, adj.id);
-		const blob = new Blob([res.data]);
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = adj.nombre || "adjunto";
-		document.body.appendChild(a);
-		a.click();
-		a.remove();
-		URL.revokeObjectURL(url);
-	} catch (err: any) {
-		alert(
-			"No se pudo descargar el adjunto: " +
-				(err?.response?.data?.error || err.message || "error"),
-		);
-	}
-}
+import {
+	htmlSegunCategoria,
+	formatBytes,
+	descargarAdjunto,
+	emailDeRemitente,
+	asuntoConPrefijo,
+	htmlATexto,
+	repartoRespuestaTodos,
+	type Mensaje,
+} from "../utils/correo";
 
 // Página principal de correo: lista de mensajes (split 30/70) con detalle,
 // iframe HTML, panel IA (resumen/sugerir), y acciones (clasificar, borrar, mover).
@@ -113,13 +29,41 @@ export default function CorreoPage() {
 	const [selected, setSelected] = useState<Mensaje | null>(null);
 	const [search, setSearch] = useState("");
 	const [hasAccounts, setHasAccounts] = useState(false);
-	const [cuentaHash, setCuentaHash] = useState("local");
+	// Multi-cuenta: la cuenta activa se recuerda entre sesiones; por defecto
+	// la marcada como predeterminada en Configuración.
+	const [cuentas, setCuentas] = useState<
+		{ id: number; email: string; nombre: string; esDefault: boolean }[]
+	>([]);
+	const [cuentaEmail, setCuentaEmail] = useState("");
 	const [composeOpen, setComposeOpen] = useState(false);
 	const [composeMode, setComposeMode] = useState<
-		"nuevo" | "responder" | "reenviar"
+		"nuevo" | "responder" | "responderTodos" | "reenviar"
 	>("nuevo");
 	const [composeTo, setComposeTo] = useState("");
+	const [composeCc, setComposeCc] = useState("");
 	const [feedback, setFeedback] = useState("");
+	const [iaTexto, setIaTexto] = useState("");
+	const [iaCargando, setIaCargando] = useState<"" | "resumen" | "sugerir">("");
+
+	// Resumen / respuesta sugerida por IA del mensaje abierto
+	const pedirIa = async (tipo: "resumen" | "sugerir") => {
+		if (!selected) return;
+		setIaCargando(tipo);
+		setIaTexto("");
+		try {
+			const res =
+				tipo === "resumen"
+					? await mensajeApi.summarize(selected.id)
+					: await mensajeApi.suggest(selected.id);
+			setIaTexto(String(res.data || ""));
+		} catch (e: any) {
+			setIaTexto(
+				"Error: " + (e?.response?.data?.error || e?.message || "sin respuesta"),
+			);
+		} finally {
+			setIaCargando("");
+		}
+	};
 
 	// Conservar la posición de la lista al reclasificar/sincronizar: se ancla el
 	// primer mensaje visible y se restaura tras el reload. Si el usuario está al
@@ -127,6 +71,8 @@ export default function CorreoPage() {
 	// nuevos descargados quedan a la vista.
 	const listRef = useRef<HTMLDivElement>(null);
 	const anchorRef = useRef<{ mid: number; offset: number } | null>(null);
+	// Evita solapar dos refrescos automaticos si uno tarda mas de 5 s
+	const refrescoEnCurso = useRef(false);
 
 	const salvarAncla = () => {
 		const c = listRef.current;
@@ -178,8 +124,8 @@ export default function CorreoPage() {
 	const [tareaPrefill, setTareaPrefill] = useState<
 		| {
 				titulo: string;
-				descripcion: string;
-				fechaVencimiento?: string;
+				detalle: string;
+				fecha?: string;
 				mensajeId: number;
 		  }
 		| undefined
@@ -207,8 +153,8 @@ export default function CorreoPage() {
 		const det = detectarFechaHora(`${m.asunto || ""} ${m.cuerpo || ""}`);
 		setTareaPrefill({
 			titulo: m.asunto || "(sin asunto)",
-			descripcion: `De: ${m.remitente || "?"}\n\n${(m.cuerpo || "").slice(0, 500)}`,
-			fechaVencimiento: det?.fecha || m.fechaRecepcion?.slice(0, 10) || undefined,
+			detalle: `De: ${m.remitente || "?"}\n\n${(m.cuerpo || "").slice(0, 500)}`,
+			fecha: det?.fecha || m.fechaRecepcion?.slice(0, 10) || undefined,
 			mensajeId: m.id,
 		});
 		setTareaOpen(true);
@@ -219,33 +165,64 @@ export default function CorreoPage() {
 	const carpetaImap = searchParams.get("carpeta") || "INBOX";
 
 	const cargarMensajes = useCallback(
-		async (carpeta?: string, preservarScroll = false) => {
+		async (carpeta?: string, preservarScroll = false, silencioso = false) => {
 			if (preservarScroll) salvarAncla();
 			else anchorRef.current = null;
-			setLoadingMensajes(true);
-			setErrorMensajes(null);
+			// En modo silencioso (refresco automatico) no se toca el spinner ni
+			// el estado de error: la lista sigue visible y no parpadea.
+			if (!silencioso) {
+				setLoadingMensajes(true);
+				setErrorMensajes(null);
+			}
 			try {
-				const cuentas = await cuentaApi.list();
-				setHasAccounts(cuentas.data.length > 0);
-				if (cuentas.data.length > 0) {
-					const c = cuentas.data[0];
-					setCuentaHash(c.email);
-					const carpetaActual = carpeta || carpetaImap;
-					const res = await mensajeApi.list(c.email, carpetaActual);
-					setMensajes(res.data.mensajes || []);
-				} else {
+				if (!cuentaEmail) {
 					setMensajes([]);
+					return;
 				}
+				const carpetaActual = carpeta || carpetaImap;
+				const res = await mensajeApi.list(cuentaEmail, carpetaActual);
+				setMensajes(res.data.mensajes || []);
 			} catch (e: any) {
+				if (silencioso) return;
 				setErrorMensajes(
 					e?.response?.data?.error || e?.message || "Error al cargar los mensajes",
 				);
 			} finally {
-				setLoadingMensajes(false);
+				if (!silencioso) setLoadingMensajes(false);
 			}
 		},
-		[carpetaImap],
+		[carpetaImap, cuentaEmail],
 	);
+
+	// Cuentas disponibles (selector de multi-cuenta). La activa se guarda en
+	// localStorage y cae a la predeterminada o a la primera.
+	useEffect(() => {
+		cuentaApi
+			.list()
+			.then((r) => {
+				const lista = r.data || [];
+				setCuentas(lista);
+				setHasAccounts(lista.length > 0);
+				if (lista.length === 0) return;
+				const guardada = localStorage.getItem("emailai_cuenta");
+				const elegida =
+					lista.find((c: any) => c.email === guardada) ||
+					lista.find((c: any) => c.esDefault) ||
+					lista[0];
+				setCuentaEmail(elegida.email);
+			})
+			.catch(() => {
+				setCuentas([]);
+				setHasAccounts(false);
+			});
+	}, []);
+
+	const cambiarCuenta = (email: string) => {
+		setCuentaEmail(email);
+		localStorage.setItem("emailai_cuenta", email);
+		setSelected(null);
+		setSearch("");
+	};
 
 	// Carga inicial y cuando cambia la carpeta
 	useEffect(() => {
@@ -257,6 +234,37 @@ export default function CorreoPage() {
 	useEffect(() => {
 		if (refreshKey > 0) cargarMensajes(carpetaImap, true);
 	}, [refreshKey, cargarMensajes, carpetaImap]);
+
+	// Refresco automatico cada 5 s, sin spinner y sin mover el scroll. Se para
+	// mientras hay una busqueda activa para no pisar sus resultados.
+	useEffect(() => {
+		if (!cuentaEmail || search.trim()) return;
+		const id = setInterval(async () => {
+			if (refrescoEnCurso.current) return;
+			refrescoEnCurso.current = true;
+			try {
+				await cargarMensajes(carpetaImap, true, true);
+			} finally {
+				refrescoEnCurso.current = false;
+			}
+		}, 5000);
+		return () => clearInterval(id);
+	}, [cargarMensajes, carpetaImap, cuentaEmail, search]);
+
+	// Al abrir un correo se marca como leído (estado local; el SEEN del servidor
+	// no se toca). Lanzamiento silencioso: si falla, quedará sin marcar y se
+	// reintentará la próxima vez que se abra.
+	const seleccionar = (m: Mensaje) => {
+		setIaTexto("");
+		if (m.leido) {
+			setSelected(m);
+			return;
+		}
+		const leido = { ...m, leido: true };
+		setSelected(leido);
+		setMensajes((prev) => prev.map((x) => (x.id === m.id ? leido : x)));
+		mensajeApi.marcarLeido(m.id).catch(() => {});
+	};
 
 	const sincronizar = async () => {
 		await triggerSync();
@@ -271,7 +279,7 @@ export default function CorreoPage() {
 		setLoadingMensajes(true);
 		setErrorMensajes(null);
 		try {
-			const res = await mensajeApi.search(cuentaHash, search);
+			const res = await mensajeApi.search(cuentaEmail, search);
 			setMensajes(res.data.mensajes || []);
 		} catch (e: any) {
 			setErrorMensajes(
@@ -284,25 +292,52 @@ export default function CorreoPage() {
 
 	const eliminarMensaje = async () => {
 		if (!selected) return;
-		if (!window.confirm("¿Borrar el mensaje seleccionado?")) return;
+		if (
+			!window.confirm(
+				"¿Borrar el mensaje seleccionado? Se intentara tambien en el servidor.",
+			)
+		)
+			return;
+		const id = selected.id;
 		try {
-			await mensajeApi.delete(selected.id);
-			setMensajes((prev) => prev.filter((m) => m.id !== selected.id));
-			setSelected(null);
+			await mensajeApi.deleteServidor(id);
 		} catch (e: any) {
-			setErrorMensajes(
-				e?.response?.data?.error || e?.message || "No se pudo borrar el mensaje",
+			// Si el servidor no lo borra (sin credenciales IMAP, sin red), el
+			// mensaje se queda: borrarlo solo en local haria que resucitara en el
+			// siguiente sync.
+			setFeedback(
+				e?.response?.data?.error ||
+					e?.message ||
+					"No se pudo borrar el mensaje en el servidor",
 			);
+			setTimeout(() => setFeedback(""), 6000);
+			return;
 		}
+		setMensajes((prev) => prev.filter((m) => m.id !== id));
+		setSelected(null);
+		setFeedback("Borrado del servidor");
+		setTimeout(() => setFeedback(""), 4000);
 	};
 
-	const abrirCompose = (mode: "nuevo" | "responder" | "reenviar") => {
+	const abrirCompose = (
+		mode: "nuevo" | "responder" | "responderTodos" | "reenviar",
+	) => {
 		if (mode === "responder" && selected) {
-			setComposeTo(selected.remitente || "");
-		} else if (mode === "reenviar" && selected) {
-			setComposeTo("");
+			setComposeTo(emailDeRemitente(selected.remitente || ""));
+			setComposeCc("");
+		} else if (mode === "responderTodos" && selected) {
+			// Remitente + destinatarios a «Para», CC originales a «CC», sin mi dirección
+			const reparto = repartoRespuestaTodos(
+				selected.remitente,
+				selected.destinatarios,
+				selected.cc,
+				cuentaEmail,
+			);
+			setComposeTo(reparto.para);
+			setComposeCc(reparto.cc);
 		} else {
 			setComposeTo("");
+			setComposeCc("");
 		}
 		setComposeMode(mode);
 		setComposeOpen(true);
@@ -337,16 +372,20 @@ export default function CorreoPage() {
 			<ComposePage
 				mode={composeMode}
 				to={composeTo}
+				cc={composeCc}
+				cuenta={cuentaEmail}
 				subject={
-					composeMode === "responder"
-						? selected
-							? "Re: " + selected.asunto
-							: ""
-						: ""
+					composeMode === "nuevo" || !selected
+						? ""
+						: asuntoConPrefijo(
+								selected.asunto,
+								composeMode === "reenviar" ? "RV:" : "Re:",
+							)
 				}
 				body={
 					composeMode === "reenviar" && selected
-						? "\n\n--- Mensaje original ---\n" + (selected.cuerpo || "")
+						? "\n\n--- Mensaje original ---\n" +
+							(selected.cuerpo || htmlATexto(selected.html))
 						: ""
 				}
 				onClose={() => {
@@ -398,6 +437,27 @@ export default function CorreoPage() {
 						Borrar
 					</button>
 				</div>
+
+				{/* Selector de cuenta (solo si hay varias) */}
+				{cuentas.length > 1 && (
+					<select
+						value={cuentaEmail}
+						onChange={(e) => cambiarCuenta(e.target.value)}
+						className="w-full px-2 py-1.5 text-xs rounded-lg border outline-none cursor-pointer"
+						style={{
+							backgroundColor: "var(--color-bg)",
+							color: "var(--color-text)",
+							borderColor: "var(--color-border)",
+						}}
+						title="Cuenta activa"
+					>
+						{cuentas.map((c) => (
+							<option key={c.id} value={c.email}>
+								{c.nombre} — {c.email}
+							</option>
+						))}
+					</select>
+				)}
 
 				{/* Buscador + Sync */}
 				<div className="flex gap-1">
@@ -465,7 +525,7 @@ export default function CorreoPage() {
 							<div
 								key={m.id}
 								data-mid={m.id}
-								onClick={() => setSelected(m)}
+								onClick={() => seleccionar(m)}
 								onContextMenu={(e) => {
 									e.preventDefault();
 									setMenu({ x: e.clientX, y: e.clientY, mensaje: m });
@@ -480,8 +540,11 @@ export default function CorreoPage() {
 									color: selected?.id === m.id ? "#0F172A" : "var(--color-text)",
 								}}
 							>
-								<div className="font-bold truncate">
-									{m.remitente || "(sin remitente)"}
+								<div className="font-bold truncate flex items-center gap-1">
+									{!m.leido && <span aria-hidden>●</span>}
+									<span className="truncate">
+										{m.remitente || "(sin remitente)"}
+									</span>
 								</div>
 								<div className="truncate opacity-80">{m.asunto}</div>
 								<div className="text-[10px] opacity-60">
@@ -556,7 +619,7 @@ export default function CorreoPage() {
 									Responder
 								</button>
 								<button
-									onClick={() => abrirCompose("responder")}
+									onClick={() => abrirCompose("responderTodos")}
 									className="px-3 py-1 text-xs rounded-pill"
 									style={{
 										backgroundColor: "var(--color-bg-elevated)",
@@ -640,7 +703,7 @@ export default function CorreoPage() {
 							style={{ backgroundColor: "var(--color-bg-card)" }}
 						>
 							{/* Botones IA a la izquierda */}
-							<div className="flex-1">
+							<div className="flex-1 min-w-0">
 								<p
 									className="text-[10px] mb-1"
 									style={{ color: "var(--color-text-secondary)" }}
@@ -648,19 +711,46 @@ export default function CorreoPage() {
 									Respuestas IA
 								</p>
 								<div className="flex gap-1.5">
-									{["Responder", "Agradecer", "+Info"].map((s) => (
+									{(
+										[
+											["resumen", "Resumir"],
+											["sugerir", "Sugerir respuesta"],
+										] as const
+									).map(([tipo, label]) => (
 										<button
-											key={s}
-											className="text-[10px] px-2.5 py-1 rounded-pill font-bold"
+											key={tipo}
+											onClick={() => pedirIa(tipo)}
+											disabled={!!iaCargando}
+											className="text-[10px] px-2.5 py-1 rounded-pill font-bold disabled:opacity-50"
 											style={{
 												backgroundColor: "var(--color-accent)",
 												color: "#0F172A",
 											}}
 										>
-											{s}
+											{iaCargando === tipo ? "..." : label}
 										</button>
 									))}
 								</div>
+								{iaTexto && (
+									<div className="mt-1.5">
+										<pre
+											className="text-[11px] whitespace-pre-wrap font-sans max-h-32 overflow-auto rounded-lg p-2"
+											style={{
+												backgroundColor: "var(--color-bg-elevated)",
+												color: "var(--color-text)",
+											}}
+										>
+											{iaTexto}
+										</pre>
+										<button
+											onClick={() => setIaTexto("")}
+											className="text-[10px] mt-1"
+											style={{ color: "var(--color-text-secondary)" }}
+										>
+											Ocultar
+										</button>
+									</div>
+								)}
 							</div>
 							{/* SPAM/Legít a la derecha, apilados verticalmente */}
 							<div className="flex flex-col gap-1 shrink-0">

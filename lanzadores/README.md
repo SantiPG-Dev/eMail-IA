@@ -10,7 +10,7 @@ llevan Electron + backend.jar + JRE 21 (jlink) — no requieren Java instalado.
 | Linux Fedora/RHEL | `linux/deb-rpm/` | `*.rpm` | ✅ |
 | Linux desde fuente | `linux/sourcecode/` | `~/.eMailAI` (sin sudo) | ✅ |
 | Linux Flatpak | `linux/flatpak/` | — | ⏸️ aplazado |
-| Windows 10/11 x64 | `windows/` | `*-setup.exe` (NSIS) | 🔧 via CI |
+| Windows 10/11 x64 | `windows/` | `*-x64.exe` (NSIS) | 🔧 via CI |
 | macOS Apple Silicon | `macos/` | `*.dmg` | 🔧 via CI |
 
 ## Cómo obtener los instaladores
@@ -20,7 +20,7 @@ llevan Electron + backend.jar + JRE 21 (jlink) — no requieren Java instalado.
 Los builds los genera [`.github/workflows/release.yml`](../.github/workflows/release.yml):
 
 - **Manual**: pestaña *Actions* → *Release — instaladores multiplataforma* → *Run workflow*
-- **Por tag**: al pushar `git tag v1.0.0 && git push --tags` se crea un
+- **Por tag**: al pushar `git tag v1.3.5 && git push --tags` se crea un
   **release draft** con AppImage, deb, rpm, exe, dmg y sus SHA256
 
 ### Construcción local (Linux)
@@ -42,7 +42,7 @@ cross-compila SO): usar el workflow de GitHub Actions o una máquina del SO.
 - **Debian/Ubuntu con menú integrado** → deb (`sudo apt install ./emailai-electron-*.deb`)
 - **Fedora/RHEL** → rpm (`sudo dnf install ./emailai-electron-*.rpm`)
 - **Sin permisos root / desde código** → `linux/sourcecode/install.sh`
-- **Windows** → `-setup.exe` (NSIS)
+- **Windows** → `-x64.exe` (NSIS)
 - **macOS** → `.dmg` (arrastrar a Aplicaciones; sin Developer ID, Gatekeeper
   avisará: clic derecho → Abrir, la primera vez)
 
@@ -57,8 +57,9 @@ el paquete **no** borra los datos del usuario.
 - **Sin puertos fijos**: el backend escucha en un puerto efímero (127.0.0.1)
   elegido por el SO; Electron lo descubre por el ready file y expone la app
   al renderer vía protocolo interno `app://local/`.
-- **JRE jlink** (`electron/build-jre.sh`): java.se + crypto.ec + charsets +
-  localedata + zipfs + unsupported (~69 MB). Se regenera en cada build de
-  distinto SO/arquitectura — por eso cada plataforma se construye en su runner.
+- **JRE jlink** (`electron/build-jre.sh`): java.se + crypto.ec + cryptoki +
+  charsets + localedata + zipfs + unsupported (~74 MB). Se regenera en cada
+  build de distinto SO/arquitectura — por eso cada plataforma se construye en
+  su runner.
 - **RPM**: spec propio (`linux/deb-rpm/emailai-electron.spec`) porque el fpm
   1.9.3 que trae electron-builder se rompe con rpmbuild moderno.

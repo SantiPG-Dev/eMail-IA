@@ -67,4 +67,35 @@ class MensajeServiceTest {
         assertFalse(resultados.isEmpty());
         assertTrue(resultados.stream().anyMatch(msg -> msg.getAsunto().contains("Oferta")));
     }
+
+    @Test
+    void contextoCorreosIa_soloLegitimosRecientes() {
+        Mensaje legit = new Mensaje();
+        legit.setUid("uid-ctx-1");
+        legit.setCuentaHash("cuentaCtx"); legit.setCarpetaImap("INBOX");
+        legit.setRemitente("jefe@empresa.com");
+        legit.setAsunto("Presupuesto");
+        legit.setCuerpo("   Datos   del\n\npresupuesto   Q3 ");
+        legit.setCategoria("LEGITIMO"); legit.setPrioridad("NORMAL");
+        legit.setFechaRecepcion("2026-09-30T09:00:00");
+        mensajeService.guardarOActualizar(legit);
+
+        Mensaje spam = new Mensaje();
+        spam.setUid("uid-ctx-2");
+        spam.setCuentaHash("cuentaCtx"); spam.setCarpetaImap("INBOX");
+        spam.setRemitente("promo@spam.com");
+        spam.setAsunto("Gana dinero ya");
+        spam.setCuerpo("cuerpo del spam");
+        spam.setCategoria("SPAM"); spam.setPrioridad("NORMAL");
+        spam.setFechaRecepcion("2026-09-30T09:05:00");
+        mensajeService.guardarOActualizar(spam);
+
+        String ctx = mensajeService.contextoCorreosIa();
+        assertTrue(ctx.contains("jefe@empresa.com"));
+        assertTrue(ctx.contains("Presupuesto"));
+        // El cuerpo se normaliza (blancos colapsados) para el prompt
+        assertTrue(ctx.contains("Datos del presupuesto Q3"));
+        // El spam queda fuera del contexto de la IA
+        assertFalse(ctx.contains("promo@spam.com"));
+    }
 }

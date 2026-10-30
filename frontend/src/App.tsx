@@ -5,6 +5,7 @@ import { SyncProvider } from './context/SyncContext';
 import LoginPage from './pages/LoginPage';
 import Layout from './components/Layout';
 import CorreoPage from './pages/CorreoPage';
+import EventosPage from './pages/EventosPage';
 import CalendarioPage from './pages/CalendarioPage';
 import ContactosPage from './pages/ContactosPage';
 import TareasPage from './pages/TareasPage';
@@ -52,14 +53,18 @@ export default function App() {
                 </SyncProvider>
               </ProtectedRoute>
             }>
-              <Route index element={<div className="flex items-center justify-center h-full text-sm"
-                style={{ color: 'var(--color-text-secondary)' }}>
-                <p>Selecciona una sección del menú lateral</p>
-              </div>} />
+              {/* Al entrar (o tras el login) se abre Correo por defecto */}
+              <Route index element={<Navigate to="/correo" replace />} />
               <Route path="correo" element={<CorreoPage />} />
-              <Route path="calendario" element={<CalendarioPage />} />
+              <Route path="eventos" element={<EventosPage />}>
+                <Route index element={<Navigate to="calendario" replace />} />
+                <Route path="calendario" element={<CalendarioPage />} />
+                <Route path="tareas" element={<TareasPage />} />
+              </Route>
+              {/* Rutas antiguas: redirigen a la pestana equivalente */}
+              <Route path="calendario" element={<Navigate to="/eventos/calendario" replace />} />
+              <Route path="tareas" element={<Navigate to="/eventos/tareas" replace />} />
               <Route path="contactos" element={<ContactosPage />} />
-              <Route path="tareas" element={<TareasPage />} />
               <Route path="chat-ia" element={<ChatIAPage />} />
               <Route path="config" element={<ConfigPage />} />
             </Route>

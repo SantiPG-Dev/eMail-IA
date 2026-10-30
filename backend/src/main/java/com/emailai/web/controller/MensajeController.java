@@ -1,6 +1,7 @@
 package com.emailai.web.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -113,9 +114,17 @@ public class MensajeController {
                     resp.carpetaImap(), resp.remitente(), resp.destinatarios(),
                     resp.cc(), resp.cco(), resp.asunto(), resp.cuerpo(), resp.html(),
                     resp.categoria(), resp.prioridad(), resp.fechaRecepcion(),
-                    resp.adjuntos(), reclasificados);
+                    resp.adjuntos(), reclasificados, resp.leido());
         }
         return resp;
+    }
+
+    /** Marca el mensaje como leído (estado local de la app). */
+    @PostMapping("/{id}/leer")
+    public MensajeResponse marcarLeido(@PathVariable Long id) {
+        Mensaje m = mensajeService.buscarPorId(id);
+        m.setLeido(true);
+        return toResponse(mensajeService.guardar(m));
     }
 
     @PostMapping("/{id}/resumen")
@@ -156,21 +165,24 @@ public class MensajeController {
         }
     }
 
-    /** Elimina del servidor (IMAP mueve a papelera, POP3 no aplica). */
+    /**
+     * Elimina del servidor (IMAP: flag DELETED + expunge, borrado permanente
+     * como en el JavaFX original; POP3 no aplica) y de la BD local.
+     */
     @DeleteMapping("/{id}/servidor")
-    public ResponseEntity<String> eliminarDelServidor(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> eliminarDelServidor(@PathVariable Long id) {
         Mensaje m = mensajeService.buscarPorId(id);
         ContextoCuenta ctx = contextoDe(m.getCuentaHash());
         if (ctx == null || ctx.cred() == null) {
-            return ResponseEntity.status(409).body(
-                "La cuenta no tiene credenciales válidas (re-autentica OAuth o configura password)");
+            return ResponseEntity.status(409).body(Map.of(
+                "error", "La cuenta no tiene credenciales válidas (re-autentica OAuth o configura password)"));
         }
         mailService.eliminarDelServidor(ctx.host(), ctx.cred().user(), ctx.cred().secret(),
                 m.getCarpetaImap(), m.getUid(), ctx.tipoConexion(), ctx.cred().esOAuth());
         mensajeService.eliminar(id);
         log.info("AUDIT mensaje borrado del servidor id={} cuenta={} carpeta={}",
                 id, m.getCuentaHash(), m.getCarpetaImap());
-        return ResponseEntity.ok("Eliminado");
+        return ResponseEntity.ok(Map.of("ok", true));
     }
 
     /** Mueve a otra carpeta (POP3 no soportado). */
@@ -194,7 +206,8 @@ public class MensajeController {
                 m.getHtml(), m.getCategoria(), m.getPrioridad(), m.getFechaRecepcion(),
                 m.getAdjuntos() != null
                     ? m.getAdjuntos().stream().map(this::adjuntoResponse).toList()
-                    : List.of());
+                    : List.of(),
+                m.getLeido());
     }
 
     private AdjuntoResponse adjuntoResponse(Adjunto a) {

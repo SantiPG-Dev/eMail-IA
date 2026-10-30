@@ -29,36 +29,54 @@ api.interceptors.response.use(
 
 export default api;
 
-// Módulos de API específicos por recurso
-export const authApi = {
-  status: () => api.get('/api/auth/status'),
-  setup: (password: string) => api.post('/api/auth/setup', { masterPassword: password }),
-  login: (password: string) => api.post('/api/auth/login', { masterPassword: password }),
-};
+// Payloads de escritura: lo que el backend espera en cada create/update.
+// Las lecturas devuelven lo mismo con id; cada página tipa lo suyo.
+// Calendario y Tareas comparten cuerpo: la agenda es una sola tabla.
+export type { AgendaPayload, AgendaItem, TipoAgenda } from '../types/agenda';
+export type TareaPayload = import('../types/agenda').AgendaPayload;
+export type EventoPayload = import('../types/agenda').AgendaPayload;
+export interface ContactoPayload {
+  nombre: string; email?: string; telefono?: string; apellido?: string; notas?: string;
+}
+export interface CuentaPayload {
+  nombre: string; email: string; servidor: string; puerto: number; usuario: string;
+  password?: string; tipoConexion: string; esDefault?: boolean;
+  oauthProvider?: string | null; oauthAccessToken?: string | null;
+  oauthRefreshToken?: string | null; oauthExpiresAt?: string | null;
+}
 
+// Módulos de API específicos por recurso
+// Login/status/logout los maneja AuthContext: no hay contraseña maestra
+// separada, así que no existe /api/auth/setup.
 export const tareaApi = {
   list: () => api.get('/api/tareas'),
   get: (id: number) => api.get(`/api/tareas/${id}`),
-  create: (data: any) => api.post('/api/tareas', data),
-  update: (id: number, data: any) => api.put(`/api/tareas/${id}`, data),
+  create: (data: TareaPayload) => api.post('/api/tareas', data),
+  update: (id: number, data: TareaPayload) => api.put(`/api/tareas/${id}`, data),
   delete: (id: number) => api.delete(`/api/tareas/${id}`),
 };
 
 export const contactoApi = {
   list: () => api.get('/api/contactos'),
   get: (id: number) => api.get(`/api/contactos/${id}`),
-  create: (data: any) => api.post('/api/contactos', data),
-  update: (id: number, data: any) => api.put(`/api/contactos/${id}`, data),
+  create: (data: ContactoPayload) => api.post('/api/contactos', data),
+  update: (id: number, data: ContactoPayload) => api.put(`/api/contactos/${id}`, data),
   delete: (id: number) => api.delete(`/api/contactos/${id}`),
 };
 
 export const eventoApi = {
   list: () => api.get('/api/calendario'),
   listByDate: (fecha: string) => api.get(`/api/calendario/fecha/${fecha}`),
-  create: (data: any) => api.post('/api/calendario', data),
-  update: (id: number, data: any) => api.put(`/api/calendario/${id}`, data),
+  create: (data: EventoPayload) => api.post('/api/calendario', data),
+  update: (id: number, data: EventoPayload) => api.put(`/api/calendario/${id}`, data),
   delete: (id: number) => api.delete(`/api/calendario/${id}`),
   datesWithEvents: () => api.get('/api/calendario/fechas-con-eventos'),
+  importIcs: (archivo: File) => {
+    const fd = new FormData();
+    fd.append('archivo', archivo);
+    return api.post('/api/calendario/importar', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  exportIcs: () => api.get('/api/calendario/exportar', { responseType: 'blob' }),
 };
 
 export const mensajeApi = {
@@ -68,6 +86,10 @@ export const mensajeApi = {
     api.get('/api/mensajes/buscar', { params: { cuentaHash, carpeta, q } }),
   get: (id: number) => api.get(`/api/mensajes/${id}`),
   delete: (id: number) => api.delete(`/api/mensajes/${id}`),
+  // Borra en servidor (IMAP) y en BD; el delete local solo se usa si no hay
+  // credenciales y el correo ya no está en el servidor.
+  deleteServidor: (id: number) => api.delete(`/api/mensajes/${id}/servidor`),
+  marcarLeido: (id: number) => api.post(`/api/mensajes/${id}/leer`),
   classify: (id: number, categoria?: string) =>
     api.post(`/api/mensajes/${id}/clasificar${categoria ? `?categoria=${categoria}` : ''}`),
   descargarAdjunto: (id: number, adjuntoId: number) =>
@@ -79,7 +101,8 @@ export const mensajeApi = {
 export const cuentaApi = {
   list: () => api.get('/api/cuentas'),
   get: (id: number) => api.get(`/api/cuentas/${id}`),
-  create: (data: any) => api.post('/api/cuentas', data),
+  create: (data: CuentaPayload) => api.post('/api/cuentas', data),
+  update: (id: number, data: CuentaPayload) => api.put(`/api/cuentas/${id}`, data),
   delete: (id: number) => api.delete(`/api/cuentas/${id}`),
   sync: (id: number) => api.post(`/api/cuentas/${id}/sync`),
   carpetas: (id: number) => api.get(`/api/cuentas/${id}/carpetas`),
@@ -106,7 +129,7 @@ export const configApi = {
 };
 
 export const enviarApi = {
-  send: (data: { para: string; cc?: string; asunto: string; cuerpo: string }) =>
+  send: (data: { para: string; cc?: string; asunto: string; cuerpo: string; cuenta?: string }) =>
     api.post('/api/enviar', data),
 };
 
@@ -114,6 +137,20 @@ export const oauthApi = {
   iniciar: (proveedor: string) => api.post('/api/oauth/iniciar', null, { params: { proveedor } }),
   // Polling del estado del flujo: PENDIENTE | COMPLETADO | TIMEOUT | ERROR
   estado: (flujoId: string) => api.get(`/api/oauth/estado/${flujoId}`),
+};
+
+export const todoistApi = {
+  estado: () => api.get('/api/todoist/estado'),
+  guardarKey: (apiKey: string) => api.post('/api/todoist/config', null, { params: { apiKey } }),
+  probar: () => api.post('/api/todoist/probar'),
+  enviar: (id: number) => api.post(`/api/todoist/tareas/${id}`),
+};
+
+export const remitenteApi = {
+  list: () => api.get('/api/remitentes'),
+  save: (remitente: string, categoria: string) =>
+    api.post('/api/remitentes', { remitente, categoria }),
+  remove: (remitente: string) => api.delete('/api/remitentes', { params: { remitente } }),
 };
 
 export const utilApi = {

@@ -1,11 +1,8 @@
 import { useState } from 'react';
 import { eventoApi } from '../api/client';
+import type { AgendaItem } from '../types/agenda';
 
-export interface Evento {
-  id: number; fecha: string; hora: string | null;
-  todoElDia: boolean; fechaFin: string | null; horaFin: string | null;
-  titulo: string; detalle: string | null; origen: string; mensajeId: number | null;
-}
+export type Evento = AgendaItem & { fecha: string };
 
 // Diálogo para crear/editar eventos del calendario.
 // Modo edición si llega `evento`; si no, creación (con prefijados del correo).
@@ -18,7 +15,16 @@ interface EventoDialogProps {
   onSaved: () => void;
 }
 
-export default function EventoDialog({ open, fecha, evento, prefill, onClose, onSaved }: EventoDialogProps) {
+// El formulario vive en un componente interno para que cada apertura arranque
+// limpia: el estado inicial depende de fecha/prefill/evento y los padres no
+// re-montan el diálogo entre usos. Sin esto, un "nuevo evento" heredaba la
+// fecha de la apertura anterior y caía en hoy en vez del día elegido.
+export default function EventoDialog(props: EventoDialogProps) {
+  if (!props.open) return null;
+  return <EventoForm {...props} />;
+}
+
+function EventoForm({ fecha, evento, prefill, onClose, onSaved }: EventoDialogProps) {
   const [titulo, setTitulo] = useState(evento?.titulo ?? prefill?.titulo ?? '');
   const [detalle, setDetalle] = useState(evento?.detalle ?? prefill?.detalle ?? '');
   const [fechaIni, setFechaIni] = useState(evento?.fecha ?? fecha ?? new Date().toISOString().slice(0, 10));
@@ -27,8 +33,6 @@ export default function EventoDialog({ open, fecha, evento, prefill, onClose, on
   const [fechaFin, setFechaFin] = useState(evento?.fechaFin ?? '');
   const [horaFin, setHoraFin] = useState(evento?.horaFin ?? '');
   const [status, setStatus] = useState('');
-
-  if (!open) return null;
 
   const guardar = async () => {
     if (!titulo.trim()) { setStatus('El título es obligatorio'); return; }

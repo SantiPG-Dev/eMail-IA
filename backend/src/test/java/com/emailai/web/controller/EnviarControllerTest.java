@@ -44,6 +44,17 @@ class EnviarControllerTest {
     }
 
     @Test
+    void enviar_cuentaIndicadaInexistente_400() throws Exception {
+        when(cuentaService.buscarPorEmail("otra@example.com")).thenReturn(Optional.empty());
+
+        mockMvc.perform(post("/api/enviar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"para\":\"x@y.com\",\"asunto\":\"h\",\"cuerpo\":\"c\"," +
+                                 "\"cuenta\":\"otra@example.com\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void enviar_excepcionInterna_500() throws Exception {
         when(cuentaService.buscarDefault()).thenThrow(new RuntimeException("boom"));
 

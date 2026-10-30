@@ -12,17 +12,19 @@ echo "=========================================="
 echo " eMail-IA — Build & Package"
 echo "=========================================="
 
-echo "[1/4] Backend..."
-cd "$ROOT_DIR/backend"
-$SKIP_TESTS && mvn clean package -DskipTests -q || mvn clean package -q
-echo "       JAR: backend/target/emailai-backend-1.3.0.jar"
-
-echo "[2/4] Frontend..."
+echo "[1/4] Frontend..."
 cd "$ROOT_DIR/frontend"
 pnpm install --ignore-scripts --frozen-lockfile -q 2>/dev/null
 # tsc y vite a pelo: `pnpm build` purga node_modules cuando no hay TTY
 ./node_modules/.bin/tsc -b && ./node_modules/.bin/vite build
 echo "       Build: frontend/dist/"
+
+# El backend embebe frontend/dist en el jar (classpath:/static/), asi que el
+# frontend tiene que estar compilado ANTES que el jar.
+echo "[2/4] Backend..."
+cd "$ROOT_DIR/backend"
+$SKIP_TESTS && mvn clean package -DskipTests -q || mvn clean package -q
+echo "       JAR: $(ls target/emailai-backend-*.jar | head -1)"
 
 echo "[3/4] Electron..."
 cd "$ROOT_DIR/electron"

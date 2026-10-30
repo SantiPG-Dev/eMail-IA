@@ -1,6 +1,6 @@
 # Windows — instalador NSIS (x64)
 
-Genera `emailai-electron-1.0.0-setup.exe`: instalador clásico de Windows con
+Genera `emailai-electron-1.3.5-x64.exe`: instalador clásico de Windows con
 atajo en menú Inicio y desinstalador. Autónomo: Electron + backend.jar +
 JRE 21 jlink (no instala Java).
 
@@ -21,12 +21,12 @@ Dos opciones:
    bash build-jre.sh        # git-bash (viene con Git para Windows)
    npx tsc
    npx electron-builder --win nsis
-   # → release\emailai-electron-1.0.0-setup.exe
+   # → release\emailai-electron-1.3.5-x64.exe
    ```
 
 ## Notas técnicas
 
-- `findJava()` de `main.ts` resuelve `resources\jre\bin\java.exe` empaquetado.
+- `findJava()` de `backend.ts` resuelve `resources\jre\bin\java.exe` empaquetado.
 - Datos en `%APPDATA%\emailai-electron\` (BD, config, oauth-config.json).
 - OAuth: el callback usa `http://localhost:9876`; el firewall de Windows puede
   preguntar al primer uso — es loopback local, aceptar.
