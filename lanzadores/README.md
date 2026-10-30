@@ -20,7 +20,7 @@ llevan Electron + backend.jar + JRE 21 (jlink) — no requieren Java instalado.
 Los builds los genera [`.github/workflows/release.yml`](../.github/workflows/release.yml):
 
 - **Manual**: pestaña *Actions* → *Release — instaladores multiplataforma* → *Run workflow*
-- **Por tag**: al pushar `git tag v1.3.3 && git push --tags` se crea un
+- **Por tag**: al pushar `git tag v1.3.4 && git push --tags` se crea un
   **release draft** con AppImage, deb, rpm, exe, dmg y sus SHA256
 
 ### Construcción local (Linux)
