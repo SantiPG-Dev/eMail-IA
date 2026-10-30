@@ -21,12 +21,24 @@ const EV = (over: Record<string, unknown>) => ({
 });
 
 describe('CalendarioPage — vistas y eventos', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.listByDate.mockResolvedValue({ data: [] });
+  });
 
   it('la vista mes pinta los eventos del mes como chips', async () => {
     api.list.mockResolvedValue({ data: [EV({ id: 1, titulo: 'Reunión de equipo' })] });
     render(<CalendarioPage />);
     await waitFor(() => expect(screen.getByText(/Reunión de equipo/)).toBeTruthy());
+  });
+
+  it('al entrar deja seleccionado el día de hoy', async () => {
+    api.list.mockResolvedValue({ data: [] });
+    api.listByDate.mockResolvedValue({ data: [] });
+    render(<CalendarioPage />);
+    await waitFor(() => expect(screen.getByText('Hoy')).toBeTruthy());
+    expect(screen.getByText(hoy)).toBeTruthy();              // panel con la fecha de hoy
+    expect(api.listByDate).toHaveBeenCalledWith(hoy);
   });
 
   it('la agenda vacía muestra el estado vacío', async () => {
@@ -59,7 +71,7 @@ describe('CalendarioPage — vistas y eventos', () => {
     api.delete.mockResolvedValue({ data: {} });
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<CalendarioPage />);
-    await waitFor(() => expect(screen.getByText(/Cita médica/)).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText(/Cita médica/).length).toBeGreaterThan(0));
 
     fireEvent.click(screen.getAllByText(String(now.getDate()))[0]);   // hoy
     await waitFor(() => expect(screen.getByText('Borrar')).toBeTruthy());

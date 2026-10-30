@@ -1,6 +1,6 @@
 {
   "name": "emailai-electron",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "eMail-IA Desktop App (Electron wrapper)",
   "author": "Santiago Pérez Gómez <SantiPG-Dev@gmx.com>",
   "homepage": "https://github.com/santipg/eMail-IA",
