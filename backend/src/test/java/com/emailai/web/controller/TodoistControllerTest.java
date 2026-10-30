@@ -6,8 +6,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.emailai.domain.entities.Tarea;
-import com.emailai.service.TareaService;
+import com.emailai.domain.entities.ItemAgenda;
+import com.emailai.service.AgendaService;
 import com.emailai.service.TodoistService;
 
 import static org.mockito.Mockito.when;
@@ -24,7 +24,15 @@ class TodoistControllerTest {
     private MockMvc mockMvc;
 
     @MockBean private TodoistService todoistService;
-    @MockBean private TareaService tareaService;
+    @MockBean private AgendaService agendaService;
+
+    private ItemAgenda tarea(int id, String titulo) {
+        ItemAgenda t = new ItemAgenda();
+        t.setId(id);
+        t.setTipo(ItemAgenda.TAREA);
+        t.setTitulo(titulo);
+        return t;
+    }
 
     @Test
     void estado_sinKey_configuradoFalse() throws Exception {
@@ -44,22 +52,28 @@ class TodoistControllerTest {
 
     @Test
     void enviarTarea_yaEnviada_409() throws Exception {
-        Tarea t = new Tarea();
-        t.setId(7);
-        t.setTitulo("Comprar pan");
+        ItemAgenda t = tarea(7, "Comprar pan");
         t.setTodoistId("12345");
-        when(tareaService.buscarPorId(7)).thenReturn(t);
+        when(agendaService.buscarPorId(7)).thenReturn(t);
 
         mockMvc.perform(post("/api/todoist/tareas/7"))
                 .andExpect(status().isConflict());
     }
 
     @Test
+    void enviarEvento_400() throws Exception {
+        ItemAgenda evento = tarea(9, "Reunion");
+        evento.setTipo(ItemAgenda.EVENTO);
+        when(agendaService.buscarPorId(9)).thenReturn(evento);
+
+        mockMvc.perform(post("/api/todoist/tareas/9"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void enviarTarea_ok_guardaIdRemoto() throws Exception {
-        Tarea t = new Tarea();
-        t.setId(8);
-        t.setTitulo("Llamar al banco");
-        when(tareaService.buscarPorId(8)).thenReturn(t);
+        ItemAgenda t = tarea(8, "Llamar al banco");
+        when(agendaService.buscarPorId(8)).thenReturn(t);
         when(todoistService.isEnabled()).thenReturn(true);
         when(todoistService.crearTarea("Llamar al banco", null, "MEDIA")).thenReturn("999");
 

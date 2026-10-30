@@ -6,6 +6,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock('../api/client', () => ({
   tareaApi: { list: api.list, create: api.create, update: api.update, delete: api.delete },
+  eventoApi: { list: vi.fn().mockResolvedValue({ data: [] }), update: vi.fn(), delete: vi.fn() },
   // TareasPage ofrece enviar la tarea a Todoist (integración añadida en 1.3.1)
   todoistApi: {
     estado: vi.fn().mockResolvedValue({ data: { configurado: false } }),
@@ -22,8 +23,10 @@ const manana = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const ayer = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 
 const T = (over: Record<string, unknown>) => ({
-  id: 1, titulo: 'Tarea', descripcion: '', fechaVencimiento: hoy, estado: 'pendiente',
-  prioridad: 'MEDIA', etiquetas: '', ...over,
+  id: 1, tipo: 'TAREA', titulo: 'Tarea', detalle: '', fecha: hoy, hora: null,
+  todoElDia: true, fechaFin: null, horaFin: null, estado: 'pendiente',
+  prioridad: 'MEDIA', etiquetas: '', origen: 'local', mensajeId: null, todoistId: null,
+  ...over,
 });
 
 describe('TareasPage — lista y alta de tareas', () => {
@@ -62,7 +65,7 @@ describe('TareasPage — lista y alta de tareas', () => {
 
   it('el filtro Hoy oculta las tareas de otros días', async () => {
     api.list.mockResolvedValue({ data: [T({ id: 1, titulo: 'La de hoy' }),
-                                       T({ id: 2, titulo: 'La de mañana', fechaVencimiento: manana })] });
+                                       T({ id: 2, titulo: 'La de mañana', fecha: manana })] });
     render(<TareasPage />);
     await waitFor(() => expect(screen.getAllByText('La de mañana').length).toBeGreaterThan(0));
 
@@ -83,8 +86,19 @@ describe('TareasPage — lista y alta de tareas', () => {
   });
 
   it('una tarea vencida y pendiente se marca con aviso', async () => {
-    api.list.mockResolvedValue({ data: [T({ id: 1, titulo: 'Vencida', fechaVencimiento: ayer })] });
+    api.list.mockResolvedValue({ data: [T({ id: 1, titulo: 'Vencida', fecha: ayer })] });
     render(<TareasPage />);
     await waitFor(() => expect(screen.getByText(/⚠/)).toBeTruthy());
+  });
+
+  it('un evento creado en el calendario sale en tareas, sin checkbox', async () => {
+    api.list.mockResolvedValue({ data: [T({
+      id: 9, tipo: 'EVENTO', titulo: 'Congreso', estado: null, prioridad: null,
+    })] });
+    render(<TareasPage />);
+    await waitFor(() => expect(screen.getAllByText('Congreso').length).toBeGreaterThan(0));
+
+    expect(screen.getByText('📅')).toBeTruthy();
+    expect(document.querySelector('input[type="checkbox"]')).toBeNull();
   });
 });

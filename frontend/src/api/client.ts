@@ -31,17 +31,12 @@ export default api;
 
 // Payloads de escritura: lo que el backend espera en cada create/update.
 // Las lecturas devuelven lo mismo con id; cada página tipa lo suyo.
-export interface TareaPayload {
-  titulo: string; descripcion?: string | null; fechaVencimiento?: string | null;
-  estado?: string; prioridad?: string; etiquetas?: string | null;
-}
+// Calendario y Tareas comparten cuerpo: la agenda es una sola tabla.
+export type { AgendaPayload, AgendaItem, TipoAgenda } from '../types/agenda';
+export type TareaPayload = import('../types/agenda').AgendaPayload;
+export type EventoPayload = import('../types/agenda').AgendaPayload;
 export interface ContactoPayload {
   nombre: string; email?: string; telefono?: string; apellido?: string; notas?: string;
-}
-export interface EventoPayload {
-  fecha: string; titulo: string; hora?: string | null; todoElDia?: boolean;
-  fechaFin?: string | null; horaFin?: string | null; detalle?: string | null;
-  origen?: string; mensajeId?: number | null;
 }
 export interface CuentaPayload {
   nombre: string; email: string; servidor: string; puerto: number; usuario: string;

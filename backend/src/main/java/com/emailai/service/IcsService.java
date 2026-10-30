@@ -16,17 +16,19 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-// Procesa archivos .ics: importa eventos al calendario local y exporta calendario a .ics.
-// Portado del JavaFX legacy.
+import com.emailai.domain.entities.ItemAgenda;
+
+// Procesa archivos .ics: importa eventos a la agenda unica y exporta
+// todo lo que tiene fecha (eventos y tareas). Portado del JavaFX legacy.
 @Service
 public class IcsService {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    private final EventoCalendarioService eventoService;
+    private final AgendaService agendaService;
 
-    public IcsService(EventoCalendarioService eventoService) {
-        this.eventoService = eventoService;
+    public IcsService(AgendaService agendaService) {
+        this.agendaService = agendaService;
     }
 
     /**
@@ -74,9 +76,10 @@ public class IcsService {
             }
         }
 
-        // Guardar eventos en BD
+        // Guardar eventos en la agenda unica (tipo EVENTO)
         for (EventoICS evento : eventos) {
-            com.emailai.domain.entities.EventoCalendario e = new com.emailai.domain.entities.EventoCalendario();
+            ItemAgenda e = new ItemAgenda();
+            e.setTipo(ItemAgenda.EVENTO);
             e.setFecha(evento.fecha().toString());
             e.setHora(evento.hora() != null ? evento.hora().toString() : null);
             e.setTodoElDia(evento.todoElDia());
@@ -85,7 +88,7 @@ public class IcsService {
             e.setTitulo(evento.titulo());
             e.setDetalle(evento.detalle());
             e.setOrigen("ics");
-            eventoService.guardar(e);
+            agendaService.guardar(e);
         }
 
         return eventos;
@@ -145,11 +148,11 @@ public class IcsService {
     }
 
     /**
-     * Genera el .ics del calendario local como texto (descarga por HTTP).
-     * Sin eventos devuelve un VCALENDAR vacío válido.
+     * Genera el .ics de la agenda con fecha (eventos y tareas) como texto.
+     * Sin elementos devuelve un VCALENDAR vacio valido.
      */
     public String generarICS() {
-        var eventos = eventoService.listarTodos();
+        var eventos = agendaService.listarCalendario();
         StringBuilder sb = new StringBuilder();
         sb.append("BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//EmailAI//Calendario//EN\nCALSCALE:GREGORIAN\n");
         for (var evento : eventos) {
@@ -172,8 +175,12 @@ public class IcsService {
               .append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")))
               .append("\n");
             sb.append("SUMMARY:").append(escapeTextoICS(evento.getTitulo())).append("\n");
-            if (evento.getDetalle() != null && !evento.getDetalle().isBlank()) {
-                sb.append("DESCRIPTION:").append(escapeTextoICS(evento.getDetalle())).append("\n");
+            String detalle = evento.getDetalle() == null ? "" : evento.getDetalle();
+            if (ItemAgenda.TAREA.equals(evento.getTipo()) && evento.getEstado() != null) {
+                detalle = (detalle + "\nEstado: " + evento.getEstado()).trim();
+            }
+            if (!detalle.isBlank()) {
+                sb.append("DESCRIPTION:").append(escapeTextoICS(detalle)).append("\n");
             }
             sb.append("END:VEVENT\n");
         }

@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { tareaApi, todoistApi } from '../api/client';
+import { tareaApi, eventoApi, todoistApi } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { Spinner, EmptyState, ErrorState } from '../components/StateViews';
 import TareaDialog, { Tarea } from '../components/TareaDialog';
+import EventoDialog, { Evento } from '../components/EventoDialog';
 import { formatearFecha, etiquetaFecha } from '../utils/fechas';
 
-// Vista de tareas en dos columnas: a la izquierda (20%) la botonera de
-// periodos (2x2: hoy/semana/mes/programadas) y debajo las próximas tareas
-// agrupadas por día con cabecera de fecha; a la derecha (80%) la lista de
-// tareas estilo Planify (filtros por etiqueta, edición, estados).
+// Vista de Tareas sobre la agenda unica: muestra tareas Y eventos creados en
+// el calendario. Los eventos se editan con el dialogo de evento y no tienen
+// checkbox; las tareas si. Dos columnas: periodos + proximos a la izquierda,
+// lista estilo Planify a la derecha.
 const PERIODOS = [
   { key: 'hoy', label: 'Hoy', bg: '#c62828' },
   { key: 'semana', label: 'Semana', bg: '#f9a825' },
@@ -23,7 +24,7 @@ const PRIORIDAD = { ALTA: { bg: '#ff5252', label: 'ALTA' },
 const hoyStr = () => new Date().toISOString().slice(0, 10);
 
 export default function TareasPage() {
-  const { data: tareas, loading, error, reload } = useAsync<Tarea[]>(
+  const { data: items, loading, error, reload } = useAsync<Tarea[]>(
     () => tareaApi.list().then(r => r.data || []), []
   );
   const [filter, setFilter] = useState('all');
@@ -47,6 +48,8 @@ export default function TareasPage() {
     const t = setTimeout(() => setAviso(''), 4000);
     return () => clearTimeout(t);
   }, [aviso]);
+
+  const abrirEdicion = (item: Tarea) => { setEditando(item); setDialogOpen(true); };
 
   const enviarATodoist = async (t: Tarea) => {
     setEnviandoTodoist(t.id);
@@ -76,21 +79,22 @@ export default function TareasPage() {
 
   // Etiquetas únicas de todas las tareas ("casa, trabajo" → chips clicables)
   const etiquetas = [...new Set(
-    (tareas ?? []).flatMap(t => (t.etiquetas || '').split(',').map(e => e.trim()).filter(Boolean))
+    (items ?? []).filter(i => i.tipo === 'TAREA')
+      .flatMap(t => (t.etiquetas || '').split(',').map(e => e.trim()).filter(Boolean))
   )].sort();
 
   const hoy = hoyStr();
-  const filtered = (tareas ?? [])
+  const filtered = (items ?? [])
     .filter(t => {
       if (tagFilter) {
         const tags = (t.etiquetas || '').split(',').map(e => e.trim());
         if (!tags.includes(tagFilter)) return false;
       }
       if (filter === 'all') return true;
-      if (!t.fechaVencimiento) return false;
-      if (filter === 'hoy') return t.fechaVencimiento <= hoy;   // Planify: vencidas + hoy
-      if (filter === 'programadas') return true;                 // con fecha, ordenadas abajo
-      const d = new Date(t.fechaVencimiento);
+      if (!t.fecha) return false;
+      if (filter === 'hoy') return t.fecha <= hoy;   // Planify: vencidas + hoy
+      if (filter === 'programadas') return true;      // con fecha, ordenadas abajo
+      const d = new Date(t.fecha);
       const now = new Date();
       if (filter === 'semana') {
         const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
@@ -101,22 +105,23 @@ export default function TareasPage() {
       }
       return true;
     })
-    // Por vencimiento asc (sin fecha al final), luego prioridad
-    .sort((a, b) => (a.fechaVencimiento || '9999').localeCompare(b.fechaVencimiento || '9999'));
+    // Por fecha asc (sin fecha al final), luego prioridad
+    .sort((a, b) => (a.fecha || '9999').localeCompare(b.fecha || '9999'));
 
-  // Próximas (pendientes con fecha, de hoy en adelante) agrupadas por día
+  // Próximos (pendientes con fecha, de hoy en adelante) agrupados por día
   const grupos: { fecha: string; items: Tarea[] }[] = [];
-  for (const t of (tareas ?? [])
-    .filter(t => t.estado !== 'completada' && t.fechaVencimiento && t.fechaVencimiento >= hoy)
-    .sort((a, b) => a.fechaVencimiento!.localeCompare(b.fechaVencimiento!))) {
+  for (const t of (items ?? [])
+    .filter(t => t.tipo !== 'TAREA' || t.estado !== 'completada')
+    .filter(t => t.fecha && t.fecha >= hoy)
+    .sort((a, b) => a.fecha!.localeCompare(b.fecha!))) {
     const g = grupos[grupos.length - 1];
-    if (g && g.fecha === t.fechaVencimiento) g.items.push(t);
-    else grupos.push({ fecha: t.fechaVencimiento!, items: [t] });
+    if (g && g.fecha === t.fecha) g.items.push(t);
+    else grupos.push({ fecha: t.fecha!, items: [t] });
   }
 
   return (
-    <div className="flex h-full" style={{ backgroundColor: 'var(--color-bg)' }}>
-      {/* ── Columna izquierda (20%): botonera 2x2 + próximas por día ── */}
+    <div className="flex h-full min-w-0" style={{ backgroundColor: 'var(--color-bg)' }}>
+      {/* ── Columna izquierda (20%): botonera 2x2 + próximos por día ── */}
       <aside className="w-1/5 min-w-[190px] p-3 flex flex-col overflow-hidden border-r"
         style={{ borderColor: 'var(--color-border)' }}>
         <div className="grid grid-cols-2 gap-1.5 mb-3">
@@ -145,9 +150,10 @@ export default function TareasPage() {
                   className="flex items-center gap-1.5 px-1.5 py-1 rounded-lg cursor-pointer text-xs"
                   style={{ backgroundColor: 'var(--color-bg-card)' }}
                   title="Clic para editar"
-                  onClick={() => { setEditando(t); setDialogOpen(true); }}>
+                  onClick={() => abrirEdicion(t)}>
                   <span className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ backgroundColor: (PRIORIDAD[t.prioridad] || PRIORIDAD.MEDIA).bg }} />
+                    style={{ backgroundColor: t.tipo === 'EVENTO' ? '#a78bfa'
+                      : (PRIORIDAD[t.prioridad || 'MEDIA'] || PRIORIDAD.MEDIA).bg }} />
                   <span className="truncate" style={{ color: 'var(--color-text)' }}>{t.titulo}</span>
                 </div>
               ))}
@@ -157,7 +163,7 @@ export default function TareasPage() {
       </aside>
 
       {/* ── Derecha (80%): lista estilo Planify ── */}
-      <main className="flex-1 p-4 overflow-y-auto">
+      <main className="flex-1 p-4 overflow-y-auto min-w-0">
         {/* Input nueva tarea */}
         <div className="flex gap-2 mb-4">
           <input value={titulo} onChange={e => setTitulo(e.target.value)}
@@ -201,7 +207,8 @@ export default function TareasPage() {
         ) : (
           <div className="space-y-1">
             {filtered.map(t => {
-              const prio = PRIORIDAD[t.prioridad] || PRIORIDAD.MEDIA;
+              const esTarea = t.tipo === 'TAREA';
+              const prio = PRIORIDAD[t.prioridad || 'MEDIA'] || PRIORIDAD.MEDIA;
               return (
                 <div key={t.id}
                   className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm"
@@ -209,19 +216,24 @@ export default function TareasPage() {
                     backgroundColor: t.estado === 'completada'
                       ? 'var(--color-bg-elevated)' : 'var(--color-bg-card)',
                     opacity: t.estado === 'completada' ? 0.6 : 1,
+                    borderLeft: esTarea ? 'none' : '3px solid #a78bfa',
                   }}>
-                  <input type="checkbox" checked={t.estado === 'completada'}
-                    onChange={() => toggleEstado(t)}
-                    className="cursor-pointer" />
+                  {esTarea ? (
+                    <input type="checkbox" checked={t.estado === 'completada'}
+                      onChange={() => toggleEstado(t)}
+                      className="cursor-pointer" />
+                  ) : (
+                    <span className="text-xs" title="Evento del calendario">📅</span>
+                  )}
                   <span className={`flex-1 cursor-pointer ${t.estado === 'completada' ? 'line-through' : ''}`}
                     style={{ color: 'var(--color-text)' }}
                     title="Clic para editar"
-                    onClick={() => { setEditando(t); setDialogOpen(true); }}>{t.titulo}</span>
+                    onClick={() => abrirEdicion(t)}>{t.titulo}</span>
                   <button
-                    onClick={() => { setEditando(t); setDialogOpen(true); }}
+                    onClick={() => abrirEdicion(t)}
                     className="text-xs px-1.5 py-0.5 rounded"
                     style={{ color: 'var(--color-text-secondary)' }}>✏️</button>
-                  {todoistOn && (
+                  {todoistOn && esTarea && (
                     t.todoistId ? (
                       <span className="text-[10px] px-1.5 py-0.5 rounded font-bold"
                         style={{ backgroundColor: '#166534', color: 'white' }} title="Ya está en Todoist">
@@ -234,14 +246,17 @@ export default function TareasPage() {
                         {enviandoTodoist === t.id ? '…' : '→ Todoist'}</button>
                     )
                   )}
-                  <span className="text-xs px-1.5 py-0.5 rounded font-bold"
-                    style={{ backgroundColor: prio.bg, color: prio.bg === '#ffca28' ? '#111' : 'white' }}>
-                    {prio.label}</span>
-                  {t.fechaVencimiento && (
+                  {esTarea && (
+                    <span className="text-xs px-1.5 py-0.5 rounded font-bold"
+                      style={{ backgroundColor: prio.bg, color: prio.bg === '#ffca28' ? '#111' : 'white' }}>
+                      {prio.label}</span>
+                  )}
+                  {t.fecha && (
                     <span className="text-xs font-medium"
-                      style={{ color: t.fechaVencimiento < hoy && t.estado !== 'completada'
+                      style={{ color: t.fecha < hoy && t.estado !== 'completada'
                         ? '#ef4444' : 'var(--color-text-secondary)' }}>
-                      {t.fechaVencimiento < hoy && t.estado !== 'completada' ? '⚠ ' : ''}{formatearFecha(t.fechaVencimiento)}</span>
+                      {t.fecha < hoy && t.estado !== 'completada' ? '⚠ ' : ''}{formatearFecha(t.fecha)}
+                      {t.hora ? ` ${t.hora}` : ''}</span>
                   )}
                 </div>
               );
@@ -250,12 +265,21 @@ export default function TareasPage() {
         )}
       </main>
 
-      <TareaDialog
-        key={editando?.id ?? 'nueva'}
-        open={dialogOpen}
-        tarea={editando}
-        onClose={() => { setDialogOpen(false); setEditando(null); }}
-        onSaved={reload} />
+      {editando?.tipo === 'EVENTO' ? (
+        <EventoDialog
+          key={editando.id}
+          open={dialogOpen}
+          evento={editando as Evento}
+          onClose={() => { setDialogOpen(false); setEditando(null); }}
+          onSaved={reload} />
+      ) : (
+        <TareaDialog
+          key={editando?.id ?? 'nueva'}
+          open={dialogOpen}
+          tarea={editando}
+          onClose={() => { setDialogOpen(false); setEditando(null); }}
+          onSaved={reload} />
+      )}
     </div>
   );
 }
