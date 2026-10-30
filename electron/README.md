@@ -1,6 +1,6 @@
 # Electron — eMail-IA (shell de escritorio)
 
-Wrapper **Electron** que envuelve la app de escritorio.
+Shell **Electron** de la app de escritorio.
 
 ## Arquitectura
 
@@ -54,12 +54,15 @@ cd ../electron && npm run dev    # lanza el jar con puerto efímero + app://
 ```
 electron/
 ├── src/
-│   ├── main.ts        # Proceso principal: spawn backend, ventana, lifecycle
+│   ├── main.ts        # Proceso principal: ventana, splash, tray, lifecycle
+│   ├── backend.ts     # Spawn/parada del backend Java, findJava/findJar
+│   ├── proxy.ts       # Protocolo app://, CSP y proxy al backend
+│   ├── ipc.ts         # Handlers IPC (diálogos, aperturas externas)
 │   └── preload.ts     # IPC seguro (contextBridge)
 ├── assets/
-│   ├── icon-32.png
-│   └── icon-256.png
-├── dist/              # Compilado TypeScript (main.js, preload.js)
+│   ├── icon.svg
+│   └── icon-{32,48,64,128,256,512,1024}.png
+├── dist/              # Compilado TypeScript (main.js, backend.js, proxy.js…)
 ├── package.json
 └── tsconfig.json
 ```
