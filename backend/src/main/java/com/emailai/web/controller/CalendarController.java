@@ -12,85 +12,73 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.emailai.domain.entities.EventoCalendario;
-import com.emailai.service.EventoCalendarioService;
-import com.emailai.service.IcsService;
-import com.emailai.web.dto.EventoRequest;
-import com.emailai.web.dto.EventoResponse;
+import jakarta.validation.Valid;
 
-// CRUD de eventos de calendario (locales + importados de ICS)
+import com.emailai.domain.entities.ItemAgenda;
+import com.emailai.service.AgendaService;
+import com.emailai.service.IcsService;
+import com.emailai.web.dto.ItemAgendaRequest;
+import com.emailai.web.dto.ItemAgendaResponse;
+
+// Vista de Calendario sobre la agenda unica: solo elementos con fecha.
+// Los creados aqui son EVENTO; los creados en /api/tareas son TAREA.
 @RestController
 @RequestMapping("/api/calendario")
 public class CalendarController {
 
     private static final long MAX_ICS_BYTES = 5L * 1024 * 1024;
 
-    private final EventoCalendarioService eventoService;
+    private final AgendaService agendaService;
     private final IcsService icsService;
 
-    public CalendarController(EventoCalendarioService eventoService, IcsService icsService) {
-        this.eventoService = eventoService;
+    public CalendarController(AgendaService agendaService, IcsService icsService) {
+        this.agendaService = agendaService;
         this.icsService = icsService;
     }
 
     @GetMapping
-    public List<EventoResponse> listar() {
-        return eventoService.listarTodos().stream().map(this::toResponse).toList();
+    public List<ItemAgendaResponse> listar() {
+        return agendaService.listarCalendario().stream().map(this::toResponse).toList();
     }
 
     @GetMapping("/fecha/{fecha}")
-    public List<EventoResponse> listarPorFecha(@PathVariable String fecha) {
-        return eventoService.listarPorFecha(LocalDate.parse(fecha)).stream()
+    public List<ItemAgendaResponse> listarPorFecha(@PathVariable String fecha) {
+        return agendaService.listarPorFecha(LocalDate.parse(fecha)).stream()
                 .map(this::toResponse).toList();
     }
 
     @GetMapping("/fechas-con-eventos")
     public List<String> fechasConEventos() {
-        return eventoService.fechasConEventos();
+        return agendaService.fechasConItems();
     }
 
     @GetMapping("/{id}")
-    public EventoResponse obtener(@PathVariable Integer id) {
-        return toResponse(eventoService.buscarPorId(id));
+    public ItemAgendaResponse obtener(@PathVariable Integer id) {
+        return toResponse(agendaService.buscarPorId(id));
     }
 
     @PostMapping
-    public ResponseEntity<EventoResponse> crear(@RequestBody EventoRequest req) {
-        EventoCalendario e = new EventoCalendario();
-        aplicarRequest(e, req);
-        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(eventoService.guardar(e)));
+    public ResponseEntity<ItemAgendaResponse> crear(@Valid @RequestBody ItemAgendaRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(toResponse(agendaService.crearEvento(aplicar(new ItemAgenda(), req))));
     }
 
     @PutMapping("/{id}")
-    public EventoResponse actualizar(@PathVariable Integer id, @RequestBody EventoRequest req) {
-        EventoCalendario e = new EventoCalendario();
-        aplicarRequest(e, req);
-        return toResponse(eventoService.actualizar(id, e));
-    }
-
-    private void aplicarRequest(EventoCalendario e, EventoRequest req) {
-        e.setFecha(req.fecha());
-        e.setHora(req.hora());
-        e.setTodoElDia(Boolean.TRUE.equals(req.todoElDia()));
-        e.setFechaFin(req.fechaFin());
-        e.setHoraFin(req.horaFin());
-        e.setTitulo(req.titulo());
-        e.setDetalle(req.detalle());
-        e.setOrigen(req.origen() != null ? req.origen() : "local");
-        e.setMensajeId(req.mensajeId());
+    public ItemAgendaResponse actualizar(@PathVariable Integer id, @Valid @RequestBody ItemAgendaRequest req) {
+        return toResponse(agendaService.actualizarEvento(id, aplicar(new ItemAgenda(), req)));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
-        eventoService.eliminar(id);
+        agendaService.eliminar(id);
         return ResponseEntity.noContent().build();
     }
 
-    /** Importa un .ics subido desde la UI (multipart, máx. 5 MB). */
+    /** Importa un .ics subido desde la UI (multipart, max. 5 MB). */
     @PostMapping(value = "/importar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> importar(@RequestParam("archivo") MultipartFile archivo) {
         if (archivo == null || archivo.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Archivo ICS vacío"));
+            return ResponseEntity.badRequest().body(Map.of("error", "Archivo ICS vacio"));
         }
         if (archivo.getSize() > MAX_ICS_BYTES) {
             return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
@@ -102,11 +90,11 @@ public class CalendarController {
             return ResponseEntity.ok(Map.of("ok", true, "importados", eventos.size()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(
-                    "error", "No se pudo leer el ICS: " + e.getMessage()));
+                    "error", "No se pudo leer el ICS: " + (e.getMessage() != null ? e.getMessage() : "sin detalle")));
         }
     }
 
-    /** Descarga el calendario local como .ics (VCALENDAR vacío si no hay eventos). */
+    /** Descarga la agenda con fecha como .ics (VCALENDAR vacio si no hay nada). */
     @GetMapping(value = "/exportar", produces = "text/calendar")
     public ResponseEntity<String> exportar() {
         return ResponseEntity.ok()
@@ -116,9 +104,26 @@ public class CalendarController {
                 .body(icsService.generarICS());
     }
 
-    private EventoResponse toResponse(EventoCalendario e) {
-        return new EventoResponse(e.getId(), e.getFecha(), e.getHora(),
-                e.isTodoElDia(), e.getFechaFin(), e.getHoraFin(),
-                e.getTitulo(), e.getDetalle(), e.getOrigen(), e.getMensajeId());
+    private ItemAgenda aplicar(ItemAgenda i, ItemAgendaRequest req) {
+        i.setTitulo(req.titulo());
+        i.setDetalle(req.detalle());
+        i.setFecha(req.fecha());
+        i.setHora(req.hora());
+        i.setTodoElDia(Boolean.TRUE.equals(req.todoElDia()));
+        i.setFechaFin(req.fechaFin());
+        i.setHoraFin(req.horaFin());
+        i.setEstado(req.estado());
+        i.setEtiquetas(req.etiquetas());
+        i.setPrioridad(req.prioridad());
+        i.setOrigen(req.origen() != null ? req.origen() : "local");
+        i.setMensajeId(req.mensajeId());
+        return i;
+    }
+
+    private ItemAgendaResponse toResponse(ItemAgenda i) {
+        return new ItemAgendaResponse(i.getId(), i.getTipo(), i.getTitulo(), i.getDetalle(),
+                i.getFecha(), i.getHora(), i.isTodoElDia(), i.getFechaFin(), i.getHoraFin(),
+                i.getEstado(), i.getPrioridad(), i.getEtiquetas(),
+                i.getOrigen(), i.getMensajeId(), i.getTodoistId());
     }
 }

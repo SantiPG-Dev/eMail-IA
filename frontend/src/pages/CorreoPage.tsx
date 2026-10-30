@@ -124,8 +124,8 @@ export default function CorreoPage() {
 	const [tareaPrefill, setTareaPrefill] = useState<
 		| {
 				titulo: string;
-				descripcion: string;
-				fechaVencimiento?: string;
+				detalle: string;
+				fecha?: string;
 				mensajeId: number;
 		  }
 		| undefined
@@ -153,8 +153,8 @@ export default function CorreoPage() {
 		const det = detectarFechaHora(`${m.asunto || ""} ${m.cuerpo || ""}`);
 		setTareaPrefill({
 			titulo: m.asunto || "(sin asunto)",
-			descripcion: `De: ${m.remitente || "?"}\n\n${(m.cuerpo || "").slice(0, 500)}`,
-			fechaVencimiento: det?.fecha || m.fechaRecepcion?.slice(0, 10) || undefined,
+			detalle: `De: ${m.remitente || "?"}\n\n${(m.cuerpo || "").slice(0, 500)}`,
+			fecha: det?.fecha || m.fechaRecepcion?.slice(0, 10) || undefined,
 			mensajeId: m.id,
 		});
 		setTareaOpen(true);

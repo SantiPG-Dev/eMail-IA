@@ -42,6 +42,19 @@ class CalendarControllerTest {
     }
 
     @Test
+    void crearEventoApareceEnTareas() throws Exception {
+        mockMvc.perform(post("/api/calendario")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fecha\":\"2026-09-05\",\"titulo\":\"Congreso\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.tipo").value("EVENTO"));
+
+        mockMvc.perform(get("/api/tareas"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].titulo", org.hamcrest.Matchers.hasItem("Congreso")));
+    }
+
+    @Test
     void obtenerInexistente_404() throws Exception {
         mockMvc.perform(get("/api/calendario/999999"))
                 .andExpect(status().isNotFound());
