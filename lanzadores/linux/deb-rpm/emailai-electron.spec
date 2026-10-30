@@ -1,5 +1,5 @@
 Name:           emailai-electron
-Version:        1.3.2
+Version:        1.3.3
 Release:        1%{?dist}
 Summary:        eMail-IA Desktop App (Electron wrapper)
 License:        Proprietary
@@ -62,6 +62,9 @@ install -m 0644 "%{emailai_svg}" %{buildroot}%{_datadir}/icons/hicolor/scalable/
 %{_datadir}/icons/hicolor/scalable/apps/emailai-electron.svg
 
 %changelog
+* Thu Oct 29 2026 Santiago Pérez Gómez <SantiPG-Dev@gmx.com> - 1.3.3-1
+- 1.3.3: Calendario abre con el dia actual seleccionado.
+
 * Wed Oct 28 2026 Santiago Pérez Gómez <SantiPG-Dev@gmx.com> - 1.3.2-1
 - 1.3.2: Correo por defecto al entrar y refresco automatico cada 5 s.
 

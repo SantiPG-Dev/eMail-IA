@@ -17,10 +17,10 @@ Requisitos: Java 21 (jlink), Node 22, Maven, pnpm, `rpmbuild` (para rpm).
 
 ```bash
 # Debian / Ubuntu / Mint
-sudo apt install ./emailai-electron-1.3.2-amd64.deb
+sudo apt install ./emailai-electron-1.3.3-amd64.deb
 
 # Fedora / RHEL
-sudo dnf install ./emailai-electron-1.3.2-1.x86_64.rpm
+sudo dnf install ./emailai-electron-1.3.3-1.x86_64.rpm
 ```
 
 Desinstalar: `sudo apt remove emailai-electron` / `sudo dnf remove emailai-electron`.

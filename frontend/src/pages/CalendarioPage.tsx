@@ -81,8 +81,8 @@ export default function CalendarioPage() {
     () => eventoApi.list().then(r => r.data || []), []
   );
 
-  // Día seleccionado → panel lateral con sus eventos
-  const [selectedDate, setSelectedDate] = useState('');
+  // Día seleccionado → panel lateral con sus eventos. Al entrar siempre es hoy.
+  const [selectedDate, setSelectedDate] = useState(() => toIso(new Date()));
   const { data: eventosDia, loading: loadingDia, reload: reloadDia } = useAsync<Evento[]>(
     () => selectedDate ? eventoApi.listByDate(selectedDate).then(r => r.data || []) : Promise.resolve([]),
     [selectedDate]
