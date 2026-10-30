@@ -1,6 +1,6 @@
 # macOS — DMG (Apple Silicon, arm64)
 
-Genera `emailai-electron-1.3.4-arm64.dmg`: arrastra eMail-IA a Aplicaciones.
+Genera `emailai-electron-1.3.5-arm64.dmg`: arrastra eMail-IA a Aplicaciones.
 Autónomo: Electron + backend.jar + JRE 21 jlink nativo arm64.
 
 ## Cómo se construye
@@ -20,7 +20,7 @@ arquitectura). Dos opciones:
    bash build-jre.sh
    npx tsc
    npx electron-builder --mac dmg --arm64
-   # → release/emailai-electron-1.3.4-arm64.dmg
+   # → release/emailai-electron-1.3.5-arm64.dmg
    ```
 
 ## Limitaciones

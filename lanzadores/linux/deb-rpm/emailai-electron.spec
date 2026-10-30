@@ -1,5 +1,5 @@
 Name:           emailai-electron
-Version:        1.3.4
+Version:        1.3.5
 Release:        1%{?dist}
 Summary:        eMail-IA Desktop App (Electron wrapper)
 License:        Proprietary
@@ -62,6 +62,9 @@ install -m 0644 "%{emailai_svg}" %{buildroot}%{_datadir}/icons/hicolor/scalable/
 %{_datadir}/icons/hicolor/scalable/apps/emailai-electron.svg
 
 %changelog
+* Fri Oct 30 2026 Santiago Pérez Gómez <SantiPG-Dev@gmx.com> - 1.3.5-1
+- 1.3.5: calendario y tareas comparten una sola tabla `agenda` (lo creado en una vista sale en la otra), menu Eventos con pestanas Calendario/Tareas y arreglo del solape de la cabecera del calendario.
+
 * Thu Oct 29 2026 Santiago Pérez Gómez <SantiPG-Dev@gmx.com> - 1.3.4-1
 - 1.3.4: revision de seguridad: Spring Boot 3.5.16, Tomcat 10.1.61, Jackson 2.21.8, Electron 45, axios, DOMPurify, react-router y vite al dia.
 
