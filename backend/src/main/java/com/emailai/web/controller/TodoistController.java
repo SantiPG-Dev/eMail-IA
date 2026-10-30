@@ -7,22 +7,23 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import com.emailai.domain.entities.Tarea;
-import com.emailai.service.TareaService;
+import com.emailai.domain.entities.ItemAgenda;
+import com.emailai.service.AgendaService;
 import com.emailai.service.TodoistService;
 
-// Integración con Todoist: estado, prueba de conexión, envío de tareas.
-// La API key se configura desde Ajustes → Integraciones (se guarda cifrada).
+// Integracion con Todoist: estado, prueba de conexion, envio de tareas.
+// Solo se envian elementos de tipo TAREA; los eventos del calendario no.
+// La API key se configura desde Ajustes -> Integraciones (se guarda cifrada).
 @RestController
 @RequestMapping("/api/todoist")
 public class TodoistController {
 
     private final TodoistService todoistService;
-    private final TareaService tareaService;
+    private final AgendaService agendaService;
 
-    public TodoistController(TodoistService todoistService, TareaService tareaService) {
+    public TodoistController(TodoistService todoistService, AgendaService agendaService) {
         this.todoistService = todoistService;
-        this.tareaService = tareaService;
+        this.agendaService = agendaService;
     }
 
     @GetMapping("/estado")
@@ -30,14 +31,14 @@ public class TodoistController {
         return Map.of("configurado", todoistService.isEnabled());
     }
 
-    /** Guarda (o borra, con apiKey vacía) la key. No la devuelve nunca. */
+    /** Guarda (o borra, con apiKey vacia) la key. No la devuelve nunca. */
     @PostMapping("/config")
     public Map<String, Object> configurar(@RequestParam(required = false) String apiKey) {
         todoistService.guardarApiKey(apiKey);
         return Map.of("configurado", todoistService.isEnabled());
     }
 
-    /** Prueba real contra Todoist: cuenta las tareas de la primera página. */
+    /** Prueba real contra Todoist: cuenta las tareas de la primera pagina. */
     @PostMapping("/probar")
     public ResponseEntity<?> probar() {
         if (!todoistService.isEnabled()) {
@@ -53,25 +54,29 @@ public class TodoistController {
         }
     }
 
-    /** Envía una tarea local a Todoist. Idempotente: no reenvía la ya enviada. */
+    /** Envia una tarea local a Todoist. Idempotente: no reenvia la ya enviada. */
     @PostMapping("/tareas/{id}")
     public ResponseEntity<?> enviarTarea(@PathVariable Integer id) {
-        Tarea t = tareaService.buscarPorId(id);
+        ItemAgenda t = agendaService.buscarPorId(id);
+        if (!ItemAgenda.TAREA.equals(t.getTipo())) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Solo se envian tareas a Todoist, no eventos"));
+        }
         if (t.getTodoistId() != null && !t.getTodoistId().isBlank()) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "La tarea ya está en Todoist"));
+                    .body(Map.of("error", "La tarea ya esta en Todoist"));
         }
         if (!todoistService.isEnabled()) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "No hay API key de Todoist configurada"));
         }
-        String remoto = todoistService.crearTarea(t.getTitulo(), t.getFechaVencimiento(), t.getPrioridad());
+        String remoto = todoistService.crearTarea(t.getTitulo(), t.getFecha(), t.getPrioridad());
         if (remoto == null) {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                    .body(Map.of("error", "Todoist no aceptó la tarea (revisa la key o la conexión)"));
+                    .body(Map.of("error", "Todoist no acepto la tarea (revisa la key o la conexion)"));
         }
         t.setTodoistId(remoto);
-        tareaService.guardar(t);
+        agendaService.guardar(t);
         return ResponseEntity.ok(Map.of("ok", true, "todoistId", remoto));
     }
 }

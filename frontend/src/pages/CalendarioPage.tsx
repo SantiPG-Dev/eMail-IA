@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { eventoApi } from '../api/client';
+import { eventoApi, tareaApi } from '../api/client';
 import EventoDialog, { Evento } from '../components/EventoDialog';
+import TareaDialog from '../components/TareaDialog';
 import { useAsync } from '../hooks/useAsync';
 import { Spinner, ErrorState, EmptyState } from '../components/StateViews';
 import { proximosEventos, diaAgenda, etiquetaFecha, compararEventos, toIso } from '../utils/fechas';
@@ -34,28 +35,37 @@ const mondayOf = (fechaIso: string) => {
 const eventosDelDia = (evs: Evento[], dia: string) =>
   evs.filter(e => e.fecha <= dia && dia <= (e.fechaFin || e.fecha)).sort(compararEventos);
 
-// Fila de evento reutilizada por el panel del día y la vista agenda.
-function EventoRow({ ev, onEdit, onDelete }: { ev: Evento; onEdit: () => void; onDelete: () => void }) {
+// Fila de elemento reutilizada por el panel del día y la vista agenda.
+// Tareas (creadas en Tareas) llevan checkbox; eventos no.
+function EventoRow({ ev, onEdit, onDelete, onToggle }: {
+  ev: Evento; onEdit: () => void; onDelete: () => void; onToggle?: () => void;
+}) {
   return (
     <div
       className="rounded-lg px-2 py-1.5 text-xs cursor-pointer hover:brightness-125"
       style={{ backgroundColor: 'var(--color-bg-elevated)' }}
       onClick={onEdit}>
       <div className="flex items-center gap-2">
+        {ev.tipo === 'TAREA' && (
+          <input type="checkbox" checked={ev.estado === 'completada'}
+            onClick={e => e.stopPropagation()} onChange={onToggle}
+            className="cursor-pointer" />
+        )}
         <span className="font-bold shrink-0"
-          style={{ color: 'var(--color-accent)' }}>
+          style={{ color: ev.tipo === 'TAREA' ? '#22c55e' : 'var(--color-accent)' }}>
           {ev.todoElDia ? 'Todo el día' : (ev.hora || '--:--')}
         </span>
-        <span className="flex-1 truncate" style={{ color: 'var(--color-text)' }}>{ev.titulo}</span>
+        <span className={`flex-1 truncate ${ev.estado === 'completada' ? 'line-through' : ''}`}
+          style={{ color: 'var(--color-text)' }}>{ev.titulo}</span>
       </div>
       {(ev.horaFin || ev.fechaFin) && !ev.todoElDia && (
         <p className="opacity-60" style={{ color: 'var(--color-text)' }}>
           hasta {ev.horaFin || ''}{ev.fechaFin && ev.fechaFin !== ev.fecha ? ` ${ev.fechaFin}` : ''}
         </p>
       )}
-      {ev.origen === 'ics' && (
-        <p className="text-[10px] opacity-50" style={{ color: 'var(--color-text)' }}>importado (ics)</p>
-      )}
+      <p className="text-[10px] opacity-50" style={{ color: 'var(--color-text)' }}>
+        {ev.tipo === 'TAREA' ? 'tarea' : ev.origen === 'ics' ? 'importado (ics)' : 'evento'}
+      </p>
       <button
         onClick={e => { e.stopPropagation(); onDelete(); }}
         className="text-[10px] mt-1 px-1.5 py-0.5 rounded"
@@ -90,6 +100,8 @@ export default function CalendarioPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editando, setEditando] = useState<Evento | null>(null);
+  // true = el diálogo abierto es el de tarea (crear desde Calendario o editar una tarea)
+  const [creandoTarea, setCreandoTarea] = useState(false);
   // Importar/exportar ICS
   const icsRef = useRef<HTMLInputElement>(null);
   const [icsStatus, setIcsStatus] = useState('');
@@ -145,22 +157,42 @@ export default function CalendarioPage() {
   };
 
   const borrarEvento = async (id: number) => {
-    if (!window.confirm('¿Borrar el evento?')) return;
-    await eventoApi.delete(id);
+    const ev = (todos ?? []).find(e => e.id === id);
+    if (!window.confirm(ev?.tipo === 'TAREA' ? '¿Borrar la tarea?' : '¿Borrar el evento?')) return;
+    if (ev?.tipo === 'TAREA') await tareaApi.delete(id);
+    else await eventoApi.delete(id);
     trasGuardar();
   };
 
-  // Arrastre entre días del mes: desplaza fecha (+ fechaFin) el delta de días
+  // Marcar/desmarcar una tarea desde el calendario (misma fila que en Tareas)
+  const toggleTarea = async (ev: Evento) => {
+    await tareaApi.update(ev.id, {
+      ...ev,
+      estado: ev.estado === 'completada' ? 'pendiente' : 'completada',
+    });
+    trasGuardar();
+  };
+
+  const abrirEdicion = (ev: Evento) => {
+    setEditando(ev);
+    setCreandoTarea(ev.tipo === 'TAREA');
+    setDialogOpen(true);
+  };
+
+  // Arrastre entre días del mes: desplaza fecha (+ fechaFin) el delta de días.
+  // Cada tipo se guarda por su endpoint, pero ambos escriben la misma fila.
   const moverEvento = async (id: number, nuevaFecha: string) => {
     const ev = (todos ?? []).find(e => e.id === id);
     if (!ev || ev.fecha === nuevaFecha) return;
     const delta = Math.round(
       (new Date(nuevaFecha + 'T12:00:00').getTime() - new Date(ev.fecha + 'T12:00:00').getTime()) / 86400000);
-    await eventoApi.update(id, {
+    const data = {
       ...ev,
       fecha: nuevaFecha,
       fechaFin: ev.fechaFin ? addDays(ev.fechaFin, delta) : null,
-    });
+    };
+    if (ev.tipo === 'TAREA') await tareaApi.update(id, data);
+    else await eventoApi.update(id, data);
     setDropDate(null);
     setDragId(null);
     trasGuardar();
@@ -179,10 +211,11 @@ export default function CalendarioPage() {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   return (
-    <div className="p-4 h-full overflow-auto flex gap-4" style={{ backgroundColor: 'var(--color-bg)' }}>
-      {/* Mes */}
+    <div className="p-4 h-full overflow-auto flex gap-4 min-w-0" style={{ backgroundColor: 'var(--color-bg)' }}>
+      {/* Calendario */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 shrink-0">
           {vista === 'mes' && (
             <>
               <button onClick={prevMonth} className="px-3 py-1 text-sm rounded-lg transition-colors"
@@ -225,7 +258,8 @@ export default function CalendarioPage() {
           {vista === 'agenda' && (
             <h2 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>Próximos eventos</h2>
           )}
-          <div className="flex gap-1">
+          </div>
+          <div className="flex flex-wrap gap-1">
             {VISTAS.map(v => (
               <button key={v.key} onClick={() => setVista(v.key)}
                 className="px-3 py-1 text-xs font-bold rounded-lg transition-colors"
@@ -235,7 +269,7 @@ export default function CalendarioPage() {
                 }}>{v.label}</button>
             ))}
           </div>
-          <div className="flex-1" />
+          <div className="flex flex-wrap items-center justify-end gap-2 ml-auto max-w-full">
           <input ref={icsRef} type="file" accept=".ics,text/calendar" className="hidden"
             onChange={e => {
               const f = e.target.files?.[0];
@@ -243,16 +277,20 @@ export default function CalendarioPage() {
               e.target.value = '';
             }} />
           <button onClick={() => icsRef.current?.click()}
-            className="px-3 py-1 text-xs font-bold rounded-lg"
+            className="px-3 py-1 text-xs font-bold rounded-lg whitespace-nowrap"
             style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)' }}
             title="Importar eventos desde un archivo .ics">⬆ Importar ICS</button>
           <button onClick={exportarIcs}
-            className="px-3 py-1 text-xs font-bold rounded-lg"
+            className="px-3 py-1 text-xs font-bold rounded-lg whitespace-nowrap"
             style={{ backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text)' }}
             title="Descargar el calendario en .ics">⬇ Exportar ICS</button>
-          <button onClick={() => { setEditando(null); setDialogOpen(true); }}
-            className="px-3 py-1 text-xs font-bold rounded-pill"
+          <button onClick={() => { setEditando(null); setCreandoTarea(false); setDialogOpen(true); }}
+            className="px-3 py-1 text-xs font-bold rounded-pill whitespace-nowrap"
             style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>+ Nuevo evento</button>
+          <button onClick={() => { setEditando(null); setCreandoTarea(true); setDialogOpen(true); }}
+            className="px-3 py-1 text-xs font-bold rounded-pill whitespace-nowrap"
+            style={{ backgroundColor: '#2e7d32', color: 'white' }}>+ Nueva tarea</button>
+          </div>
         </div>
 
         {icsStatus && (
@@ -280,8 +318,9 @@ export default function CalendarioPage() {
                   <div className="space-y-1">
                     {g.evs.map(ev => (
                       <EventoRow key={ev.id} ev={ev}
-                        onEdit={() => { setEditando(ev); setDialogOpen(true); }}
-                        onDelete={() => borrarEvento(ev.id)} />
+                        onEdit={() => abrirEdicion(ev)}
+                        onDelete={() => borrarEvento(ev.id)}
+                        onToggle={() => toggleTarea(ev)} />
                     ))}
                   </div>
                 </div>
@@ -316,11 +355,11 @@ export default function CalendarioPage() {
                     <div className="flex flex-col gap-1 min-h-[60px]">
                       {evs.map(ev => (
                         <button key={ev.id}
-                          onClick={() => { setEditando(ev); setDialogOpen(true); }}
+                          onClick={() => abrirEdicion(ev)}
                           className="text-left rounded-lg px-1.5 py-1 text-[11px] leading-tight truncate"
                           style={{
                             backgroundColor: 'var(--color-bg-card)',
-                            borderLeft: '3px solid ' + (ev.origen === 'ics' ? '#a78bfa' : 'var(--color-accent)'),
+                            borderLeft: '3px solid ' + (ev.tipo === 'TAREA' ? '#22c55e' : ev.origen === 'ics' ? '#a78bfa' : 'var(--color-accent)'),
                             color: 'var(--color-text)',
                           }}
                           title={`${ev.todoElDia ? 'Todo el día' : (ev.hora || '--:--')} — ${ev.titulo}`}>
@@ -348,13 +387,19 @@ export default function CalendarioPage() {
               ) : (
                 eventosDelDia(todos ?? [], refDate).map(ev => (
                   <EventoRow key={ev.id} ev={ev}
-                    onEdit={() => { setEditando(ev); setDialogOpen(true); }}
-                    onDelete={() => borrarEvento(ev.id)} />
+                    onEdit={() => abrirEdicion(ev)}
+                    onDelete={() => borrarEvento(ev.id)}
+                        onToggle={() => toggleTarea(ev)} />
                 ))
               )}
-              <button onClick={() => { setEditando(null); setDialogOpen(true); }}
-                className="w-full px-3 py-1.5 text-xs font-bold rounded-pill"
-                style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>+ Añadir en este día</button>
+              <div className="flex gap-2">
+                <button onClick={() => { setEditando(null); setCreandoTarea(false); setDialogOpen(true); }}
+                  className="flex-1 px-3 py-1.5 text-xs font-bold rounded-pill"
+                  style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>+ Evento</button>
+                <button onClick={() => { setEditando(null); setCreandoTarea(true); setDialogOpen(true); }}
+                  className="flex-1 px-3 py-1.5 text-xs font-bold rounded-pill"
+                  style={{ backgroundColor: '#2e7d32', color: 'white' }}>+ Tarea</button>
+              </div>
             </div>
           )
         ) : loadingTodos ? (
@@ -409,7 +454,7 @@ export default function CalendarioPage() {
                         className="truncate rounded px-1 py-0.5 text-[9px] leading-tight cursor-grab active:cursor-grabbing"
                         style={{
                           backgroundColor: 'var(--color-bg-elevated)',
-                          borderLeft: '3px solid ' + (ev.origen === 'ics' ? '#a78bfa' : 'var(--color-accent)'),
+                          borderLeft: '3px solid ' + (ev.tipo === 'TAREA' ? '#22c55e' : ev.origen === 'ics' ? '#a78bfa' : 'var(--color-accent)'),
                           color: 'var(--color-text)',
                           opacity: dragId === ev.id ? 0.4 : 1,
                         }}
@@ -453,25 +498,41 @@ export default function CalendarioPage() {
             <div className="space-y-1 overflow-y-auto">
               {(eventosDia ?? []).map(ev => (
                 <EventoRow key={ev.id} ev={ev}
-                  onEdit={() => { setEditando(ev); setDialogOpen(true); }}
-                  onDelete={() => borrarEvento(ev.id)} />
+                  onEdit={() => abrirEdicion(ev)}
+                  onDelete={() => borrarEvento(ev.id)}
+                        onToggle={() => toggleTarea(ev)} />
               ))}
             </div>
           )}
-          <button onClick={() => { setEditando(null); setDialogOpen(true); }}
-            className="px-3 py-1.5 text-xs font-bold rounded-pill"
-            style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>+ Añadir en este día</button>
+          <div className="flex gap-2">
+            <button onClick={() => { setEditando(null); setCreandoTarea(false); setDialogOpen(true); }}
+              className="flex-1 px-3 py-1.5 text-xs font-bold rounded-pill"
+              style={{ backgroundColor: 'var(--color-accent)', color: '#0F172A' }}>+ Evento</button>
+            <button onClick={() => { setEditando(null); setCreandoTarea(true); setDialogOpen(true); }}
+              className="flex-1 px-3 py-1.5 text-xs font-bold rounded-pill"
+              style={{ backgroundColor: '#2e7d32', color: 'white' }}>+ Tarea</button>
+          </div>
         </div>
       )}
 
-      {/* Diálogo crear/editar evento */}
-      <EventoDialog
-        key={editando?.id ?? 'nuevo'}
-        open={dialogOpen}
-        fecha={vista === 'dia' ? refDate : selectedDate || undefined}
-        evento={editando}
-        onClose={() => { setDialogOpen(false); setEditando(null); }}
-        onSaved={trasGuardar} />
+      {/* Diálogo: tarea si se crea/edita una, evento en el resto */}
+      {creandoTarea ? (
+        <TareaDialog
+          key={editando?.id ?? 'nueva'}
+          open={dialogOpen}
+          tarea={editando?.tipo === 'TAREA' ? editando : null}
+          prefill={{ fecha: vista === 'dia' ? refDate : selectedDate || undefined }}
+          onClose={() => { setDialogOpen(false); setEditando(null); }}
+          onSaved={trasGuardar} />
+      ) : (
+        <EventoDialog
+          key={editando?.id ?? 'nuevo'}
+          open={dialogOpen}
+          fecha={vista === 'dia' ? refDate : selectedDate || undefined}
+          evento={editando}
+          onClose={() => { setDialogOpen(false); setEditando(null); }}
+          onSaved={trasGuardar} />
+      )}
     </div>
   );
 }

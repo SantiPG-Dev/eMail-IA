@@ -1,27 +1,25 @@
 import { useState } from 'react';
 import { tareaApi } from '../api/client';
+import type { AgendaItem } from '../types/agenda';
 
-export interface Tarea {
-  id: number; titulo: string; descripcion: string | null;
-  fechaVencimiento: string | null; estado: string; prioridad: string;
-  etiquetas: string | null; mensajeId: number | null;
-  todoistId?: string | null;
-}
+export type Tarea = AgendaItem;
 
-// Diálogo para crear/editar tareas (desde la página de tareas o desde un correo).
-// Modo edición si llega `tarea`; si no, creación (con prefijados del correo).
+// Diálogo para crear/editar TAREAS (desde Tareas, Calendario o un correo).
+// Con fecha y hora, la tarea se pinta en el calendario a esa hora; sin fecha,
+// solo se ve en Tareas.
 interface TareaDialogProps {
   open: boolean;
-  tarea?: Tarea | null;              // tarea a editar
-  prefill?: { titulo?: string; descripcion?: string; fechaVencimiento?: string; mensajeId?: number };
+  tarea?: Tarea | null;
+  prefill?: { titulo?: string; detalle?: string; fecha?: string; hora?: string; mensajeId?: number };
   onClose: () => void;
   onSaved: () => void;
 }
 
 export default function TareaDialog({ open, tarea, prefill, onClose, onSaved }: TareaDialogProps) {
   const [titulo, setTitulo] = useState(tarea?.titulo ?? prefill?.titulo ?? '');
-  const [descripcion, setDescripcion] = useState(tarea?.descripcion ?? prefill?.descripcion ?? '');
-  const [fechaVencimiento, setFechaVencimiento] = useState(tarea?.fechaVencimiento ?? prefill?.fechaVencimiento ?? '');
+  const [detalle, setDetalle] = useState(tarea?.detalle ?? prefill?.detalle ?? '');
+  const [fecha, setFecha] = useState(tarea?.fecha ?? prefill?.fecha ?? '');
+  const [hora, setHora] = useState(tarea?.hora ?? prefill?.hora ?? '');
   const [estado, setEstado] = useState(tarea?.estado ?? 'pendiente');
   const [prioridad, setPrioridad] = useState(tarea?.prioridad ?? 'MEDIA');
   const [etiquetas, setEtiquetas] = useState(tarea?.etiquetas ?? '');
@@ -33,8 +31,10 @@ export default function TareaDialog({ open, tarea, prefill, onClose, onSaved }: 
     if (!titulo.trim()) { setStatus('El título es obligatorio'); return; }
     const data = {
       titulo: titulo.trim(),
-      descripcion: descripcion.trim() || null,
-      fechaVencimiento: fechaVencimiento || null,
+      detalle: detalle.trim() || null,
+      fecha: fecha || null,
+      hora: hora || null,
+      todoElDia: !hora,
       estado,
       etiquetas: etiquetas.trim() || null,
       prioridad,
@@ -67,13 +67,18 @@ export default function TareaDialog({ open, tarea, prefill, onClose, onSaved }: 
           </div>
           <div>
             <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Descripción</label>
-            <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} rows={3}
+            <textarea value={detalle} onChange={e => setDetalle(e.target.value)} rows={3}
               className={input + ' resize-none'} style={inputStyle} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Vencimiento</label>
-              <input type="date" value={fechaVencimiento || ''} onChange={e => setFechaVencimiento(e.target.value)}
+              <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Fecha</label>
+              <input type="date" value={fecha || ''} onChange={e => setFecha(e.target.value)}
+                className={input} style={inputStyle} />
+            </div>
+            <div>
+              <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Hora</label>
+              <input type="time" value={hora || ''} onChange={e => setHora(e.target.value)}
                 className={input} style={inputStyle} />
             </div>
             <div>
@@ -85,18 +90,18 @@ export default function TareaDialog({ open, tarea, prefill, onClose, onSaved }: 
                 <option value="BAJA">BAJA</option>
               </select>
             </div>
+            {tarea && (
+              <div>
+                <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Estado</label>
+                <select value={estado} onChange={e => setEstado(e.target.value)}
+                  className={input} style={inputStyle}>
+                  <option value="pendiente">Pendiente</option>
+                  <option value="en_progreso">En progreso</option>
+                  <option value="completada">Completada</option>
+                </select>
+              </div>
+            )}
           </div>
-          {tarea && (
-            <div>
-              <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Estado</label>
-              <select value={estado} onChange={e => setEstado(e.target.value)}
-                className={input} style={inputStyle}>
-                <option value="pendiente">Pendiente</option>
-                <option value="en_progreso">En progreso</option>
-                <option value="completada">Completada</option>
-              </select>
-            </div>
-          )}
           <div>
             <label className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text)' }}>Etiquetas</label>
             <input value={etiquetas} onChange={e => setEtiquetas(e.target.value)} placeholder="casa, trabajo..."

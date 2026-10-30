@@ -49,9 +49,8 @@ describe('Layout', () => {
   it('renderiza los items de navegacion', () => {
     render(<Layout />, { wrapper });
     expect(screen.getByText('📬 Correo')).toBeInTheDocument();
-    expect(screen.getByText('📅 Calendario')).toBeInTheDocument();
+    expect(screen.getByText('📅 Eventos')).toBeInTheDocument();
     expect(screen.getByText('👤 Contactos')).toBeInTheDocument();
-    expect(screen.getByText('✅ Tareas')).toBeInTheDocument();
     expect(screen.getByText('⚙️ Configuración')).toBeInTheDocument();
     expect(screen.getByText('✨ Chat IA')).toBeInTheDocument();
   });

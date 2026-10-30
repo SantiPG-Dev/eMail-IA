@@ -1,11 +1,8 @@
 import { useState } from 'react';
 import { eventoApi } from '../api/client';
+import type { AgendaItem } from '../types/agenda';
 
-export interface Evento {
-  id: number; fecha: string; hora: string | null;
-  todoElDia: boolean; fechaFin: string | null; horaFin: string | null;
-  titulo: string; detalle: string | null; origen: string; mensajeId: number | null;
-}
+export type Evento = AgendaItem & { fecha: string };
 
 // Diálogo para crear/editar eventos del calendario.
 // Modo edición si llega `evento`; si no, creación (con prefijados del correo).
