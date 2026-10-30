@@ -26,7 +26,7 @@ Dos opciones:
 
 ## Notas técnicas
 
-- `findJava()` de `main.ts` resuelve `resources\jre\bin\java.exe` empaquetado.
+- `findJava()` de `backend.ts` resuelve `resources\jre\bin\java.exe` empaquetado.
 - Datos en `%APPDATA%\emailai-electron\` (BD, config, oauth-config.json).
 - OAuth: el callback usa `http://localhost:9876`; el firewall de Windows puede
   preguntar al primer uso — es loopback local, aceptar.
